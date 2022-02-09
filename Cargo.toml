@@ -1,0 +1,25 @@
+[package]
+name = "sniffle"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+sniffle-core = { path = "core" }
+sniffle-ende = { path = "ende" }
+sniffle-uint = { path = "uint" }
+sniffle-capfile = { path = "capfile", default-features = false }
+
+[features]
+default = ["libpcap"]
+libpcap = ["sniffle-core/libpcap"]
+
+[workspace]
+members = [
+   "link-types",
+   "libpcap-sys",
+   "pcaprs",
+   "ende",
+   "uint",
+   "core",
+   "capfile",
+]

@@ -1,0 +1,293 @@
+use super::*;
+use std::io::{BufRead, Result};
+
+pub struct Decoder<'a, S: IStream + ?Sized>(&'a mut S, usize);
+
+pub trait IStream: BufRead + 'static {
+    fn decode<D: Decode + ?Sized>(&mut self, data: &mut D) -> Result<usize> {
+        data.decode(self)
+    }
+
+    fn decode_be<D: DecodeBE + ?Sized>(&mut self, data: &mut D) -> Result<usize> {
+        data.decode_be(self)
+    }
+
+    fn decode_le<D: DecodeLE + ?Sized>(&mut self, data: &mut D) -> Result<usize> {
+        data.decode_le(self)
+    }
+
+    fn decoder(&mut self) -> Decoder<'_, Self> {
+        Decoder(self, 0)
+    }
+
+    fn as_dyn_mut(&mut self) -> &mut DynIStream;
+}
+
+pub type DynIStream = dyn BufRead + 'static;
+
+pub trait Decode {
+    fn decode<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait DecodeBE {
+    fn decode_be<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait DecodeLE {
+    fn decode_le<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait SliceDecode: Decode + Sized {
+    fn slice_decode<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += stream.decode(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait SliceDecodeBE: DecodeBE + Sized {
+    fn slice_decode_be<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += stream.decode_be(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait SliceDecodeLE: DecodeLE + Sized {
+    fn slice_decode_le<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += stream.decode_le(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait FullDecode: Sized {
+    fn decode_one<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+
+    fn decode_many<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += elem.decode_one(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait FullDecodeBE: Sized {
+    fn decode_one_be<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+
+    fn decode_many_be<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += elem.decode_one_be(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait FullDecodeLE: Sized {
+    fn decode_one_le<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize>;
+
+    fn decode_many_le<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter_mut() {
+            cnt += elem.decode_one_le(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+impl<D: SliceDecode> Decode for [D] {
+    fn decode<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        D::slice_decode(self, stream)
+    }
+}
+
+impl<D: SliceDecodeBE> DecodeBE for [D] {
+    fn decode_be<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        D::slice_decode_be(self, stream)
+    }
+}
+
+impl<D: SliceDecodeLE> DecodeLE for [D] {
+    fn decode_le<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        D::slice_decode_le(self, stream)
+    }
+}
+
+impl<D: FullDecode> Decode for D {
+    fn decode<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        self.decode_one(stream)
+    }
+}
+
+impl<D: FullDecode> SliceDecode for D {
+    fn slice_decode<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        D::decode_many(slice, stream)
+    }
+}
+
+impl<D: FullDecodeBE> DecodeBE for D {
+    fn decode_be<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        self.decode_one_be(stream)
+    }
+}
+
+impl<D: FullDecodeBE> SliceDecodeBE for D {
+    fn slice_decode_be<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        D::decode_many_be(slice, stream)
+    }
+}
+
+impl<D: FullDecodeLE> DecodeLE for D {
+    fn decode_le<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        self.decode_one_le(stream)
+    }
+}
+
+impl<D: FullDecodeLE> SliceDecodeLE for D {
+    fn slice_decode_le<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        D::decode_many_le(slice, stream)
+    }
+}
+
+impl<T: BufRead + Sized + 'static> IStream for T {
+    fn as_dyn_mut(&mut self) -> &mut DynIStream {
+        self
+    }
+}
+
+impl IStream for DynIStream {
+    fn as_dyn_mut(&mut self) -> &mut DynIStream {
+        self
+    }
+}
+
+impl<'a, S: IStream + ?Sized> Decoder<'a, S> {
+    pub fn decode<D: Decode + ?Sized>(mut self, data: &mut D) -> Result<Self> {
+        self.1 += self.0.decode(data)?;
+        Ok(self)
+    }
+
+    pub fn decode_be<D: DecodeBE + ?Sized>(mut self, data: &mut D) -> Result<Self> {
+        self.1 += self.0.decode_be(data)?;
+        Ok(self)
+    }
+
+    pub fn decode_le<D: DecodeLE + ?Sized>(mut self, data: &mut D) -> Result<Self> {
+        self.1 += self.0.decode_le(data)?;
+        Ok(self)
+    }
+
+    pub fn bytes(self) -> usize {
+        self.1
+    }
+}
+
+impl FullDecode for u8 {
+    fn decode_one<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        unsafe { Self::decode_many(std::slice::from_raw_parts_mut(self as *mut u8, 1), stream) }
+    }
+
+    fn decode_many<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        stream.read_exact(slice)?;
+        Ok(slice.len())
+    }
+}
+
+impl FullDecode for i8 {
+    fn decode_one<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+        unsafe { Self::decode_many(std::slice::from_raw_parts_mut(self as *mut i8, 1), stream) }
+    }
+
+    fn decode_many<S: IStream + ?Sized>(slice: &mut [Self], stream: &mut S) -> Result<usize> {
+        unsafe { std::mem::transmute::<_, &mut [u8]>(slice).decode(stream) }
+    }
+}
+
+macro_rules! make_decode {
+    ($t:ty) => {
+        impl FullDecodeBE for $t {
+            fn decode_one_be<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+                unsafe {
+                    let cnt = stream.decode(std::slice::from_raw_parts_mut(
+                        self as *mut $t as *mut u8,
+                        std::mem::size_of::<$t>(),
+                    ))?;
+                    if !IS_BIG_ENDIAN {
+                        *self = <$t>::from_be_bytes(self.to_ne_bytes());
+                    }
+                    Ok(cnt)
+                }
+            }
+
+            fn decode_many_be<S: IStream + ?Sized>(
+                slice: &mut [Self],
+                stream: &mut S,
+            ) -> Result<usize> {
+                unsafe {
+                    let cnt = stream.decode(std::slice::from_raw_parts_mut(
+                        slice.as_mut_ptr() as *mut u8,
+                        slice.len() * std::mem::size_of::<$t>(),
+                    ))?;
+                    if !IS_BIG_ENDIAN {
+                        for elem in slice.iter_mut() {
+                            *elem = <$t>::from_be_bytes(elem.to_ne_bytes());
+                        }
+                    }
+                    Ok(cnt)
+                }
+            }
+        }
+
+        impl FullDecodeLE for $t {
+            fn decode_one_le<S: IStream + ?Sized>(&mut self, stream: &mut S) -> Result<usize> {
+                unsafe {
+                    let cnt = stream.decode(std::slice::from_raw_parts_mut(
+                        self as *mut $t as *mut u8,
+                        std::mem::size_of::<$t>(),
+                    ))?;
+                    if !IS_LITTLE_ENDIAN {
+                        *self = <$t>::from_le_bytes(self.to_ne_bytes());
+                    }
+                    Ok(cnt)
+                }
+            }
+
+            fn decode_many_le<S: IStream + ?Sized>(
+                slice: &mut [Self],
+                stream: &mut S,
+            ) -> Result<usize> {
+                unsafe {
+                    let cnt = stream.decode(std::slice::from_raw_parts_mut(
+                        slice.as_mut_ptr() as *mut u8,
+                        slice.len() * std::mem::size_of::<$t>(),
+                    ))?;
+                    if !IS_LITTLE_ENDIAN {
+                        for elem in slice.iter_mut() {
+                            *elem = <$t>::from_le_bytes(elem.to_ne_bytes());
+                        }
+                    }
+                    Ok(cnt)
+                }
+            }
+        }
+    };
+}
+
+make_decode!(u16);
+make_decode!(i16);
+make_decode!(u32);
+make_decode!(i32);
+make_decode!(u64);
+make_decode!(i64);
+make_decode!(u128);
+make_decode!(i128);
+make_decode!(f32);
+make_decode!(f64);

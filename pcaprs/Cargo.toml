@@ -1,0 +1,16 @@
+[package]
+name = "pcaprs"
+version = "0.1.0"
+authors = ["Jack Bernard <jack.a.bernard.jr@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libpcap-sys = { path = "../libpcap-sys" }
+libc = "0.2"
+link-types = { path = "../link-types" }
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3"
+features = ["ws2def", "ws2ipdef", "winsock2"]

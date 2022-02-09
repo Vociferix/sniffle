@@ -1,0 +1,19 @@
+[package]
+name = "sniffle-core"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+link-types = { path = "../link-types" }
+pcaprs = { path = "../pcaprs", optional = true }
+sniffle-ende = { path = "../ende" }
+lazy_static = "1.4"
+concat-idents = "1.1"
+ctor = "0.1"
+thiserror = "1.0"
+
+[features]
+default = ["libpcap"]
+libpcap = ["pcaprs"]

@@ -1,0 +1,297 @@
+use super::*;
+use std::io::{Result, Write};
+
+pub struct Encoder<'a, S: OStream + ?Sized>(&'a mut S, usize);
+
+pub trait OStream: Write + 'static {
+    fn encode<E: BasicEncode + ?Sized>(&mut self, data: &E) -> Result<usize> {
+        data.encode(self)
+    }
+
+    fn encode_be<E: BasicEncodeBE + ?Sized>(&mut self, data: &E) -> Result<usize> {
+        data.encode_be(self)
+    }
+
+    fn encode_le<E: BasicEncodeLE + ?Sized>(&mut self, data: &E) -> Result<usize> {
+        data.encode_le(self)
+    }
+
+    fn encoder(&mut self) -> Encoder<'_, Self> {
+        Encoder(self, 0)
+    }
+
+    fn as_dyn_mut(&mut self) -> &mut DynOStream;
+}
+
+pub type DynOStream = dyn Write + 'static;
+
+pub trait BasicEncode {
+    fn encode<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait BasicEncodeBE {
+    fn encode_be<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait BasicEncodeLE {
+    fn encode_le<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+}
+
+pub trait SliceEncode: BasicEncode + Sized {
+    fn slice_encode<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += stream.encode(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait SliceEncodeBE: BasicEncodeBE + Sized {
+    fn slice_encode_be<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += stream.encode_be(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait SliceEncodeLE: BasicEncodeLE + Sized {
+    fn slice_encode_le<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += stream.encode_le(elem)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait Encode: Sized {
+    fn encode_one<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+
+    fn encode_many<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += elem.encode_one(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait EncodeBE: Sized {
+    fn encode_one_be<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+
+    fn encode_many_be<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += elem.encode_one_be(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+pub trait EncodeLE: Sized {
+    fn encode_one_le<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize>;
+
+    fn encode_many_le<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        let mut cnt = 0usize;
+        for elem in slice.iter() {
+            cnt += elem.encode_one_le(stream)?;
+        }
+        Ok(cnt)
+    }
+}
+
+impl<E: SliceEncode> BasicEncode for [E] {
+    fn encode<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        E::slice_encode(self, stream)
+    }
+}
+
+impl<E: SliceEncodeBE> BasicEncodeBE for [E] {
+    fn encode_be<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        E::slice_encode_be(self, stream)
+    }
+}
+
+impl<E: SliceEncodeLE> BasicEncodeLE for [E] {
+    fn encode_le<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        E::slice_encode_le(self, stream)
+    }
+}
+
+impl<E: Encode> BasicEncode for E {
+    fn encode<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        self.encode_one(stream)
+    }
+}
+
+impl<E: Encode> SliceEncode for E {
+    fn slice_encode<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        E::encode_many(slice, stream)
+    }
+}
+
+impl<E: EncodeBE> BasicEncodeBE for E {
+    fn encode_be<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        self.encode_one_be(stream)
+    }
+}
+
+impl<E: EncodeBE> SliceEncodeBE for E {
+    fn slice_encode_be<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        E::encode_many_be(slice, stream)
+    }
+}
+
+impl<E: EncodeLE> BasicEncodeLE for E {
+    fn encode_le<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        self.encode_one_le(stream)
+    }
+}
+
+impl<E: EncodeLE> SliceEncodeLE for E {
+    fn slice_encode_le<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        E::encode_many_le(slice, stream)
+    }
+}
+
+impl<T: Write + Sized + 'static> OStream for T {
+    fn as_dyn_mut(&mut self) -> &mut DynOStream {
+        self
+    }
+}
+
+impl OStream for DynOStream {
+    fn as_dyn_mut(&mut self) -> &mut DynOStream {
+        self
+    }
+}
+
+impl<'a, S: OStream + ?Sized> Encoder<'a, S> {
+    pub fn encode<E: BasicEncode + ?Sized>(mut self, data: &E) -> Result<Self> {
+        self.1 += self.0.encode(data)?;
+        Ok(self)
+    }
+
+    pub fn encode_be<E: BasicEncodeBE + ?Sized>(mut self, data: &E) -> Result<Self> {
+        self.1 += self.0.encode_be(data)?;
+        Ok(self)
+    }
+
+    pub fn encode_le<E: BasicEncodeLE + ?Sized>(mut self, data: &E) -> Result<Self> {
+        self.1 += self.0.encode_le(data)?;
+        Ok(self)
+    }
+
+    pub fn bytes(self) -> usize {
+        self.1
+    }
+}
+
+impl Encode for u8 {
+    fn encode_one<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        unsafe { Self::encode_many(std::slice::from_raw_parts(self as *const u8, 1), stream) }
+    }
+
+    fn encode_many<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        stream.write_all(slice)?;
+        Ok(slice.len())
+    }
+}
+
+impl Encode for i8 {
+    fn encode_one<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+        unsafe { Self::encode_many(std::slice::from_raw_parts(self as *const i8, 1), stream) }
+    }
+
+    fn encode_many<S: OStream + ?Sized>(slice: &[Self], stream: &mut S) -> Result<usize> {
+        unsafe { std::mem::transmute::<_, &[u8]>(slice).encode(stream) }
+    }
+}
+
+macro_rules! make_encode {
+    ($t:ty) => {
+        impl EncodeBE for $t {
+            fn encode_one_be<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+                if IS_BIG_ENDIAN {
+                    unsafe {
+                        stream.encode(std::slice::from_raw_parts(
+                            self as *const $t as *const u8,
+                            std::mem::size_of::<$t>(),
+                        ))
+                    }
+                } else {
+                    stream.encode(&self.to_be_bytes()[..])
+                }
+            }
+
+            fn encode_many_be<S: OStream + ?Sized>(
+                slice: &[Self],
+                stream: &mut S,
+            ) -> Result<usize> {
+                if IS_BIG_ENDIAN {
+                    unsafe {
+                        stream.encode(std::slice::from_raw_parts(
+                            slice.as_ptr() as *const u8,
+                            std::mem::size_of::<$t>(),
+                        ))
+                    }
+                } else {
+                    let mut cnt = 0usize;
+                    for elem in slice.iter() {
+                        cnt += elem.encode_be(stream)?;
+                    }
+                    Ok(cnt)
+                }
+            }
+        }
+
+        impl EncodeLE for $t {
+            fn encode_one_le<S: OStream + ?Sized>(&self, stream: &mut S) -> Result<usize> {
+                if IS_LITTLE_ENDIAN {
+                    unsafe {
+                        stream.encode(std::slice::from_raw_parts(
+                            self as *const $t as *const u8,
+                            std::mem::size_of::<$t>(),
+                        ))
+                    }
+                } else {
+                    stream.encode(&self.to_le_bytes()[..])
+                }
+            }
+
+            fn encode_many_le<S: OStream + ?Sized>(
+                slice: &[Self],
+                stream: &mut S,
+            ) -> Result<usize> {
+                if IS_LITTLE_ENDIAN {
+                    unsafe {
+                        stream.encode(std::slice::from_raw_parts(
+                            slice.as_ptr() as *const u8,
+                            std::mem::size_of::<$t>(),
+                        ))
+                    }
+                } else {
+                    let mut cnt = 0usize;
+                    for elem in slice.iter() {
+                        cnt += elem.encode_le(stream)?;
+                    }
+                    Ok(cnt)
+                }
+            }
+        }
+    };
+}
+
+make_encode!(u16);
+make_encode!(i16);
+make_encode!(u32);
+make_encode!(i32);
+make_encode!(u64);
+make_encode!(i64);
+make_encode!(u128);
+make_encode!(i128);
+make_encode!(f32);
+make_encode!(f64);
