@@ -83,8 +83,14 @@ impl LinkType {
         }
     }
 
+    #[cfg(feature = "npcap")]
     pub fn description_or_dlt(&self) -> String {
         unsafe { make_string(pcap_datalink_val_to_description_or_dlt(self.0 as i32)) }
+    }
+
+    #[cfg(not(feature = "npcap"))]
+    pub fn description_or_dlt(&self) -> String {
+        self.description().unwrap_or_else(|| format!("DLT {}", self.0))
     }
 
     link_types::for_each_link_type!(link_type);

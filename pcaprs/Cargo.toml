@@ -7,9 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libpcap-sys = { path = "../libpcap-sys" }
+libpcap-sys = { path = "../libpcap-sys", default-features = false }
 libc = "0.2"
 link-types = { path = "../link-types" }
+
+[features]
+default = ["npcap"]
+npcap = ["libpcap-sys/npcap"]
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"

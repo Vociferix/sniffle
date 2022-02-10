@@ -223,14 +223,17 @@ impl Device {
         (self.flags & PCAP_IF_LOOPBACK) > 0
     }
 
+    #[cfg(feature = "npcap")]
     pub fn is_running(&self) -> bool {
         (self.flags & PCAP_IF_RUNNING) > 0
     }
 
+    #[cfg(feature = "npcap")]
     pub fn is_up(&self) -> bool {
         (self.flags & PCAP_IF_UP) > 0
     }
 
+    #[cfg(feature = "npcap")]
     pub fn connection_status(&self) -> ConnectionStatus {
         match self.flags & PCAP_IF_CONNECTION_STATUS {
             PCAP_IF_CONNECTION_STATUS_UNKNOWN => ConnectionStatus::Unknown,

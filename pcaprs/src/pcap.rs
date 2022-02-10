@@ -94,6 +94,7 @@ impl Pcap {
                 }
             }
 
+            #[cfg(feature = "npcap")]
             if let Some(ts_type) = config.ts_type {
                 let ts_type = match ts_type {
                     TSType::Host => PCAP_TSTAMP_HOST,
@@ -119,6 +120,7 @@ impl Pcap {
                 }
             }
 
+            #[cfg(feature = "npcap")]
             if let Some(immediate) = config.immediate {
                 if pcap_set_immediate_mode(hndl, if immediate { 1 } else { 0 }) != 0 {
                     pcap_close(hndl);
@@ -126,6 +128,7 @@ impl Pcap {
                 }
             }
 
+            #[cfg(feature = "npcap")]
             if let Some(ts_prec) = config.ts_prec {
                 let ts_prec = match ts_prec {
                     TSPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
@@ -150,11 +153,13 @@ impl Pcap {
                     pcap_close(hndl);
                     return Err(err);
                 }
+                #[cfg(feature = "npcap")]
                 PCAP_WARNING_PROMISC_NOTSUP => {
                     let err = PcapError::PromiscNotSupported(make_string(pcap_geterr(hndl)));
                     pcap_close(hndl);
                     return Err(err);
                 }
+                #[cfg(feature = "npcap")]
                 PCAP_WARNING_TSTAMP_TYPE_NOTSUP => {
                     pcap_close(hndl);
                     return Err(PcapError::TSTypeNotSupported);
@@ -173,6 +178,7 @@ impl Pcap {
                     pcap_close(hndl);
                     return Err(err);
                 }
+                #[cfg(feature = "npcap")]
                 PCAP_ERROR_PROMISC_PERM_DENIED => {
                     pcap_close(hndl);
                     return Err(PcapError::PromiscPermDenied);
@@ -228,7 +234,10 @@ impl Pcap {
 
     pub fn open_offline<P: AsRef<Path>>(
         filepath: P,
+        #[cfg(feature = "npcap")]
         precision: Option<TSPrecision>,
+        #[cfg(not(feature = "npcap"))]
+        _precision: Option<TSPrecision>,
     ) -> Result<Pcap> {
         unsafe {
             let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
@@ -242,6 +251,7 @@ impl Pcap {
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
 
+            #[cfg(feature = "npcap")]
             let hndl = match precision {
                 Some(prec) => {
                     let prec = match prec {
@@ -253,6 +263,9 @@ impl Pcap {
                 None => pcap_open_offline(c_name, errbuf_ptr),
             };
 
+            #[cfg(not(feature = "npcap"))]
+            let hndl = pcap_open_offline(c_name, errbuf_ptr);
+
             if hndl == std::ptr::null_mut() {
                 return Err(PcapError::General(make_string(errbuf_ptr)));
             }
@@ -263,9 +276,13 @@ impl Pcap {
     pub fn open_dead(
         linktype: LinkType,
         snaplen: u32,
+        #[cfg(feature = "npcap")]
         precision: Option<TSPrecision>,
+        #[cfg(not(feature = "npcap"))]
+        _precision: Option<TSPrecision>,
     ) -> Result<Pcap> {
         unsafe {
+            #[cfg(feature = "npcap")]
             let hndl = match precision {
                 Some(prec) => {
                     let prec = match prec {
@@ -276,6 +293,10 @@ impl Pcap {
                 }
                 None => pcap_open_dead(linktype.0 as i32, snaplen as i32),
             };
+
+            #[cfg(not(feature = "npcap"))]
+            let hndl = pcap_open_dead(linktype.0 as i32, snaplen as i32);
+
             if hndl == std::ptr::null_mut() {
                 return Err(PcapError::General(String::from("unknown error")));
             }

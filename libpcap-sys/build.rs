@@ -4,12 +4,26 @@ use std::path::PathBuf;
 #[cfg(not(windows))]
 use std::process::Command;
 
-#[cfg(windows)]
+#[cfg(all(windows, not(feature = "npcap")))]
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let mut lib_path = PathBuf::from(&dir).join("winlib");
+    let mut lib_path = PathBuf::from(&dir).join("winpcap");
     if cfg!(target_arch = "x86_64") {
         lib_path.push("x64");
+    }
+    println!("cargo:rustc-link-search=native={}", lib_path.display());
+    println!("cargo:rustc-link-lib=packet");
+    println!("cargo:rustc-link-lib=wpcap");
+}
+
+#[cfg(all(windows, feature = "npcap"))]
+fn main() {
+    let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let mut lib_path = PathBuf::from(&dir).join("npcap");
+    if cfg!(target_arch = "x86_64") {
+        lib_path.push("x64");
+    } else if cfg!(target_arch = "aarch64") {
+        lib_path.push("ARM64");
     }
     println!("cargo:rustc-link-search=native={}", lib_path.display());
     println!("cargo:rustc-link-lib=packet");

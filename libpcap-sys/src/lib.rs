@@ -1,4 +1,5 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
+#![doc = include_str!("../README.md")]
 
 pub use libc::FILE;
 #[cfg(not(windows))]
@@ -18,6 +19,7 @@ pub type suseconds_t = winapi::ctypes::c_long;
 pub const PCAP_ERRBUF_SIZE: usize = 256;
 pub const PCAP_WARNING: libc::c_int = 1;
 pub const PCAP_WARNING_PROMISC_NOTSUP: libc::c_int = 2;
+#[cfg(feature = "npcap")]
 pub const PCAP_WARNING_TSTAMP_TYPE_NOTSUP: libc::c_int = 3;
 pub const PCAP_ERROR: libc::c_int = -1;
 pub const PCAP_ERROR_BREAK: libc::c_int = -2;
@@ -28,25 +30,44 @@ pub const PCAP_ERROR_RFMON_NOTSUP: libc::c_int = -6;
 pub const PCAP_ERROR_NOT_RFMON: libc::c_int = -7;
 pub const PCAP_ERROR_PERM_DENIED: libc::c_int = -8;
 pub const PCAP_ERROR_IFACE_NOT_UP: libc::c_int = -9;
+#[cfg(feature = "npcap")]
 pub const PCAP_ERROR_CANTSET_TSTAMP_TYPE: libc::c_int = -10;
+#[cfg(feature = "npcap")]
 pub const PCAP_ERROR_PROMISC_PERM_DENIED: libc::c_int = -11;
+#[cfg(feature = "npcap")]
 pub const PCAP_ERROR_TSTAMP_PRECISION_NOTSUP: libc::c_int = -12;
+#[cfg(feature = "npcap")]
 pub const PCAP_NETMASK_UNKNOWN: u32 = 0xFFFFFFFF;
 pub const PCAP_IF_LOOPBACK: u32 = 0x00000001;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_UP: u32 = 0x00000002;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_RUNNING: u32 = 0x00000004;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_WIRELESS: u32 = 0x00000008;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_CONNECTION_STATUS: u32 = 0x00000030;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_CONNECTION_STATUS_UNKNOWN: u32 = 0x00000000;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_CONNECTION_STATUS_CONNECTED: u32 = 0x00000010;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_CONNECTION_STATUS_DISCONNECTED: u32 = 0x00000020;
+#[cfg(feature = "npcap")]
 pub const PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE: u32 = 0x00000030;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_HOST: libc::c_int = 0;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_HOST_LOWPREC: libc::c_int = 1;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_HOST_HIPREC: libc::c_int = 2;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_ADAPTER: libc::c_int = 3;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_ADAPTER_UNSYNCED: libc::c_int = 4;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_PRECISION_MICRO: libc::c_uint = 0;
+#[cfg(feature = "npcap")]
 pub const PCAP_TSTAMP_PRECISION_NANO: libc::c_uint = 1;
 pub const PCAP_BUF_SIZE: usize = 1024;
 pub const PCAP_SRC_FILE: libc::c_int = 2;
@@ -65,7 +86,9 @@ pub const PCAP_D_OUT: libc::c_int = 2;
 pub const PCAP_SAMP_NOSAMP: libc::c_int = 0;
 pub const PCAP_SAMP_1_EVERY_N: libc::c_int = 1;
 pub const PCAP_SAMP_FIRST_AFTER_N_MS: libc::c_int = 2;
-pub const RPCAP_HOST_LIST_SIZE: usize = 1024;
+pub const RPCAP_HOSTLIST_SIZE: usize = 1024;
+pub const RPCAP_RMTAUTH_NULL: libc::c_int = 0;
+pub const RPCAP_RMTAUTH_PWD: libc::c_int = 1;
 
 #[cfg(windows)]
 pub const MODE_CAPT: libc::c_int = 0;
@@ -224,19 +247,28 @@ extern "C" {
     pub fn pcap_can_set_rfmon(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_set_rfmon(p: *mut pcap_t, rfmon: libc::c_int) -> libc::c_int;
     pub fn pcap_set_timeout(p: *mut pcap_t, to_ms: libc::c_int) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_set_tstamp_type(p: *mut pcap_t, tstamp_type: libc::c_int) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_set_immediate_mode(p: *mut pcap_t, immediate_mode: libc::c_int) -> libc::c_int;
     pub fn pcap_set_buffer_size(p: *mut pcap_t, buffer_size: libc::c_int) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_set_tstamp_precision(p: *mut pcap_t, tstamp_precision: libc::c_int) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_get_tstamp_precision(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_activate(p: *mut pcap_t) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_list_tstamp_types(
         p: *mut pcap_t,
         tstamp_types: *mut *mut libc::c_int,
     ) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_free_tstamp_types(tstamp_types: *mut libc::c_int);
+    #[cfg(feature = "npcap")]
     pub fn pcap_tstamp_type_name_to_val(name: *const libc::c_char) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_tstamp_type_val_to_name(tstamp_type: libc::c_int) -> *const libc::c_char;
+    #[cfg(feature = "npcap")]
     pub fn pcap_tstamp_type_val_to_description(tstamp_type: libc::c_int) -> *const libc::c_char;
 
     #[cfg(target_os = "linux")]
@@ -250,11 +282,13 @@ extern "C" {
         errbuf: *mut libc::c_char,
     ) -> *mut pcap_t;
     pub fn pcap_open_dead(linktype: libc::c_int, snaplen: libc::c_int) -> *mut pcap_t;
+    #[cfg(feature = "npcap")]
     pub fn pcap_open_dead_with_tstamp_precision(
         linktype: libc::c_int,
         snaplen: libc::c_int,
         precision: libc::c_uint,
     ) -> *mut pcap_t;
+    #[cfg(feature = "npcap")]
     pub fn pcap_open_offline_with_tstamp_precision(
         fname: *const libc::c_char,
         precision: libc::c_uint,
@@ -262,7 +296,7 @@ extern "C" {
     ) -> *mut pcap_t;
     pub fn pcap_open_offline(fname: *const libc::c_char, errbuf: *mut libc::c_char) -> *mut pcap_t;
 
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "npcap"))]
     pub fn pcap_hopen_offline_with_tstamp_precision(
         h: HANDLE,
         precision: libc::c_int,
@@ -271,7 +305,7 @@ extern "C" {
     #[cfg(windows)]
     pub fn pcap_hopen_offline(h: HANDLE, errbuf: *mut libc::c_char) -> *mut pcap_t;
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), feature = "npcap"))]
     pub fn pcap_fopen_offline_with_tstamp_precision(
         f: *mut FILE,
         precision: libc::c_int,
@@ -348,29 +382,33 @@ extern "C" {
     pub fn pcap_datalink_name_to_val(name: *const libc::c_char) -> libc::c_int;
     pub fn pcap_datalink_val_to_name(dlt: libc::c_int) -> *const libc::c_char;
     pub fn pcap_datalink_val_to_description(dlt: libc::c_int) -> *const libc::c_char;
+    #[cfg(feature = "npcap")]
     pub fn pcap_datalink_val_to_description_or_dlt(dlt: libc::c_int) -> *const libc::c_char;
     pub fn pcap_snapshot(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_is_swapped(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_major_version(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_minor_version(p: *mut pcap_t) -> libc::c_int;
+    #[cfg(feature = "npcap")]
     pub fn pcap_bufsize(p: *mut pcap_t) -> libc::c_int;
     pub fn pcap_file(p: *mut pcap_t) -> *mut FILE;
     pub fn pcap_fileno(p: *mut pcap_t) -> libc::c_int;
 
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "npcap"))]
     pub fn pcap_wsockinit();
 
     pub fn pcap_dump_open(p: *mut pcap_t, fname: *const libc::c_char) -> *mut pcap_dumper_t;
 
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "npcap"))]
     pub fn pcap_dump_hopen(p: *mut pcap_t, h: HANDLE) -> *mut pcap_dumper_t;
 
     #[cfg(not(windows))]
     pub fn pcap_dump_fopen(p: *mut pcap_t, f: *mut FILE) -> *mut pcap_dumper_t;
 
+    #[cfg(feature = "npcap")]
     pub fn pcap_dump_open_append(p: *mut pcap_t, fname: *const libc::c_char) -> *mut pcap_dumper_t;
     pub fn pcap_dump_file(p: *mut pcap_dumper_t) -> *mut FILE;
     pub fn pcap_dump_ftell(p: *mut pcap_dumper_t) -> libc::c_long;
+    #[cfg(feature = "npcap")]
     pub fn pcap_dump_ftell64(p: *mut pcap_dumper_t) -> i64;
     pub fn pcap_dump_flush(p: *mut pcap_dumper_t) -> libc::c_int;
     pub fn pcap_dump_close(p: *mut pcap_dumper_t);
@@ -401,14 +439,14 @@ extern "C" {
     pub fn pcap_setmintocopy(p: *mut pcap_t, size: libc::c_int) -> libc::c_int;
     #[cfg(windows)]
     pub fn pcap_getevent(p: *mut pcap_t) -> HANDLE;
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "npcap"))]
     pub fn pcap_oid_get_request(
         p: *mut pcap_t,
         oid: u32,
         data: *mut libc::c_void,
         lenp: *mut usize,
     ) -> libc::c_int;
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "npcap"))]
     pub fn pcap_oid_set_request(
         p: *mut pcap_t,
         oid: u32,

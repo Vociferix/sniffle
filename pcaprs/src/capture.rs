@@ -44,6 +44,7 @@ pub trait Capture: Sized + AsEventHandle {
         }
     }
 
+    #[cfg(feature = "npcap")]
     fn buffer_size(&self) -> Result<u32> {
         unsafe {
             let bufsize = pcap_bufsize(self.pcap().raw_handle());
@@ -55,6 +56,7 @@ pub trait Capture: Sized + AsEventHandle {
         }
     }
 
+    #[cfg(feature = "npcap")]
     fn timestamp_precision(&self) -> TSPrecision {
         unsafe {
             if pcap_get_tstamp_precision(self.pcap().raw_handle())
@@ -65,6 +67,11 @@ pub trait Capture: Sized + AsEventHandle {
                 TSPrecision::Nano
             }
         }
+    }
+
+    #[cfg(not(feature = "npcap"))]
+    fn timestamp_precision(&self) -> TSPrecision {
+        TSPrecision::Micro
     }
 
     fn set_direction(&mut self, direction: Direction) -> Result<()> {
@@ -162,13 +169,9 @@ pub trait Capture: Sized + AsEventHandle {
             }
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
-            let ts = if pcap_get_tstamp_precision(self.pcap().raw_handle())
-                == PCAP_TSTAMP_PRECISION_MICRO as i32
-            {
-                std::time::UNIX_EPOCH
-                    + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
-            } else {
-                std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
+            let ts = match self.timestamp_precision() {
+                TSPrecision::Micro => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000),
+                TSPrecision::Nano => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32),
             };
             Some(Ok(Some(Packet {
                 pcap: self.pcap_mut(),
@@ -211,13 +214,9 @@ pub trait Capture: Sized + AsEventHandle {
             }
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
-            let ts = if pcap_get_tstamp_precision(self.pcap().raw_handle())
-                == PCAP_TSTAMP_PRECISION_MICRO as i32
-            {
-                std::time::UNIX_EPOCH
-                    + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
-            } else {
-                std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
+            let ts = match self.timestamp_precision() {
+                TSPrecision::Micro => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000),
+                TSPrecision::Nano => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32),
             };
             Some(Ok(Packet {
                 pcap: self.pcap_mut(),

@@ -47,6 +47,7 @@ impl DumpFile {
         }
     }
 
+    #[cfg(feature = "npcap")]
     pub fn open<P: AsRef<Path>>(
         filepath: P,
         datalink: LinkType,

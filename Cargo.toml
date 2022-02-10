@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-sniffle-core = { path = "core" }
+sniffle-core = { path = "core", default-features = false }
 sniffle-ende = { path = "ende" }
 sniffle-uint = { path = "uint" }
 sniffle-capfile = { path = "capfile", default-features = false }
 
 [features]
-default = ["libpcap"]
+default = ["npcap"]
 libpcap = ["sniffle-core/libpcap"]
+npcap = ["libpcap", "sniffle-core/npcap"]
 
 [workspace]
 members = [

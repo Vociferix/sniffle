@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 #[doc(inline)]
 pub use sniffle_core::*;
 

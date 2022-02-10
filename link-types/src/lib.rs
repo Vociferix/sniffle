@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::hash::Hash;
 
 /// A 16-bit value representing a link type, otherwise known as a DLT.

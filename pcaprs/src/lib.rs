@@ -1,21 +1,4 @@
-//! Thin, safe wrapper around libpcap.
-//!
-//! # Examples
-//!
-//! ```no_run
-//! use pcaprs::{Pcap, Device};
-//! use std::time::Duration;
-//!
-//! let device = Device::default().unwrap();
-//! let mut capture = Pcap::open_live(&device, 0xFFFF, true, Duration::from_secs(10)).unwrap();
-//!
-//! println!("capturing on {}", device.name());
-//!
-//! while let Some(packet) = capture.next_packet() {
-//!     let packet = packet.unwrap();
-//!     println!("{:?}", packet.data());
-//! }
-//! ```
+#![doc = include_str!("../README.md")]
 
 use std::{
     ffi::CString,
@@ -47,6 +30,7 @@ pub use tstype::*;
 use utils::*;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum PcapError {
     General(String),
     Break,
@@ -56,10 +40,14 @@ pub enum PcapError {
     RFMonNotSupported,
     PermDenied(String),
     IfaceNotUp,
+    #[cfg(feature = "npcap")]
     CantSetTSType,
+    #[cfg(feature = "npcap")]
     PromiscPermDenied,
+    #[cfg(feature = "npcap")]
     TSPrecisionNotSupported,
     PromiscNotSupported(String),
+    #[cfg(feature = "npcap")]
     TSTypeNotSupported,
     IO(std::io::Error),
 }
@@ -121,6 +109,7 @@ impl fmt::Display for PcapError {
                     CStr::from_ptr(pcap_statustostr(PCAP_ERROR_IFACE_NOT_UP)).to_string_lossy()
                 )
             },
+            #[cfg(feature = "npcap")]
             Self::CantSetTSType => unsafe {
                 write!(
                     f,
@@ -129,6 +118,7 @@ impl fmt::Display for PcapError {
                         .to_string_lossy()
                 )
             },
+            #[cfg(feature = "npcap")]
             Self::PromiscPermDenied => unsafe {
                 write!(
                     f,
@@ -137,6 +127,7 @@ impl fmt::Display for PcapError {
                         .to_string_lossy()
                 )
             },
+            #[cfg(feature = "npcap")]
             Self::TSPrecisionNotSupported => unsafe {
                 write!(
                     f,
@@ -146,6 +137,7 @@ impl fmt::Display for PcapError {
                 )
             },
             Self::PromiscNotSupported(ref msg) => write!(f, "{}", msg),
+            #[cfg(feature = "npcap")]
             Self::TSTypeNotSupported => unsafe {
                 write!(
                     f,

@@ -1,5 +1,8 @@
+#[cfg(feature = "npcap")]
 use super::*;
+#[cfg(feature = "npcap")]
 use std::ffi::{CStr, CString};
+#[cfg(feature = "npcap")]
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
@@ -14,6 +17,7 @@ pub enum TSType {
 #[derive(Debug, Clone, Copy)]
 pub struct ParseTSTypeError;
 
+#[cfg(feature = "npcap")]
 impl FromStr for TSType {
     type Err = ParseTSTypeError;
 
@@ -44,6 +48,7 @@ impl FromStr for TSType {
     }
 }
 
+#[cfg(feature = "npcap")]
 impl fmt::Display for TSType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
@@ -64,6 +69,7 @@ impl fmt::Display for TSType {
     }
 }
 
+#[cfg(feature = "npcap")]
 impl TSType {
     pub fn name(&self) -> Option<String> {
         unsafe {

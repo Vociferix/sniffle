@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 link-types = { path = "../link-types" }
-pcaprs = { path = "../pcaprs", optional = true }
+pcaprs = { path = "../pcaprs", optional = true, default-features = false }
 sniffle-ende = { path = "../ende" }
 lazy_static = "1.4"
 concat-idents = "1.1"
@@ -15,5 +15,6 @@ ctor = "0.1"
 thiserror = "1.0"
 
 [features]
-default = ["libpcap"]
+default = ["npcap"]
 libpcap = ["pcaprs"]
+npcap = ["libpcap", "pcaprs/npcap"]
