@@ -1,9 +1,8 @@
 use sniffle_ende::{
-    decode::Decode,
+    decode::{Decode, DecodeError},
     encode::{Encode, Encoder},
     nom::{combinator::map, IResult},
 };
-use std::convert::Infallible;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
@@ -50,15 +49,13 @@ impl From<MACAddress> for [u8; 6] {
 }
 
 impl Decode for MACAddress {
-    type Error = Infallible;
-
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         map(<[u8; 6]>::decode, |bytes| Self::from(bytes))(buf)
     }
 }
 
 impl Encode for MACAddress {
-    fn encode<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
 }

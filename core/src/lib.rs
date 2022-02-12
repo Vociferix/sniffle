@@ -32,7 +32,7 @@ pub use device_injector::DeviceInjector;
 #[cfg(feature = "pcaprs")]
 pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, DeviceTSType};
 
-pub use dissection::{AnyDissector, DissectError, Dissector, DissectorTable, Priority};
+pub use dissection::{AnyDissector, Dissector, DissectorTable, Priority};
 
 pub use eui_address::{EUIAddress, EUIParseError};
 

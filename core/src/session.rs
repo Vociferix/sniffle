@@ -1,5 +1,6 @@
-use super::{AnyPDU, DissectError, Dissector, DissectorTable, Priority, RawPDU, TempPDU};
+use super::{AnyPDU, Dissector, DissectorTable, Priority, RawPDU, TempPDU};
 use lazy_static::*;
+use sniffle_ende::decode::DecodeError;
 use sniffle_ende::nom::{self, IResult};
 use std::{
     any::{Any, TypeId},
@@ -57,10 +58,10 @@ impl Session {
         param: &T::Param,
         buffer: &'a [u8],
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DissectError> {
+    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
         self.get::<T>()
             .map(|table| table.dissect(param, buffer, self, parent))
-            .unwrap_or(Err(nom::Err::Error(DissectError::Malformed)))
+            .unwrap_or(Err(nom::Err::Error(DecodeError::Malformed)))
     }
 
     pub fn table_dissect_or_raw<'a, T: 'static + DissectorTable>(
@@ -68,7 +69,7 @@ impl Session {
         param: &T::Param,
         buffer: &'a [u8],
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DissectError> {
+    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
         self.get::<T>()
             .map(|table| table.dissect_or_raw(param, buffer, self, parent))
             .unwrap_or_else(|| {

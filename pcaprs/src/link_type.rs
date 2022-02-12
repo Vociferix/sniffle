@@ -90,7 +90,8 @@ impl LinkType {
 
     #[cfg(not(feature = "npcap"))]
     pub fn description_or_dlt(&self) -> String {
-        self.description().unwrap_or_else(|| format!("DLT {}", self.0))
+        self.description()
+            .unwrap_or_else(|| format!("DLT {}", self.0))
     }
 
     link_types::for_each_link_type!(link_type);

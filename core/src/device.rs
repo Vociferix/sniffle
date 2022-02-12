@@ -7,7 +7,7 @@ const STATUS_MASK: u32 = 3 << 3;
 const STATUS_UNKNOWN: u32 = 0 << 3;
 const STATUS_CONNECTED: u32 = 1 << 3;
 const STATUS_DISCONNECTED: u32 = 2 << 3;
-#[cfg(feature = "pcaprs")]
+#[cfg(feature = "npcap")]
 const STATUS_NA: u32 = 3 << 3;
 
 #[derive(Debug, Clone, Copy)]
@@ -186,15 +186,31 @@ impl Device {
 #[cfg(feature = "pcaprs")]
 impl From<pcaprs::Device> for Device {
     fn from(dev: pcaprs::Device) -> Self {
-        let flags: u32 = if dev.is_loopback() { IS_LOOPBACK } else { 0 }
-            | if dev.is_running() { IS_RUNNING } else { 0 }
-            | if dev.is_up() { IS_UP } else { 0 }
-            | match dev.connection_status() {
+        let mut flags: u32 = 0;
+        if dev.is_loopback() {
+            flags |= IS_LOOPBACK;
+        }
+        #[cfg(feature = "npcap")]
+        if dev.is_running() {
+            flags |= IS_RUNNING;
+        }
+        #[cfg(feature = "npcap")]
+        if dev.is_up() {
+            flags |= IS_UP;
+        }
+        #[cfg(feature = "npcap")]
+        {
+            flags |= match dev.connection_status() {
                 pcaprs::ConnectionStatus::Unknown => STATUS_UNKNOWN,
                 pcaprs::ConnectionStatus::Connected => STATUS_CONNECTED,
                 pcaprs::ConnectionStatus::Disconnected => STATUS_DISCONNECTED,
                 _ => STATUS_NA,
             };
+        }
+        #[cfg(not(feature = "npcap"))]
+        {
+            flags |= STATUS_UNKNOWN;
+        }
         Self {
             name: String::from(dev.name()),
             desc: dev.description().map(|d| String::from(d)),

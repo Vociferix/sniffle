@@ -1,14 +1,21 @@
 use super::*;
 use nom::combinator::map;
-use nom::IResult;
-use std::convert::Infallible;
+use nom::{error::ParseError, IResult};
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum DecodeError<'a> {
+    Nom(nom::error::Error<&'a [u8]>),
+    NotSupported,
+    Malformed,
+}
 
 pub trait Decode: Sized {
-    type Error: std::error::Error;
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>>;
 
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error>;
-
-    fn decode_many<const LEN: usize>(mut buf: &[u8]) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    fn decode_many<const LEN: usize>(
+        mut buf: &[u8],
+    ) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe {
             let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
@@ -43,13 +50,11 @@ pub trait Decode: Sized {
 }
 
 pub trait DecodeBE: Sized {
-    type Error: std::error::Error;
-
-    fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, Self::Error>;
+    fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>>;
 
     fn decode_many_be<const LEN: usize>(
         mut buf: &[u8],
-    ) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    ) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe {
             let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
@@ -75,13 +80,11 @@ pub trait DecodeBE: Sized {
 }
 
 pub trait DecodeLE: Sized {
-    type Error: std::error::Error;
-
-    fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, Self::Error>;
+    fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>>;
 
     fn decode_many_le<const LEN: usize>(
         mut buf: &[u8],
-    ) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    ) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe {
             let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
@@ -106,43 +109,53 @@ pub trait DecodeLE: Sized {
     }
 }
 
-pub fn decode<D: Decode>(buf: &[u8]) -> IResult<&[u8], D, D::Error> {
+pub fn decode<D: Decode>(buf: &[u8]) -> IResult<&[u8], D, DecodeError<'_>> {
     D::decode(buf)
 }
 
-pub fn decode_be<D: DecodeBE>(buf: &[u8]) -> IResult<&[u8], D, D::Error> {
+pub fn decode_be<D: DecodeBE>(buf: &[u8]) -> IResult<&[u8], D, DecodeError<'_>> {
     D::decode_be(buf)
 }
 
-pub fn decode_le<D: DecodeLE>(buf: &[u8]) -> IResult<&[u8], D, D::Error> {
+pub fn decode_le<D: DecodeLE>(buf: &[u8]) -> IResult<&[u8], D, DecodeError<'_>> {
     D::decode_le(buf)
 }
 
-impl<D: Decode, const LEN: usize> Decode for [D; LEN] {
-    type Error = D::Error;
+impl<'a> ParseError<&'a [u8]> for DecodeError<'a> {
+    fn from_error_kind(input: &'a [u8], kind: nom::error::ErrorKind) -> Self {
+        Self::Nom(nom::error::Error::from_error_kind(input, kind))
+    }
 
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn append(_: &'a [u8], _: nom::error::ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+
+impl<'a> From<nom::error::Error<&'a [u8]>> for DecodeError<'a> {
+    fn from(e: nom::error::Error<&'a [u8]>) -> Self {
+        Self::Nom(e)
+    }
+}
+
+impl<D: Decode, const LEN: usize> Decode for [D; LEN] {
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         D::decode_many(buf)
     }
 }
 
 impl<D: DecodeBE, const LEN: usize> DecodeBE for [D; LEN] {
-    type Error = D::Error;
-
-    fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         D::decode_many_be(buf)
     }
 }
 
 impl<D: DecodeLE, const LEN: usize> DecodeLE for [D; LEN] {
-    type Error = D::Error;
-
-    fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         D::decode_many_le(buf)
     }
 }
 
-pub unsafe fn cast<T>(mut buf: &[u8]) -> IResult<&[u8], T, Infallible> {
+pub unsafe fn cast<T>(mut buf: &[u8]) -> IResult<&[u8], T, DecodeError<'_>> {
     let mut ret: T = std::mem::MaybeUninit::uninit().assume_init();
     if std::mem::size_of::<T>() != 0 {
         if let Err(_) = std::io::copy(
@@ -161,9 +174,7 @@ pub unsafe fn cast<T>(mut buf: &[u8]) -> IResult<&[u8], T, Infallible> {
 }
 
 impl Decode for u8 {
-    type Error = Infallible;
-
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         if buf.len() == 0 {
             unsafe {
                 Err(nom::Err::Incomplete(nom::Needed::Size(
@@ -175,19 +186,17 @@ impl Decode for u8 {
         }
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe { cast(buf) }
     }
 }
 
 impl Decode for i8 {
-    type Error = Infallible;
-
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         map(u8::decode, |val| i8::from_ne_bytes([val]))(buf)
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe { cast(buf) }
     }
 }
@@ -195,9 +204,7 @@ impl Decode for i8 {
 macro_rules! make_decode {
     ($t:ty) => {
         impl DecodeBE for $t {
-            type Error = Infallible;
-
-            fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+            fn decode_be(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
                 map(<[u8; std::mem::size_of::<Self>()]>::decode, |bytes| {
                     Self::from_be_bytes(bytes)
                 })(buf)
@@ -205,7 +212,7 @@ macro_rules! make_decode {
 
             fn decode_many_be<const LEN: usize>(
                 buf: &[u8],
-            ) -> IResult<&[u8], [Self; LEN], Self::Error> {
+            ) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
                 unsafe {
                     match cast::<[Self; LEN]>(buf) {
                         Ok((rem, mut ret)) => {
@@ -223,9 +230,7 @@ macro_rules! make_decode {
         }
 
         impl DecodeLE for $t {
-            type Error = Infallible;
-
-            fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+            fn decode_le(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
                 map(<[u8; std::mem::size_of::<Self>()]>::decode, |bytes| {
                     Self::from_le_bytes(bytes)
                 })(buf)
@@ -233,7 +238,7 @@ macro_rules! make_decode {
 
             fn decode_many_le<const LEN: usize>(
                 buf: &[u8],
-            ) -> IResult<&[u8], [Self; LEN], Self::Error> {
+            ) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
                 unsafe {
                     match cast::<[Self; LEN]>(buf) {
                         Ok((rem, mut ret)) => {

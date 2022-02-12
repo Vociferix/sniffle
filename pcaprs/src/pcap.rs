@@ -234,10 +234,8 @@ impl Pcap {
 
     pub fn open_offline<P: AsRef<Path>>(
         filepath: P,
-        #[cfg(feature = "npcap")]
-        precision: Option<TSPrecision>,
-        #[cfg(not(feature = "npcap"))]
-        _precision: Option<TSPrecision>,
+        #[cfg(feature = "npcap")] precision: Option<TSPrecision>,
+        #[cfg(not(feature = "npcap"))] _precision: Option<TSPrecision>,
     ) -> Result<Pcap> {
         unsafe {
             let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
@@ -276,10 +274,8 @@ impl Pcap {
     pub fn open_dead(
         linktype: LinkType,
         snaplen: u32,
-        #[cfg(feature = "npcap")]
-        precision: Option<TSPrecision>,
-        #[cfg(not(feature = "npcap"))]
-        _precision: Option<TSPrecision>,
+        #[cfg(feature = "npcap")] precision: Option<TSPrecision>,
+        #[cfg(not(feature = "npcap"))] _precision: Option<TSPrecision>,
     ) -> Result<Pcap> {
         unsafe {
             #[cfg(feature = "npcap")]

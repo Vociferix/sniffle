@@ -1,5 +1,5 @@
-use super::{BasePDU, DissectError, Session, TempPDU, PDU};
-use sniffle_ende::{encode::Encoder, nom::IResult};
+use super::{BasePDU, Session, TempPDU, PDU};
+use sniffle_ende::{decode::DecodeError, encode::Encoder, nom::IResult};
 
 pub struct RawPDU {
     base: BasePDU,
@@ -49,7 +49,7 @@ impl PDU for RawPDU {
         buf: &'a [u8],
         _session: &Session,
         _parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self, DissectError> {
+    ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
         Ok((
             &buf[buf.len()..],
             Self {
@@ -59,7 +59,10 @@ impl PDU for RawPDU {
         ))
     }
 
-    fn serialize_header<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
+        &self,
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         encoder.encode(&self.data[..]).map(|_| ())
     }
 }

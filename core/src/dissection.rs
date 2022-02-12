@@ -1,14 +1,6 @@
 use super::{AnyPDU, RawPDU, Session, TempPDU, PDU};
+use sniffle_ende::decode::DecodeError;
 use sniffle_ende::nom::{self, IResult};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum DissectError {
-    #[error("Attempt to dissect PDU that doesn't support dissection")]
-    NotSupported,
-    #[error("Malformed packet")]
-    Malformed,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Priority(pub i32);
@@ -21,7 +13,7 @@ pub trait Dissector {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DissectError>;
+    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>>;
 }
 
 pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + 'static>);
@@ -44,7 +36,7 @@ pub trait DissectorTable: Default {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DissectError> {
+    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
         let mut parent = parent;
         for dissector in self.find(param).unwrap_or(&[]) {
             let parent: Option<&mut TempPDU<'_>> = match &mut parent {
@@ -61,15 +53,16 @@ pub trait DissectorTable: Default {
                         return Err(nom::Err::Failure(e));
                     }
                     nom::Err::Error(e) => match e {
-                        DissectError::Malformed => {}
-                        DissectError::NotSupported => {
-                            return Err(nom::Err::Failure(e));
+                        DecodeError::Malformed => {}
+                        DecodeError::NotSupported => {
+                            return Err(nom::Err::Failure(DecodeError::NotSupported));
                         }
+                        _ => {}
                     },
                 },
             }
         }
-        Err(nom::Err::Error(DissectError::Malformed))
+        Err(nom::Err::Error(DecodeError::Malformed))
     }
 
     fn dissect_or_raw<'a>(
@@ -78,7 +71,7 @@ pub trait DissectorTable: Default {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DissectError> {
+    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
         match self.dissect(param, buffer, session, parent) {
             Ok(ret) => Ok(ret),
             Err(_) => Ok((
@@ -97,7 +90,7 @@ impl Dissector for AnyDissector {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DissectError> {
+    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
         self.0.dissect(buffer, session, parent)
     }
 }
@@ -109,7 +102,7 @@ where
         &'a [u8],
         &Session,
         Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], P, DissectError>,
+    ) -> IResult<&'a [u8], P, DecodeError<'a>>,
 {
     type Out = P;
 
@@ -118,7 +111,7 @@ where
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DissectError> {
+    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
         self(buffer, session, parent)
     }
 }
@@ -133,7 +126,7 @@ impl<D: Dissector> Dissector for DissectorAdapter<D> {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DissectError> {
+    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
         self.0
             .dissect(buffer, session, parent)
             .map(|(rem, pdu)| (rem, AnyPDU::new(pdu)))

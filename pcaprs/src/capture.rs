@@ -170,8 +170,14 @@ pub trait Capture: Sized + AsEventHandle {
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
             let ts = match self.timestamp_precision() {
-                TSPrecision::Micro => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000),
-                TSPrecision::Nano => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32),
+                TSPrecision::Micro => {
+                    std::time::UNIX_EPOCH
+                        + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
+                }
+                TSPrecision::Nano => {
+                    std::time::UNIX_EPOCH
+                        + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
+                }
             };
             Some(Ok(Some(Packet {
                 pcap: self.pcap_mut(),
@@ -215,8 +221,14 @@ pub trait Capture: Sized + AsEventHandle {
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
             let ts = match self.timestamp_precision() {
-                TSPrecision::Micro => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000),
-                TSPrecision::Nano => std::time::UNIX_EPOCH + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32),
+                TSPrecision::Micro => {
+                    std::time::UNIX_EPOCH
+                        + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
+                }
+                TSPrecision::Nano => {
+                    std::time::UNIX_EPOCH
+                        + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
+                }
             };
             Some(Ok(Packet {
                 pcap: self.pcap_mut(),

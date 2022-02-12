@@ -1,4 +1,5 @@
-use super::{AnyPDU, Device, DissectError, LinkType, LinkTypeTable, Packet, RawPDU, Session};
+use super::{AnyPDU, Device, LinkType, LinkTypeTable, Packet, RawPDU, Session};
+use sniffle_ende::decode::DecodeError;
 use std::time::SystemTime;
 use thiserror::Error;
 
@@ -95,37 +96,19 @@ pub trait Sniff: Sized {
                     Ok((_rem, pdu)) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))
                     }
-                    Err(sniffle_ende::nom::Err::Incomplete(_)) => Ok(Some(Packet::new(
+                    Err(sniffle_ende::nom::Err::Error(DecodeError::NotSupported)) => {
+                        panic!("Attempt to dissect PDU that doesn't support dissection")
+                    }
+                    Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported)) => {
+                        panic!("Attempt to dissect PDU that doesn't support dissection")
+                    }
+                    _ => Ok(Some(Packet::new(
                         ts,
                         AnyPDU::new(RawPDU::new(Vec::from(data))),
                         Some(len),
                         Some(snaplen),
                         device,
                     ))),
-                    Err(sniffle_ende::nom::Err::Error(DissectError::Malformed)) => {
-                        Ok(Some(Packet::new(
-                            ts,
-                            AnyPDU::new(RawPDU::new(Vec::from(data))),
-                            Some(len),
-                            Some(snaplen),
-                            device,
-                        )))
-                    }
-                    Err(sniffle_ende::nom::Err::Error(DissectError::NotSupported)) => {
-                        panic!("Attempt to dissect PDU that doesn't support dissection")
-                    }
-                    Err(sniffle_ende::nom::Err::Failure(DissectError::Malformed)) => {
-                        Ok(Some(Packet::new(
-                            ts,
-                            AnyPDU::new(RawPDU::new(Vec::from(data))),
-                            Some(len),
-                            Some(snaplen),
-                            device,
-                        )))
-                    }
-                    Err(sniffle_ende::nom::Err::Failure(DissectError::NotSupported)) => {
-                        panic!("Attempt to dissect PDU that doesn't support dissection")
-                    }
                 }
             }
             None => Ok(None),

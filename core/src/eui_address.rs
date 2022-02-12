@@ -1,9 +1,8 @@
 use sniffle_ende::{
-    decode::{cast, Decode},
+    decode::{cast, Decode, DecodeError},
     encode::{Encode, Encoder},
     nom::{combinator::map, IResult},
 };
-use std::convert::Infallible;
 
 use super::MACAddress;
 
@@ -87,23 +86,24 @@ impl From<MACAddress> for EUIAddress {
 }
 
 impl Decode for EUIAddress {
-    type Error = Infallible;
-
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, Self::Error> {
+    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
         map(<[u8; 8]>::decode, |bytes| Self::from(bytes))(buf)
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], Self::Error> {
+    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
         unsafe { cast(buf) }
     }
 }
 
 impl Encode for EUIAddress {
-    fn encode<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
 
-    fn encode_many<W: Encoder + ?Sized>(slice: &[Self], encoder: &mut W) -> std::io::Result<()> {
+    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
+        slice: &[Self],
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         unsafe {
             encoder
                 .encode(std::slice::from_raw_parts(

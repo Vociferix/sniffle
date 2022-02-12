@@ -1,5 +1,6 @@
-use super::{DissectError, Session};
+use super::Session;
 use sniffle_ende::{
+    decode::DecodeError,
     encode::{DynEncoder, Encoder},
     nom::IResult,
 };
@@ -131,8 +132,8 @@ pub trait PDU: 'static + Any + Clone {
         _buf: &'a [u8],
         _session: &Session,
         _parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self, DissectError> {
-        Err(sniffle_ende::nom::Err::Failure(DissectError::NotSupported))
+    ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
+        Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported))
     }
 
     fn header_len(&self) -> usize;
@@ -157,13 +158,17 @@ pub trait PDU: 'static + Any + Clone {
         ret
     }
 
-    fn serialize_header<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()>;
+    fn serialize_header<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W)
+        -> std::io::Result<()>;
 
-    fn serialize_trailer<W: Encoder + ?Sized>(&self, _encoder: &mut W) -> std::io::Result<()> {
+    fn serialize_trailer<'a, W: Encoder<'a> + ?Sized>(
+        &self,
+        _encoder: &mut W,
+    ) -> std::io::Result<()> {
         Ok(())
     }
 
-    fn serialize<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         self.serialize_header(encoder)?;
         self.inner_pdu()
             .map(|inner| inner.serialize(encoder))
@@ -285,8 +290,9 @@ trait DynPDU {
     fn dyn_header_len(&self) -> usize;
     fn dyn_trailer_len(&self) -> usize;
     fn dyn_total_len(&self) -> usize;
-    fn dyn_serialize_header(&self, encoder: &mut DynEncoder) -> std::io::Result<()>;
-    fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder) -> std::io::Result<()>;
+    fn dyn_serialize_header(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
+    fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
+    fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_clone(&self) -> Box<dyn DynPDU + 'static>;
 }
 
@@ -315,12 +321,16 @@ impl<P: PDU> DynPDU for P {
         self.total_len()
     }
 
-    fn dyn_serialize_header(&self, encoder: &mut DynEncoder) -> std::io::Result<()> {
+    fn dyn_serialize_header(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()> {
         self.serialize_header(encoder)
     }
 
-    fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder) -> std::io::Result<()> {
+    fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()> {
         self.serialize_trailer(encoder)
+    }
+
+    fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()> {
+        self.serialize(encoder)
     }
 
     fn dyn_clone(&self) -> Box<dyn DynPDU + 'static> {
@@ -398,12 +408,22 @@ impl PDU for AnyPDU {
         }
     }
 
-    fn serialize_header<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
+        &self,
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         self.pdu.dyn_serialize_header(encoder.as_dyn_mut())
     }
 
-    fn serialize_trailer<W: Encoder + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+    fn serialize_trailer<'a, W: Encoder<'a> + ?Sized>(
+        &self,
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         self.pdu.dyn_serialize_trailer(encoder.as_dyn_mut())
+    }
+
+    fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+        self.pdu.dyn_serialize(encoder.as_dyn_mut())
     }
 }
 
