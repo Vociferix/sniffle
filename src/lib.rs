@@ -96,6 +96,7 @@ pub mod pdu {
         RawPDU,
         TempPDU,
         PDU,
+        PDUExt,
         PDUType,
     };
 }
@@ -143,6 +144,7 @@ pub mod prelude {
         device::Device,
         pdu::AnyPDU,
         pdu::PDU,
+        pdu::PDUExt,
         capfile::FileSniffer,
         capfile::pcap,
         capfile::pcapng,

@@ -49,7 +49,7 @@ pub use link_type::_register_link_layer_pdu;
 
 pub use packet::Packet;
 
-pub use pdu::{AnyPDU, BasePDU, PDUType, TempPDU, PDU};
+pub use pdu::{AnyPDU, BasePDU, PDUType, TempPDU, PDU, PDUExt};
 
 pub use raw_pdu::RawPDU;
 

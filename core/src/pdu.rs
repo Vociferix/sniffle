@@ -120,12 +120,9 @@ pub trait PDU: 'static + Any + Clone {
     fn base_pdu(&self) -> &BasePDU;
     fn base_pdu_mut(&mut self) -> &mut BasePDU;
 
-    fn pdu_type(&self) -> PDUType {
+    #[doc(hidden)]
+    unsafe fn unsafe_pdu_type(&self) -> PDUType {
         self.type_id()
-    }
-
-    fn is<P: PDU>(&self) -> bool {
-        self.pdu_type() == PDUType::of::<P>()
     }
 
     fn dissect<'a>(
@@ -151,13 +148,6 @@ pub trait PDU: 'static + Any + Clone {
             + self.trailer_len()
     }
 
-    fn deep_clone(&self) -> Self {
-        let mut ret = self.clone();
-        self.inner_pdu()
-            .map(|inner| ret.set_inner_pdu(inner.deep_clone()));
-        ret
-    }
-
     fn serialize_header<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W)
         -> std::io::Result<()>;
 
@@ -170,16 +160,69 @@ pub trait PDU: 'static + Any + Clone {
 
     fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         self.serialize_header(encoder)?;
-        self.inner_pdu()
+        self.base_pdu().inner.as_ref()
             .map(|inner| inner.serialize(encoder))
             .unwrap_or(Ok(()))?;
         self.serialize_trailer(encoder)
     }
 
-    fn into_any_pdu(self) -> AnyPDU {
+    #[doc(hidden)]
+    unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
         AnyPDU {
             pdu: Box::new(self),
         }
+    }
+
+    #[doc(hidden)]
+    unsafe fn unsafe_downcast<P: PDU>(self) -> Result<P, Self> {
+        let is_type = self.is::<P>();
+        if is_type {
+            let mut s = self;
+            let pdu = std::mem::replace(
+                std::mem::transmute::<&mut Self, &mut P>(&mut s),
+                std::mem::MaybeUninit::uninit().assume_init(),
+            );
+            std::mem::forget(s);
+            Ok(pdu)
+        } else {
+            Err(self)
+        }
+    }
+
+    #[doc(hidden)]
+    unsafe fn unsafe_downcast_ref<P: PDU>(&self) -> Option<&P> {
+        if self.is::<P>() {
+            Some(std::mem::transmute::<&Self, &P>(self))
+        } else {
+            None
+        }
+    }
+
+    #[doc(hidden)]
+    unsafe fn unsafe_downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
+        let is_type = self.is::<P>();
+        if is_type {
+            Some(std::mem::transmute::<&mut Self, &mut P>(self))
+        } else {
+            None
+        }
+    }
+}
+
+pub trait PDUExt: PDU {
+    fn pdu_type(&self) -> PDUType {
+        unsafe { self.unsafe_pdu_type() }
+    }
+
+    fn is<P: PDU>(&self) -> bool {
+        self.pdu_type() == PDUType::of::<P>()
+    }
+
+    fn deep_clone(&self) -> Self {
+        let mut ret = self.clone();
+        self.inner_pdu()
+            .map(|inner| ret.set_inner_pdu(inner.deep_clone()));
+        ret
     }
 
     fn parent_pdu(&self) -> Option<&AnyPDU> {
@@ -200,7 +243,7 @@ pub trait PDU: 'static + Any + Clone {
             &mut self.base_pdu_mut().inner,
             new_inner.map(move |mut pdu| {
                 pdu.base_pdu_mut().parent = Some(parent);
-                PDU::into_any_pdu(pdu)
+                PDUExt::into_any_pdu(pdu)
             }),
         )
     }
@@ -223,41 +266,7 @@ pub trait PDU: 'static + Any + Clone {
     fn set_inner_pdu<P: PDU>(&mut self, pdu: P) {
         let mut pdu = pdu;
         pdu.base_pdu_mut().parent = Some(unsafe { fake_any_pdu(self) });
-        self.base_pdu_mut().inner = Some(PDU::into_any_pdu(pdu));
-    }
-
-    fn downcast<P: PDU>(self) -> Result<P, Self> {
-        let is_type = self.is::<P>();
-        if is_type {
-            unsafe {
-                let mut s = self;
-                let pdu = std::mem::replace(
-                    std::mem::transmute::<&mut Self, &mut P>(&mut s),
-                    std::mem::MaybeUninit::uninit().assume_init(),
-                );
-                std::mem::forget(s);
-                Ok(pdu)
-            }
-        } else {
-            Err(self)
-        }
-    }
-
-    fn downcast_ref<P: PDU>(&self) -> Option<&P> {
-        if self.is::<P>() {
-            unsafe { Some(std::mem::transmute::<&Self, &P>(self)) }
-        } else {
-            None
-        }
-    }
-
-    fn downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
-        let is_type = self.is::<P>();
-        if is_type {
-            unsafe { Some(std::mem::transmute::<&mut Self, &mut P>(self)) }
-        } else {
-            None
-        }
+        self.base_pdu_mut().inner = Some(PDUExt::into_any_pdu(pdu));
     }
 
     fn find<P: PDU>(&self) -> Option<&P> {
@@ -281,6 +290,22 @@ pub trait PDU: 'static + Any + Clone {
             }
         }
     }
+
+    fn into_any_pdu(self) -> AnyPDU {
+        unsafe { self.unsafe_into_any_pdu() }
+    }
+
+    fn downcast<P: PDU>(self) -> Result<P, Self> {
+        unsafe { self.unsafe_downcast::<P>() }
+    }
+
+    fn downcast_ref<P: PDU>(&self) -> Option<&P> {
+        unsafe { self.unsafe_downcast_ref::<P>() }
+    }
+
+    fn downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
+        unsafe { self.unsafe_downcast_mut::<P>() }
+    }
 }
 
 trait DynPDU {
@@ -295,6 +320,8 @@ trait DynPDU {
     fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_clone(&self) -> Box<dyn DynPDU + 'static>;
 }
+
+impl<P: PDU> PDUExt for P { }
 
 impl<P: PDU> DynPDU for P {
     fn dyn_base_pdu(&self) -> &BasePDU {
@@ -355,7 +382,7 @@ impl PDU for AnyPDU {
         self.pdu.dyn_base_pdu_mut()
     }
 
-    fn pdu_type(&self) -> PDUType {
+    unsafe fn unsafe_pdu_type(&self) -> PDUType {
         self.pdu.dyn_pdu_type()
     }
 
@@ -371,38 +398,34 @@ impl PDU for AnyPDU {
         self.pdu.dyn_total_len()
     }
 
-    fn into_any_pdu(self) -> AnyPDU {
+    unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
         self
     }
 
-    fn downcast<P: PDU>(self) -> Result<P, Self> {
+    unsafe fn unsafe_downcast<P: PDU>(self) -> Result<P, Self> {
         let is_type = self.is::<P>();
         if is_type {
             let ptr = Box::into_raw(self.pdu);
-            unsafe { Ok(*Box::from_raw(ptr as *mut P)) }
+            Ok(*Box::from_raw(ptr as *mut P))
         } else {
             Err(self)
         }
     }
 
-    fn downcast_ref<P: PDU>(&self) -> Option<&P> {
+    unsafe fn unsafe_downcast_ref<P: PDU>(&self) -> Option<&P> {
         if self.is::<P>() {
-            unsafe {
-                let ptr = self.pdu.as_ref() as *const dyn DynPDU as *const P;
-                Some(&*ptr)
-            }
+            let ptr = self.pdu.as_ref() as *const dyn DynPDU as *const P;
+            Some(&*ptr)
         } else {
             None
         }
     }
 
-    fn downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
+    unsafe fn unsafe_downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
         let is_type = self.is::<P>();
         if is_type {
-            unsafe {
-                let ptr = self.pdu.as_mut() as *mut dyn DynPDU as *mut P;
-                Some(&mut *ptr)
-            }
+            let ptr = self.pdu.as_mut() as *mut dyn DynPDU as *mut P;
+            Some(&mut *ptr)
         } else {
             None
         }
@@ -429,6 +452,6 @@ impl PDU for AnyPDU {
 
 impl AnyPDU {
     pub fn new<P: PDU>(pdu: P) -> AnyPDU {
-        PDU::into_any_pdu(pdu)
+        PDUExt::into_any_pdu(pdu)
     }
 }

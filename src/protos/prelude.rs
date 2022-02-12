@@ -5,6 +5,6 @@ pub use crate::{
     encode::Encoder,
     dissect::{dissector_table, register_dissector_table, Session},
     sniff::{register_link_layer_pdu, LinkType},
-    pdu::{BasePDU, TempPDU, PDU},
+    pdu::{BasePDU, TempPDU, PDU, PDUExt},
     nom::{self, IResult},
 };

@@ -1,4 +1,4 @@
-use super::{dissector_table, register_dissector_table, PDUType, PDU};
+use super::{dissector_table, register_dissector_table, PDUType, PDU, PDUExt};
 use lazy_static::*;
 #[cfg(feature = "pcaprs")]
 pub use pcaprs::ParseLinkTypeError;
