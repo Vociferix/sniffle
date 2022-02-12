@@ -7,7 +7,7 @@ use std::io::Write;
 use std::time::SystemTime;
 
 struct IfaceKey {
-    iface: Option<std::rc::Rc<Device>>,
+    iface: Option<Device>,
     link_type: LinkType,
     snaplen: u32,
 }
@@ -119,7 +119,7 @@ impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
         };
 
         let iface = IfaceKey {
-            iface: packet.share_device(),
+            iface: packet.device().map(|dev| dev.clone()),
             link_type,
             snaplen: packet.snaplen() as u32,
         };

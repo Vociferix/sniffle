@@ -81,7 +81,7 @@ pub trait Sniff: Sized {
     fn session_mut(&mut self) -> &mut Session;
 
     fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
-        let session = std::mem::replace(self.session_mut(), Session::new());
+        let session = std::mem::replace(self.session_mut(), Session::new_from_scratch());
         let ret = match self.next_raw()? {
             Some(pkt) => {
                 let RawPacket {

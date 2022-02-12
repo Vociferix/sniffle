@@ -1,9 +1,6 @@
-use crate::ende::{
-    decode::{decode, decode_be, DecodeError},
-    encode::Encoder,
-    nom::{combinator::map, sequence::tuple, IResult},
-};
-use crate::{dissector_table, BasePDU, MACAddress, Session, TempPDU, PDU};
+use crate::protos::prelude::*;
+use nom::{combinator::map, sequence::tuple};
+use crate::address::MACAddress;
 
 pub struct EthernetII {
     base: BasePDU,
@@ -30,6 +27,9 @@ pub struct EthertypeIter {
 
 dissector_table!(pub EthertypeDissectorTable, Ethertype);
 dissector_table!(pub HeurDissectorTable);
+
+register_dissector_table!(EthertypeDissectorTable);
+register_dissector_table!(HeurDissectorTable);
 
 struct Writer<'a, 'b, E: Encoder<'a> + ?Sized> {
     encoder: &'b mut E,
@@ -520,4 +520,4 @@ impl PartialEq for Ethertype {
 
 impl Eq for Ethertype {}
 
-crate::register_link_layer_pdu!(EthernetII, crate::LinkType::ETHERNET);
+register_link_layer_pdu!(EthernetII, LinkType::ETHERNET);

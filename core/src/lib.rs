@@ -56,10 +56,7 @@ pub use raw_pdu::RawPDU;
 pub use session::Session;
 
 #[doc(hidden)]
-pub use session::{
-    _register_dissector, _register_link_dissector, _register_network_dissector,
-    _register_session_state, _register_transport_dissector,
-};
+pub use session::{_register_dissector, _register_dissector_table};
 
 pub use sniff::{RawPacket, Sniff, SniffError, SniffIter};
 

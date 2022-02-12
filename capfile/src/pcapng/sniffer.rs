@@ -71,7 +71,7 @@ impl<F: BufRead + Seek> Sniffer<F> {
     fn init(file: Reader<F>, session: Option<Session>) -> Self {
         Self {
             file,
-            session: session.unwrap_or_else(|| Session::new()),
+            session: session.unwrap_or_else(|| Session::default()),
             ifaces: Vec::new(),
             buf: Vec::new(),
         }

@@ -13,10 +13,38 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new() -> Self {
+    /// Constructs a new, completely empty, Session.
+    /// This function does not load any registered tables or dissectors.
+    /// This function should be used when creating a custom Session
+    /// configuration with manually installed dissector tables and
+    /// dissectors.
+    pub fn new_from_scratch() -> Self {
         Self {
             state: HashMap::new(),
         }
+    }
+
+    /// Constructs a new Session, with only dissector tables loaded.
+    /// This function does not load any dissectors, only dissector
+    /// tables. This function is a convenient alternative to
+    /// Session::new_from_scatch(), when the default dissector tables
+    /// are desired, but the user wants to customize what dissectors
+    /// are loaded.
+    pub fn new_with_tables_only() -> Self {
+        let mut session = Self::new_from_scratch();
+        for setup in TABLE_SETUP.read().unwrap().iter() {
+            setup(&mut session);
+        }
+        session
+    }
+
+    /// Constructs a new Session, with all registered dissectors and tables loaded.
+    pub fn new() -> Self {
+        let mut session = Self::new_with_tables_only();
+        for setup in DISSECT_SETUP.read().unwrap().iter() {
+            setup(&mut session);
+        }
+        session
     }
 
     pub fn register<S: Any>(&mut self, state: S) {
@@ -79,82 +107,31 @@ impl Session {
                 ))
             })
     }
-
-    pub fn empty_default() -> Self {
-        let mut session = Self::new();
-        for setup in STATE_SETUP.read().unwrap().iter() {
-            setup(&mut session);
-        }
-        session
-    }
-
-    pub fn link_layer_default() -> Self {
-        let mut session = Self::empty_default();
-        for setup in LINK_SETUP.read().unwrap().iter() {
-            setup(&mut session);
-        }
-        session
-    }
-
-    pub fn network_layer_default() -> Self {
-        let mut session = Self::link_layer_default();
-        for setup in NET_SETUP.read().unwrap().iter() {
-            setup(&mut session);
-        }
-        session
-    }
-
-    pub fn transport_layer_default() -> Self {
-        let mut session = Self::network_layer_default();
-        for setup in TRANS_SETUP.read().unwrap().iter() {
-            setup(&mut session);
-        }
-        session
-    }
-
-    pub fn full_default() -> Self {
-        let mut session = Self::transport_layer_default();
-        for setup in FULL_SETUP.read().unwrap().iter() {
-            setup(&mut session);
-        }
-        session
-    }
 }
 
 impl Default for Session {
     fn default() -> Self {
-        Self::full_default()
+        Self::new()
     }
 }
 
 lazy_static! {
-    static ref STATE_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-    static ref LINK_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-    static ref NET_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-    static ref TRANS_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-    static ref FULL_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-}
-
-pub fn _register_link_dissector(cb: fn(&mut Session)) {
-    LINK_SETUP.write().unwrap().push(cb);
-}
-
-pub fn _register_network_dissector(cb: fn(&mut Session)) {
-    NET_SETUP.write().unwrap().push(cb);
-}
-
-pub fn _register_transport_dissector(cb: fn(&mut Session)) {
-    TRANS_SETUP.write().unwrap().push(cb);
+    static ref TABLE_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
+    static ref DISSECT_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
 }
 
 pub fn _register_dissector(cb: fn(&mut Session)) {
-    FULL_SETUP.write().unwrap().push(cb);
+    DISSECT_SETUP.write().unwrap().push(cb);
 }
 
-pub fn _register_session_state(cb: fn(&mut Session)) {
-    STATE_SETUP.write().unwrap().push(cb);
+pub fn _register_dissector_table(cb: fn(&mut Session)) {
+    TABLE_SETUP.write().unwrap().push(cb);
 }
 
+/// Adds a dissector table to be loaded into the default state of a `Session`.
+/// This should only be used if it makes sense for the table to be pre-loaded
+/// into every `Session` instance constructed with `Session::new()` or
+/// `Session::default()`.
 #[macro_export]
 macro_rules! register_dissector_table {
     ($table:ty) => {
@@ -162,7 +139,7 @@ macro_rules! register_dissector_table {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
             fn reg_name() {
-                $crate::_register_session_state(|session| {
+                $crate::_register_dissector_table(|session| {
                     session.register($table::new());
                 });
             }
@@ -170,6 +147,10 @@ macro_rules! register_dissector_table {
     };
 }
 
+/// Adds a dissector to be loaded into the default state of a `Session`.
+/// This should only be used if it makes sense for the dissector to be
+/// pre-loaded into every `Session` instance constructed with
+/// `Session::new()` or `Session::default()`.
 #[macro_export]
 macro_rules! register_dissector {
     ($name:ident, $table:ty, $param:expr, $pri:expr, $dissector:expr) => {
@@ -178,51 +159,6 @@ macro_rules! register_dissector {
             #[allow(non_snake_case)]
             fn reg_name() {
                 $crate::_register_dissector(|session| {
-                    session.load_dissector::<$table>($param, $pri, $dissector);
-                });
-            }
-        });
-    };
-}
-
-#[macro_export]
-macro_rules! register_link_layer_dissector {
-    ($name:ident, $table:ty, $param:expr, $pri:expr, $dissector:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_, $table, _, $name {
-            #[$crate::ctor::ctor]
-            #[allow(non_snake_case)]
-            fn reg_name() {
-                $crate::_register_link_dissector(|session| {
-                    session.load_dissector::<$table>($param, $pri, $dissector);
-                });
-            }
-        });
-    };
-}
-
-#[macro_export]
-macro_rules! register_network_layer_dissector {
-    ($name:ident, $table:ty, $param:expr, $pri:expr, $dissector:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_, $table, _, $name {
-            #[$crate::ctor::ctor]
-            #[allow(non_snake_case)]
-            fn reg_name() {
-                $crate::_register_network_dissector(|session| {
-                    session.load_dissector::<$table>($param, $pri, $dissector);
-                });
-            }
-        });
-    };
-}
-
-#[macro_export]
-macro_rules! register_transport_layer_dissector {
-    ($name:ident, $table:ty, $param:expr, $pri:expr, $dissector:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_, $table, _, $name {
-            #[$crate::ctor::ctor]
-            #[allow(non_snake_case)]
-            fn reg_name() {
-                $crate::_register_transport_dissector(|session| {
                     session.load_dissector::<$table>($param, $pri, $dissector);
                 });
             }

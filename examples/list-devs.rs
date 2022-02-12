@@ -1,6 +1,8 @@
+use sniffle::prelude::*;
+
 fn main() {
     let mut first_dev = true;
-    for dev in sniffle::Device::all() {
+    for dev in Device::all() {
         if !first_dev {
             println!("");
         }
@@ -38,11 +40,11 @@ fn main() {
             print!("LOOPBACK");
         }
         match dev.connection_status() {
-            sniffle::ConnectionStatus::Connected => {
+            ConnectionStatus::Connected => {
                 if !first { print!(","); }
                 print!("CONNECTED");
             },
-            sniffle::ConnectionStatus::Disconnected => {
+            ConnectionStatus::Disconnected => {
                 if !first { print!(","); }
                 print!("DISCONNECTED");
             },
