@@ -146,6 +146,7 @@ pub mod prelude {
         capfile::FileSniffer,
         capfile::pcap,
         capfile::pcapng,
+        protos,
     };
 
     #[cfg(feature = "libpcap")]
