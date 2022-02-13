@@ -1,9 +1,8 @@
 use super::Session;
 use super::{Dump, NodeDumper};
 use sniffle_ende::{
-    decode::DecodeError,
+    decode::{DResult, DecodeError},
     encode::{DynEncoder, Encoder},
-    nom::IResult,
 };
 use std::any::Any;
 
@@ -137,7 +136,7 @@ pub trait PDU: 'static + Any + Clone {
         _buf: &'a [u8],
         _session: &Session,
         _parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
+    ) -> DResult<'a, Self> {
         Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported))
     }
 

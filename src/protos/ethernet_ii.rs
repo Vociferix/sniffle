@@ -157,7 +157,7 @@ impl PDU for EthernetII {
         buf: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
+    ) -> DResult<'a, Self> {
         let (buf, mut eth) = map(
             tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
             |hdr| Self::new(hdr.0, hdr.1, Ethertype(hdr.2)),

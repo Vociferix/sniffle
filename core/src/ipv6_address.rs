@@ -1,7 +1,7 @@
 use sniffle_ende::{
-    decode::{cast, Decode, DecodeError},
+    decode::{cast, DResult, Decode},
     encode::{Encode, Encoder},
-    nom::{combinator::map, IResult},
+    nom::combinator::map,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -200,11 +200,11 @@ impl From<IPv6Address> for i128 {
 }
 
 impl Decode for IPv6Address {
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
+    fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 16]>::decode, |bytes| Self::from(bytes))(buf)
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> IResult<&[u8], [Self; LEN], DecodeError<'_>> {
+    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
         unsafe { cast(buf) }
     }
 }

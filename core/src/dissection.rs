@@ -1,6 +1,6 @@
 use super::{AnyPDU, RawPDU, Session, TempPDU, PDU};
-use sniffle_ende::decode::DecodeError;
-use sniffle_ende::nom::{self, IResult};
+use sniffle_ende::decode::{DResult, DecodeError};
+use sniffle_ende::nom;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Priority(pub i32);
@@ -13,7 +13,7 @@ pub trait Dissector {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>>;
+    ) -> DResult<'a, Self::Out>;
 }
 
 pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + 'static>);
@@ -36,7 +36,7 @@ pub trait DissectorTable: Default {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Option<AnyPDU>, DecodeError<'a>> {
+    ) -> DResult<'a, Option<AnyPDU>> {
         let mut parent = parent;
         for dissector in self.find(param).unwrap_or(&[]) {
             let parent: Option<&mut TempPDU<'_>> = match &mut parent {
@@ -71,7 +71,7 @@ pub trait DissectorTable: Default {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
+    ) -> DResult<'a, AnyPDU> {
         let (buf, opt) = self.dissect(param, buffer, session, parent)?;
         match opt {
             Some(pdu) => Ok((buf, pdu)),
@@ -91,7 +91,7 @@ impl Dissector for AnyDissector {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
+    ) -> DResult<'a, Self::Out> {
         self.0.dissect(buffer, session, parent)
     }
 }
@@ -99,11 +99,7 @@ impl Dissector for AnyDissector {
 impl<F, P> Dissector for F
 where
     P: PDU,
-    F: for<'a> Fn(
-        &'a [u8],
-        &Session,
-        Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], P, DecodeError<'a>>,
+    F: for<'a> Fn(&'a [u8], &Session, Option<&mut TempPDU<'_>>) -> DResult<'a, P>,
 {
     type Out = P;
 
@@ -112,7 +108,7 @@ where
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
+    ) -> DResult<'a, Self::Out> {
         self(buffer, session, parent)
     }
 }
@@ -127,7 +123,7 @@ impl<D: Dissector> Dissector for DissectorAdapter<D> {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self::Out, DecodeError<'a>> {
+    ) -> DResult<'a, Self::Out> {
         self.0
             .dissect(buffer, session, parent)
             .map(|(rem, pdu)| (rem, AnyPDU::new(pdu)))

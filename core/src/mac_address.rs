@@ -1,7 +1,7 @@
 use sniffle_ende::{
-    decode::{Decode, DecodeError},
+    decode::{DResult, Decode},
     encode::{Encode, Encoder},
-    nom::{combinator::map, IResult},
+    nom::combinator::map,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,7 +49,7 @@ impl From<MACAddress> for [u8; 6] {
 }
 
 impl Decode for MACAddress {
-    fn decode(buf: &[u8]) -> IResult<&[u8], Self, DecodeError<'_>> {
+    fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 6]>::decode, |bytes| Self::from(bytes))(buf)
     }
 }

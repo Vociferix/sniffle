@@ -1,7 +1,6 @@
 use super::{AnyPDU, Dissector, DissectorTable, Priority, RawPDU, TempPDU};
 use lazy_static::*;
-use sniffle_ende::decode::DecodeError;
-use sniffle_ende::nom::IResult;
+use sniffle_ende::decode::DResult;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -86,7 +85,7 @@ impl Session {
         param: &T::Param,
         buffer: &'a [u8],
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Option<AnyPDU>, DecodeError<'a>> {
+    ) -> DResult<'a, Option<AnyPDU>> {
         self.get::<T>()
             .map(|table| table.dissect(param, buffer, self, parent))
             .unwrap_or(Ok((buffer, None)))
@@ -97,7 +96,7 @@ impl Session {
         param: &T::Param,
         buffer: &'a [u8],
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
+    ) -> DResult<'a, AnyPDU> {
         self.get::<T>()
             .map(|table| table.dissect_or_raw(param, buffer, self, parent))
             .unwrap_or_else(|| {

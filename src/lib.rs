@@ -91,10 +91,10 @@ pub mod prelude {
     pub use crate::{
         address::EUIAddress, address::EUIParseError, address::IPv4Address, address::IPv6Address,
         address::MACAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
-        decode::DecodeError, device::ConnectionStatus, device::Device, dissect::register_dissector,
-        dissect::Priority, dissect::Session, dump::DebugDumper, dump::Dump, pdu::AnyPDU,
-        pdu::PDUExt, pdu::PDU, protos, sniff::Sniff, sniff::SniffError, transmit::Transmit,
-        transmit::TransmitError, Packet,
+        device::ConnectionStatus, device::Device, dissect::register_dissector, dissect::Priority,
+        dissect::Session, dump::DebugDumper, dump::Dump, pdu::AnyPDU, pdu::PDUExt, pdu::PDU,
+        protos, sniff::Sniff, sniff::SniffError, transmit::Transmit, transmit::TransmitError,
+        Packet,
     };
 
     #[cfg(feature = "libpcap")]

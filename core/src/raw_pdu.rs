@@ -1,5 +1,5 @@
 use super::{BasePDU, ByteDumpFormatter, Dump, NodeDumper, Session, TempPDU, PDU};
-use sniffle_ende::{decode::DecodeError, encode::Encoder, nom::IResult};
+use sniffle_ende::{decode::DResult, encode::Encoder};
 
 pub struct RawPDU {
     base: BasePDU,
@@ -49,7 +49,7 @@ impl PDU for RawPDU {
         buf: &'a [u8],
         _session: &Session,
         _parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
+    ) -> DResult<'a, Self> {
         Ok((
             &buf[buf.len()..],
             Self {
