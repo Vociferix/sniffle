@@ -7,8 +7,6 @@ pub trait Dump {
 
     fn end_node(&mut self);
 
-    fn add_ad_hoc_field(&mut self, name: &str, descr: &str) -> Result<(), Self::Error>;
-
     fn add_field(&mut self, name: &str, descr: &str, bytes: &[u8]) -> Result<(), Self::Error>;
 
     fn add_bit_field(
@@ -59,10 +57,6 @@ impl<'a, D: Dump + ?Sized> Dump for &'a mut D {
         D::end_node(*self);
     }
 
-    fn add_ad_hoc_field(&mut self, name: &str, descr: &str) -> Result<(), Self::Error> {
-        D::add_ad_hoc_field(*self, name, descr)
-    }
-
     fn add_field(&mut self, name: &str, descr: &str, bytes: &[u8]) -> Result<(), Self::Error> {
         D::add_field(*self, name, descr, bytes)
     }
@@ -99,10 +93,6 @@ impl<'a, D: Dump + ?Sized> Dump for DynDumpWrapper<'a, D> {
 
     fn end_node(&mut self) {
         self.0.end_node();
-    }
-
-    fn add_ad_hoc_field(&mut self, name: &str, descr: &str) -> Result<(), Self::Error> {
-        self.0.add_ad_hoc_field(name, descr).map_err(to_boxed_any)
     }
 
     fn add_field(&mut self, name: &str, descr: &str, bytes: &[u8]) -> Result<(), Self::Error> {
@@ -163,10 +153,6 @@ impl<'a, D: Dump + ?Sized> NodeDumper<'a, D> {
     ) -> Result<NodeDumper<'b, D>, D::Error> {
         self.0.start_node(name, descr)?;
         Ok(NodeDumper(self.0, true))
-    }
-
-    pub fn add_ad_hoc_field(&mut self, name: &str, descr: &str) -> Result<(), D::Error> {
-        self.0.add_ad_hoc_field(name, descr)
     }
 
     pub fn add_field(&mut self, name: &str, descr: &str, bytes: &[u8]) -> Result<(), D::Error> {
@@ -252,11 +238,6 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
 
     fn end_node(&mut self) {
         self.depth -= 1;
-    }
-
-    fn add_ad_hoc_field(&mut self, name: &str, descr: &str) -> Result<(), Self::Error> {
-        self.indent()?;
-        write!(self.writer, "{}: {}\n", name, descr)
     }
 
     fn add_field(&mut self, name: &str, descr: &str, _bytes: &[u8]) -> Result<(), Self::Error> {

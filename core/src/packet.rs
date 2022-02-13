@@ -63,9 +63,10 @@ impl Packet {
     pub fn dump<D: Dump>(&self, dumper: &mut Dumper<D>) -> Result<(), D::Error> {
         let mut node = dumper.add_node("Packet", None)?;
         let ts: DateTime<Utc> = self.ts.into();
-        node.add_ad_hoc_field(
+        node.add_field(
             "Timestamp",
             &format!("{}", ts.format("%Y-%m-%d %H:%M:%S%.f"))[..],
+            &[][..],
         )?;
         let mut pdu = self.pdu();
         loop {
