@@ -93,7 +93,7 @@ pub trait Sniff: Sized {
                     device,
                 } = pkt;
                 match session.table_dissect::<LinkTypeTable>(&datalink, data, None) {
-                    Ok((_rem, pdu)) => {
+                    Ok((_rem, Some(pdu))) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))
                     }
                     Err(sniffle_ende::nom::Err::Error(DecodeError::NotSupported)) => {

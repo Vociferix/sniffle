@@ -36,7 +36,7 @@ pub trait DissectorTable: Default {
         buffer: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
-    ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
+    ) -> IResult<&'a [u8], Option<AnyPDU>, DecodeError<'a>> {
         let mut parent = parent;
         for dissector in self.find(param).unwrap_or(&[]) {
             let parent: Option<&mut TempPDU<'_>> = match &mut parent {
@@ -44,8 +44,8 @@ pub trait DissectorTable: Default {
                 None => None,
             };
             match Dissector::dissect(dissector, buffer, session, parent) {
-                Ok(ret) => {
-                    return Ok(ret);
+                Ok((buf, pdu)) => {
+                    return Ok((buf, Some(pdu)));
                 }
                 Err(e) => match e {
                     nom::Err::Incomplete(_) => {}
@@ -62,7 +62,7 @@ pub trait DissectorTable: Default {
                 },
             }
         }
-        Err(nom::Err::Error(DecodeError::Malformed))
+        Ok((buffer, None))
     }
 
     fn dissect_or_raw<'a>(
@@ -72,12 +72,10 @@ pub trait DissectorTable: Default {
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
     ) -> IResult<&'a [u8], AnyPDU, DecodeError<'a>> {
-        match self.dissect(param, buffer, session, parent) {
-            Ok(ret) => Ok(ret),
-            Err(_) => Ok((
-                &buffer[buffer.len()..],
-                AnyPDU::new(RawPDU::new(Vec::from(buffer))),
-            )),
+        let (buf, opt) = self.dissect(param, buffer, session, parent)?;
+        match opt {
+            Some(pdu) => Ok((buf, pdu)),
+            None => Ok((&buffer[buffer.len()..], AnyPDU::new(RawPDU::new(Vec::from(buffer))))),
         }
     }
 }

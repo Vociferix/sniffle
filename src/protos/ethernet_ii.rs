@@ -7,6 +7,13 @@ pub struct EthernetII {
     dst_addr: MACAddress,
     src_addr: MACAddress,
     ethertype: Ethertype,
+    trailer: Trailer,
+}
+
+enum Trailer {
+    Auto,
+    Zeros(usize),
+    Manual(Vec<u8>),
 }
 
 #[derive(Debug, Clone, Copy, Hash)]
@@ -76,6 +83,7 @@ impl EthernetII {
             dst_addr,
             src_addr,
             ethertype,
+            trailer: Trailer::Auto,
         }
     }
 
@@ -102,6 +110,36 @@ impl EthernetII {
     pub fn ethertype_mut(&mut self) -> &mut Ethertype {
         &mut self.ethertype
     }
+
+    fn auto_trailer_len(&self) -> usize {
+        let inner_len = self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0);
+        if inner_len < 46 {
+            46 - inner_len
+        } else {
+            0
+        }
+    }
+
+    pub fn trailer(&self) -> &[u8] {
+        match &self.trailer {
+            Trailer::Auto => &PADDING[..self.auto_trailer_len()],
+            Trailer::Zeros(len) => &PADDING[..*len],
+            Trailer::Manual(trailer) => &trailer[..],
+        }
+    }
+
+    pub fn trailer_mut(&mut self) -> &mut Vec<u8> {
+        let trailer = match &mut self.trailer {
+            Trailer::Auto => vec![0u8; self.auto_trailer_len()],
+            Trailer::Zeros(len) => vec![0u8; *len],
+            Trailer::Manual(trailer) => std::mem::replace(trailer, Vec::new()),
+        };
+        self.trailer = Trailer::Manual(trailer);
+        match &mut self.trailer {
+            Trailer::Manual(trailer) => trailer,
+            _ => unreachable!(),
+        }
+    }
 }
 
 const PADDING: [u8; 46] = [0u8; 46];
@@ -117,13 +155,68 @@ impl PDU for EthernetII {
 
     fn dissect<'a>(
         buf: &'a [u8],
-        _session: &Session,
-        _parent: Option<&mut TempPDU<'_>>,
+        session: &Session,
+        parent: Option<&mut TempPDU<'_>>,
     ) -> IResult<&'a [u8], Self, DecodeError<'a>> {
-        map(
+        let (buf, mut eth) = map(
             tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
             |hdr| Self::new(hdr.0, hdr.1, Ethertype(hdr.2)),
-        )(buf)
+        )(buf)?;
+        let before = buf.len();
+        let ethertype = *eth.ethertype();
+        let mut tmp = TempPDU::new_with_parent(parent, &mut eth);
+        let (buf, inner) = session.table_dissect::<EthertypeDissectorTable>(
+            &ethertype,
+            buf,
+            Some(&mut tmp),
+        )?;
+        let (buf, inner) = match inner {
+            Some(inner) => (buf, inner),
+            None => session.table_dissect_or_raw::<HeurDissectorTable>(
+                &(),
+                buf,
+                Some(&mut tmp),
+            )?,
+        };
+        drop(tmp);
+        eth.set_inner_pdu(inner);
+        let inner_len = before - buf.len();
+        let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };
+        let mut zeros = 0usize;
+        if trailer_len == buf.len() {
+            for byte in buf {
+                if *byte != 0 {
+                    break;
+                }
+                zeros += 1;
+            }
+            if zeros == buf.len() {
+                eth.trailer = Trailer::Auto;
+            } else {
+                let mut trailer = vec![0u8; zeros];
+                for byte in &buf[zeros..] {
+                    trailer.push(*byte);
+                }
+                eth.trailer = Trailer::Manual(trailer);
+            }
+        } else {
+            for byte in buf {
+                if *byte != 0 {
+                    break;
+                }
+                zeros += 1;
+            }
+            if zeros == buf.len() {
+                eth.trailer = Trailer::Zeros(zeros);
+            } else {
+                let mut trailer = vec![0u8; zeros];
+                for byte in &buf[zeros..] {
+                    trailer.push(*byte);
+                }
+                eth.trailer = Trailer::Manual(trailer);
+            }
+        }
+        Ok((buf, eth))
     }
 
     fn header_len(&self) -> usize {
@@ -131,17 +224,16 @@ impl PDU for EthernetII {
     }
 
     fn trailer_len(&self) -> usize {
-        let inner_len = self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0);
-        if inner_len < 46 {
-            46 - inner_len
-        } else {
-            0
-        }
+        self.trailer().len()
     }
 
     fn total_len(&self) -> usize {
         let inner_len = self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0);
-        self.header_len() + inner_len + if inner_len < 46 { 46 - inner_len } else { 0 }
+        self.header_len() + inner_len + match &self.trailer {
+            Trailer::Auto => if inner_len < 46 { 46 - inner_len } else { 0 },
+            Trailer::Zeros(len) => *len,
+            Trailer::Manual(trailer) => trailer.len(),
+        }
     }
 
     fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
@@ -159,10 +251,7 @@ impl PDU for EthernetII {
         &self,
         encoder: &mut W,
     ) -> std::io::Result<()> {
-        let len = self.trailer_len();
-        if len > 0 {
-            encoder.encode(&PADDING[..len])?;
-        }
+        encoder.encode(self.trailer())?;
         Ok(())
     }
 
@@ -172,12 +261,25 @@ impl PDU for EthernetII {
         self.inner_pdu()
             .map(|inner| inner.serialize(&mut writer))
             .unwrap_or(Ok(()))?;
-        let inner_len = writer.bytes;
+        let inner_len = writer.bytes as usize;
         let encoder = writer.into_inner();
-        if inner_len < 46 {
-            encoder.encode(&PADDING[..(46 - (inner_len as usize))])?;
+        match &self.trailer {
+            Trailer::Auto => { encoder.encode(&PADDING[..(46 - inner_len)])?; },
+            Trailer::Zeros(len) => { encoder.encode(&PADDING[..*len])?; },
+            Trailer::Manual(trailer) => { encoder.encode(&trailer[..])?; },
         }
         Ok(())
+    }
+
+    fn make_canonical(&mut self) {
+        let ethertype = match self.inner_pdu() {
+            Some(inner) => match inner.pdu_type() {
+                _ => *self.ethertype(),
+            },
+            None => *self.ethertype(),
+        };
+        self.ethertype = ethertype;
+        self.trailer = Trailer::Auto;
     }
 }
 
@@ -188,6 +290,11 @@ impl Clone for EthernetII {
             dst_addr: self.dst_addr,
             src_addr: self.src_addr,
             ethertype: self.ethertype,
+            trailer: match &self.trailer {
+                Trailer::Auto => Trailer::Auto,
+                Trailer::Zeros(len) => Trailer::Zeros(*len),
+                Trailer::Manual(trailer) => Trailer::Manual(trailer.clone()),
+            },
         }
     }
 }

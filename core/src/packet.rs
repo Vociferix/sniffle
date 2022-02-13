@@ -1,4 +1,4 @@
-use super::{AnyPDU, Device, PDU};
+use super::{AnyPDU, Device, PDU, PDUExt};
 use std::time::SystemTime;
 
 pub struct Packet {
@@ -53,6 +53,10 @@ impl Packet {
 
     pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {
         self.dev.clone()
+    }
+
+    pub fn make_canonical(&mut self) {
+        self.pdu.make_all_canonical();
     }
 }
 

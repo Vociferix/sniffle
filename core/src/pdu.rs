@@ -30,6 +30,13 @@ impl<'a> TempPDU<'a> {
         }
     }
 
+    pub fn new_with_parent<P: PDU>(parent: Option<&mut TempPDU<'_>>, pdu: &'a mut P) -> Self {
+        match parent {
+            Some(parent) => parent.push_inner(pdu),
+            None => Self::new(pdu),
+        }
+    }
+
     fn pdu_mut(&mut self) -> &mut AnyPDU {
         self.pdu
             .as_mut()
@@ -165,6 +172,11 @@ pub trait PDU: 'static + Any + Clone {
             .unwrap_or(Ok(()))?;
         self.serialize_trailer(encoder)
     }
+
+    /// Modifies the PDU to make the packet valid.
+    /// This function should perform operations like updating checksums and
+    /// other operations to conform to protocol standards.
+    fn make_canonical(&mut self) { }
 
     #[doc(hidden)]
     unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
@@ -306,6 +318,11 @@ pub trait PDUExt: PDU {
     fn downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
         unsafe { self.unsafe_downcast_mut::<P>() }
     }
+
+    fn make_all_canonical(&mut self) {
+        self.make_canonical();
+        self.inner_pdu_mut().map(|inner| inner.make_all_canonical());
+    }
 }
 
 trait DynPDU {
@@ -315,6 +332,7 @@ trait DynPDU {
     fn dyn_header_len(&self) -> usize;
     fn dyn_trailer_len(&self) -> usize;
     fn dyn_total_len(&self) -> usize;
+    fn dyn_make_canonical(&mut self);
     fn dyn_serialize_header(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
@@ -346,6 +364,10 @@ impl<P: PDU> DynPDU for P {
 
     fn dyn_total_len(&self) -> usize {
         self.total_len()
+    }
+
+    fn dyn_make_canonical(&mut self) {
+        self.make_canonical();
     }
 
     fn dyn_serialize_header(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()> {
@@ -396,6 +418,10 @@ impl PDU for AnyPDU {
 
     fn total_len(&self) -> usize {
         self.pdu.dyn_total_len()
+    }
+
+    fn make_canonical(&mut self) {
+        self.pdu.dyn_make_canonical();
     }
 
     unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
