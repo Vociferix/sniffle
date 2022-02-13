@@ -1,4 +1,5 @@
-use super::{AnyPDU, Device, PDU, PDUExt};
+use super::{AnyPDU, Device, Dump, Dumper, PDUExt, PDU};
+use chrono::{offset::Utc, DateTime};
 use std::time::SystemTime;
 
 pub struct Packet {
@@ -57,6 +58,26 @@ impl Packet {
 
     pub fn make_canonical(&mut self) {
         self.pdu.make_all_canonical();
+    }
+
+    pub fn dump<D: Dump>(&self, dumper: &mut Dumper<D>) -> Result<(), D::Error> {
+        let mut node = dumper.add_node("Packet", None)?;
+        let ts: DateTime<Utc> = self.ts.into();
+        node.add_ad_hoc_field(
+            "Timestamp",
+            &format!("{}", ts.format("%Y-%m-%d %H:%M:%S%.f"))[..],
+        )?;
+        let mut pdu = self.pdu();
+        loop {
+            pdu.dump(&mut node)?;
+            let next = pdu.inner_pdu();
+            pdu = match next {
+                Some(next) => next,
+                None => {
+                    return Ok(());
+                }
+            }
+        }
     }
 }
 

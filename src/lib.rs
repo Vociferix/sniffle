@@ -9,11 +9,7 @@ pub use ctor;
 pub use nom;
 
 #[doc(hidden)]
-pub use sniffle_core::{
-    _register_dissector,
-    _register_dissector_table,
-    _register_link_layer_pdu,
-};
+pub use sniffle_core::{_register_dissector, _register_dissector_table, _register_link_layer_pdu};
 
 #[doc(inline)]
 pub use sniffle_core::Packet;
@@ -21,12 +17,7 @@ pub use sniffle_core::Packet;
 pub mod address {
     #[doc(inline)]
     pub use sniffle_core::{
-        EUIAddress,
-        EUIParseError,
-        IPv4Address,
-        IPv4NetworkIter,
-        IPv6Address,
-        IPv6NetworkIter,
+        EUIAddress, EUIParseError, IPv4Address, IPv4NetworkIter, IPv6Address, IPv6NetworkIter,
         MACAddress,
     };
 }
@@ -34,71 +25,43 @@ pub mod address {
 pub mod dissect {
     #[doc(inline)]
     pub use sniffle_core::{
-        AnyDissector,
-        Dissector,
-        DissectorTable,
-        Priority,
-        Session,
-        dissector_table,
-        register_dissector,
-        register_dissector_table,
+        dissector_table, register_dissector, register_dissector_table, AnyDissector, Dissector,
+        DissectorTable, Priority, Session,
     };
+}
+
+pub mod dump {
+    #[doc(inline)]
+    pub use sniffle_core::{ByteDumpFormatter, DebugDumper, Dump, Dumper, NodeDumper};
 }
 
 pub mod sniff {
     #[doc(inline)]
     pub use sniffle_core::{
-        SniffIter,
-        SniffError,
-        Sniff,
-        RawPacket,
-        LinkType,
-        LinkTypeTable,
-        register_link_layer_pdu,
+        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, SniffError, SniffIter,
     };
 }
 
 pub mod transmit {
     #[doc(inline)]
-    pub use sniffle_core::{
-        TransmitError,
-        Transmit,
-    };
+    pub use sniffle_core::{Transmit, TransmitError};
 }
 
 pub mod device {
     #[doc(inline)]
     pub use sniffle_core::{
-        Device,
-        DeviceBuilder,
-        DeviceIPv4,
-        DeviceIPv6,
-        DeviceTSPrecision,
+        ConnectionStatus, Device, DeviceBuilder, DeviceIPv4, DeviceIPv6, DeviceTSPrecision,
         DeviceTSType,
-        ConnectionStatus,
     };
 
     #[cfg(feature = "libpcap")]
     #[doc(inline)]
-    pub use sniffle_core::{
-        AllDevicesIter,
-        DeviceInjector,
-        DeviceSniffer,
-        DeviceSnifferConfig,
-    };
+    pub use sniffle_core::{AllDevicesIter, DeviceInjector, DeviceSniffer, DeviceSnifferConfig};
 }
 
 pub mod pdu {
     #[doc(inline)]
-    pub use sniffle_core::{
-        AnyPDU,
-        BasePDU,
-        RawPDU,
-        TempPDU,
-        PDU,
-        PDUExt,
-        PDUType,
-    };
+    pub use sniffle_core::{AnyPDU, BasePDU, PDUExt, PDUType, RawPDU, TempPDU, PDU};
 }
 
 pub mod encode {
@@ -126,37 +89,16 @@ pub mod capfile {
 /// Re-exports commonly used sniffle types, functions, and macros.
 pub mod prelude {
     pub use crate::{
-        Packet,
-        address::EUIAddress,
-        address::EUIParseError,
-        address::IPv4Address,
-        address::IPv6Address,
-        address::MACAddress,
-        decode::DecodeError,
-        device::ConnectionStatus,
-        dissect::Priority,
-        dissect::Session,
-        dissect::register_dissector,
-        sniff::Sniff,
-        sniff::SniffError,
-        transmit::Transmit,
-        transmit::TransmitError,
-        device::Device,
-        pdu::AnyPDU,
-        pdu::PDU,
-        pdu::PDUExt,
-        capfile::FileSniffer,
-        capfile::pcap,
-        capfile::pcapng,
-        protos,
+        address::EUIAddress, address::EUIParseError, address::IPv4Address, address::IPv6Address,
+        address::MACAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
+        decode::DecodeError, device::ConnectionStatus, device::Device, dissect::register_dissector,
+        dissect::Priority, dissect::Session, dump::DebugDumper, dump::Dump, pdu::AnyPDU,
+        pdu::PDUExt, pdu::PDU, protos, sniff::Sniff, sniff::SniffError, transmit::Transmit,
+        transmit::TransmitError, Packet,
     };
 
     #[cfg(feature = "libpcap")]
-    pub use crate::device::{
-        DeviceInjector,
-        DeviceSniffer,
-        DeviceSnifferConfig
-    };
+    pub use crate::device::{DeviceInjector, DeviceSniffer, DeviceSnifferConfig};
 }
 
 pub mod protos;

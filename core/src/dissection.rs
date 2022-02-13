@@ -75,7 +75,10 @@ pub trait DissectorTable: Default {
         let (buf, opt) = self.dissect(param, buffer, session, parent)?;
         match opt {
             Some(pdu) => Ok((buf, pdu)),
-            None => Ok((&buffer[buffer.len()..], AnyPDU::new(RawPDU::new(Vec::from(buffer))))),
+            None => Ok((
+                &buffer[buffer.len()..],
+                AnyPDU::new(RawPDU::new(Vec::from(buffer))),
+            )),
         }
     }
 }

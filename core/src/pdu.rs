@@ -1,4 +1,5 @@
 use super::Session;
+use super::{Dump, NodeDumper};
 use sniffle_ende::{
     decode::DecodeError,
     encode::{DynEncoder, Encoder},
@@ -167,16 +168,20 @@ pub trait PDU: 'static + Any + Clone {
 
     fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         self.serialize_header(encoder)?;
-        self.base_pdu().inner.as_ref()
+        self.base_pdu()
+            .inner
+            .as_ref()
             .map(|inner| inner.serialize(encoder))
             .unwrap_or(Ok(()))?;
         self.serialize_trailer(encoder)
     }
 
+    fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<'_, D>) -> Result<(), D::Error>;
+
     /// Modifies the PDU to make the packet valid.
     /// This function should perform operations like updating checksums and
     /// other operations to conform to protocol standards.
-    fn make_canonical(&mut self) { }
+    fn make_canonical(&mut self) {}
 
     #[doc(hidden)]
     unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
@@ -336,10 +341,14 @@ trait DynPDU {
     fn dyn_serialize_header(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_serialize_trailer(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
+    fn dyn_dump(
+        &self,
+        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + 'static>> + '_>,
+    ) -> Result<(), Box<dyn Any + 'static>>;
     fn dyn_clone(&self) -> Box<dyn DynPDU + 'static>;
 }
 
-impl<P: PDU> PDUExt for P { }
+impl<P: PDU> PDUExt for P {}
 
 impl<P: PDU> DynPDU for P {
     fn dyn_base_pdu(&self) -> &BasePDU {
@@ -380,6 +389,13 @@ impl<P: PDU> DynPDU for P {
 
     fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()> {
         self.serialize(encoder)
+    }
+
+    fn dyn_dump(
+        &self,
+        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + 'static>> + '_>,
+    ) -> Result<(), Box<dyn Any + 'static>> {
+        self.dump(dumper)
     }
 
     fn dyn_clone(&self) -> Box<dyn DynPDU + 'static> {
@@ -473,6 +489,10 @@ impl PDU for AnyPDU {
 
     fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         self.pdu.dyn_serialize(encoder.as_dyn_mut())
+    }
+
+    fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<'_, D>) -> Result<(), D::Error> {
+        dumper.as_dyn_dumper(|dumper| self.pdu.dyn_dump(dumper))
     }
 }
 

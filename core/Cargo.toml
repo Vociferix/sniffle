@@ -13,6 +13,7 @@ lazy_static = "1.4"
 concat-idents = "1.1"
 ctor = "0.1"
 thiserror = "1.0"
+chrono = "0.4"
 
 [features]
 default = ["npcap"]

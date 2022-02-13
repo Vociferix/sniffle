@@ -1,4 +1,4 @@
-use super::{BasePDU, Session, TempPDU, PDU};
+use super::{BasePDU, ByteDumpFormatter, Dump, NodeDumper, Session, TempPDU, PDU};
 use sniffle_ende::{decode::DecodeError, encode::Encoder, nom::IResult};
 
 pub struct RawPDU {
@@ -64,5 +64,11 @@ impl PDU for RawPDU {
         encoder: &mut W,
     ) -> std::io::Result<()> {
         encoder.encode(&self.data[..]).map(|_| ())
+    }
+
+    fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<D>) -> Result<(), D::Error> {
+        let mut node = dumper.add_node("Raw Bytes", None)?;
+        let data = format!("{}", ByteDumpFormatter(&self.data[..]));
+        node.add_field("data", &data[..], &self.data[..])
     }
 }

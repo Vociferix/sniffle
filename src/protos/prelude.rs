@@ -2,9 +2,10 @@
 
 pub use crate::{
     decode::{decode, decode_be, decode_le, DecodeError},
-    encode::Encoder,
     dissect::{dissector_table, register_dissector_table, Session},
-    sniff::{register_link_layer_pdu, LinkType},
-    pdu::{BasePDU, TempPDU, PDU, PDUExt},
+    dump::{ByteDumpFormatter, Dump, NodeDumper},
+    encode::Encoder,
     nom::{self, IResult},
+    pdu::{BasePDU, PDUExt, TempPDU, PDU},
+    sniff::{register_link_layer_pdu, LinkType},
 };

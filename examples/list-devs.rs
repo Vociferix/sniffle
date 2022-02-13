@@ -12,11 +12,11 @@ fn main() {
                 Some(desc) => {
                     print!("{}: ", desc);
                     true
-                },
+                }
                 None => {
                     print!("{}: ", dev.name());
                     false
-                },
+                }
             };
             has_desc
         } else {
@@ -30,25 +30,33 @@ fn main() {
             print!("UP");
         }
         if dev.is_running() {
-            if !first { print!(","); }
+            if !first {
+                print!(",");
+            }
             first = false;
             print!("RUNNING");
         }
         if dev.is_loopback() {
-            if !first { print!(","); }
+            if !first {
+                print!(",");
+            }
             first = false;
             print!("LOOPBACK");
         }
         match dev.connection_status() {
             ConnectionStatus::Connected => {
-                if !first { print!(","); }
+                if !first {
+                    print!(",");
+                }
                 print!("CONNECTED");
-            },
+            }
             ConnectionStatus::Disconnected => {
-                if !first { print!(","); }
+                if !first {
+                    print!(",");
+                }
                 print!("DISCONNECTED");
-            },
-            _ => { },
+            }
+            _ => {}
         }
         println!(">");
         if cfg!(windows) && has_desc {

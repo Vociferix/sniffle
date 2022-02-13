@@ -1,6 +1,6 @@
+use crate::address::MACAddress;
 use crate::protos::prelude::*;
 use nom::{combinator::map, sequence::tuple};
-use crate::address::MACAddress;
 
 pub struct EthernetII {
     base: BasePDU,
@@ -165,18 +165,11 @@ impl PDU for EthernetII {
         let before = buf.len();
         let ethertype = *eth.ethertype();
         let mut tmp = TempPDU::new_with_parent(parent, &mut eth);
-        let (buf, inner) = session.table_dissect::<EthertypeDissectorTable>(
-            &ethertype,
-            buf,
-            Some(&mut tmp),
-        )?;
+        let (buf, inner) =
+            session.table_dissect::<EthertypeDissectorTable>(&ethertype, buf, Some(&mut tmp))?;
         let (buf, inner) = match inner {
             Some(inner) => (buf, inner),
-            None => session.table_dissect_or_raw::<HeurDissectorTable>(
-                &(),
-                buf,
-                Some(&mut tmp),
-            )?,
+            None => session.table_dissect_or_raw::<HeurDissectorTable>(&(), buf, Some(&mut tmp))?,
         };
         drop(tmp);
         eth.set_inner_pdu(inner);
@@ -229,11 +222,19 @@ impl PDU for EthernetII {
 
     fn total_len(&self) -> usize {
         let inner_len = self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0);
-        self.header_len() + inner_len + match &self.trailer {
-            Trailer::Auto => if inner_len < 46 { 46 - inner_len } else { 0 },
-            Trailer::Zeros(len) => *len,
-            Trailer::Manual(trailer) => trailer.len(),
-        }
+        self.header_len()
+            + inner_len
+            + match &self.trailer {
+                Trailer::Auto => {
+                    if inner_len < 46 {
+                        46 - inner_len
+                    } else {
+                        0
+                    }
+                }
+                Trailer::Zeros(len) => *len,
+                Trailer::Manual(trailer) => trailer.len(),
+            }
     }
 
     fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
@@ -264,9 +265,42 @@ impl PDU for EthernetII {
         let inner_len = writer.bytes as usize;
         let encoder = writer.into_inner();
         match &self.trailer {
-            Trailer::Auto => { encoder.encode(&PADDING[..(46 - inner_len)])?; },
-            Trailer::Zeros(len) => { encoder.encode(&PADDING[..*len])?; },
-            Trailer::Manual(trailer) => { encoder.encode(&trailer[..])?; },
+            Trailer::Auto => {
+                encoder.encode(&PADDING[..(46 - inner_len)])?;
+            }
+            Trailer::Zeros(len) => {
+                encoder.encode(&PADDING[..*len])?;
+            }
+            Trailer::Manual(trailer) => {
+                encoder.encode(&trailer[..])?;
+            }
+        }
+        Ok(())
+    }
+
+    fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<D>) -> Result<(), D::Error> {
+        let mut node = dumper.add_node(
+            "Ethernet II",
+            Some(&format!("{}->{}", self.src_addr, self.dst_addr)[..]),
+        )?;
+        node.add_field(
+            "dst address",
+            &self.dst_addr.to_string()[..],
+            &self.dst_addr[..],
+        )?;
+        node.add_field(
+            "src address",
+            &self.src_addr.to_string()[..],
+            &self.src_addr[..],
+        )?;
+        node.add_field(
+            "ethertype",
+            &self.ethertype.0.to_string()[..],
+            &self.ethertype.0.to_be_bytes()[..],
+        )?;
+        let trailer = self.trailer();
+        if !trailer.is_empty() {
+            node.add_padding_bytes(trailer)?;
         }
         Ok(())
     }

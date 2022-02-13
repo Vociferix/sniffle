@@ -6,6 +6,7 @@ mod device_injector;
 #[cfg(feature = "pcaprs")]
 mod device_sniffer;
 mod dissection;
+pub(crate) mod dump;
 mod eui_address;
 mod ipv4_address;
 mod ipv6_address;
@@ -34,6 +35,8 @@ pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, 
 
 pub use dissection::{AnyDissector, Dissector, DissectorTable, Priority};
 
+pub use dump::{ByteDumpFormatter, DebugDumper, Dump, Dumper, NodeDumper};
+
 pub use eui_address::{EUIAddress, EUIParseError};
 
 pub use mac_address::MACAddress;
@@ -49,7 +52,7 @@ pub use link_type::_register_link_layer_pdu;
 
 pub use packet::Packet;
 
-pub use pdu::{AnyPDU, BasePDU, PDUType, TempPDU, PDU, PDUExt};
+pub use pdu::{AnyPDU, BasePDU, PDUExt, PDUType, TempPDU, PDU};
 
 pub use raw_pdu::RawPDU;
 
