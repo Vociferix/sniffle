@@ -61,7 +61,7 @@ impl Packet {
     }
 
     pub fn dump<D: Dump>(&self, dumper: &mut Dumper<D>) -> Result<(), D::Error> {
-        let mut node = dumper.add_node("Packet", None)?;
+        let mut node = dumper.add_packet()?;
         let ts: DateTime<Utc> = self.ts.into();
         node.add_field(
             "Timestamp",

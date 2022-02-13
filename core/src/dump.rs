@@ -3,6 +3,10 @@ use std::any::Any;
 pub trait Dump {
     type Error: Any + 'static;
 
+    fn start_packet(&mut self) -> Result<(), Self::Error>;
+
+    fn end_packet(&mut self);
+
     fn start_node(&mut self, name: &str, descr: Option<&str>) -> Result<(), Self::Error>;
 
     fn end_node(&mut self);
@@ -26,13 +30,14 @@ pub trait Dump {
 
 pub struct Dumper<D: Dump>(D);
 
-pub struct NodeDumper<'a, D: Dump + ?Sized>(&'a mut D, bool);
+pub struct NodeDumper<'a, D: Dump + ?Sized>(&'a mut D, bool, bool);
 
 struct DynDumpWrapper<'a, D: Dump + ?Sized>(&'a mut D);
 
 pub struct DebugDumper<W: std::io::Write> {
     writer: W,
     depth: usize,
+    count: u64,
 }
 
 pub struct ByteDumpFormatter<'a>(pub &'a [u8]);
@@ -48,6 +53,14 @@ impl<'a> std::fmt::Display for ByteDumpFormatter<'a> {
 
 impl<'a, D: Dump + ?Sized> Dump for &'a mut D {
     type Error = D::Error;
+
+    fn start_packet(&mut self) -> Result<(), Self::Error> {
+        D::start_packet(*self)
+    }
+
+    fn end_packet(&mut self) {
+        D::end_packet(*self)
+    }
 
     fn start_node(&mut self, name: &str, descr: Option<&str>) -> Result<(), Self::Error> {
         D::start_node(*self, name, descr)
@@ -86,6 +99,14 @@ fn to_boxed_any<T: Any + 'static>(val: T) -> Box<dyn Any + 'static> {
 
 impl<'a, D: Dump + ?Sized> Dump for DynDumpWrapper<'a, D> {
     type Error = Box<dyn Any + 'static>;
+
+    fn start_packet(&mut self) -> Result<(), Self::Error> {
+        self.0.start_packet().map_err(to_boxed_any)
+    }
+
+    fn end_packet(&mut self) {
+        self.0.end_packet();
+    }
 
     fn start_node(&mut self, name: &str, descr: Option<&str>) -> Result<(), Self::Error> {
         self.0.start_node(name, descr).map_err(to_boxed_any)
@@ -135,13 +156,9 @@ impl<D: Dump> Dumper<D> {
         &mut self.0
     }
 
-    pub fn add_node(
-        &mut self,
-        name: &str,
-        descr: Option<&str>,
-    ) -> Result<NodeDumper<'_, D>, D::Error> {
-        self.0.start_node(name, descr)?;
-        Ok(NodeDumper(&mut self.0, true))
+    pub fn add_packet(&mut self) -> Result<NodeDumper<'_, D>, D::Error> {
+        self.0.start_packet()?;
+        Ok(NodeDumper(&mut self.0, true, true))
     }
 }
 
@@ -152,7 +169,7 @@ impl<'a, D: Dump + ?Sized> NodeDumper<'a, D> {
         descr: Option<&str>,
     ) -> Result<NodeDumper<'b, D>, D::Error> {
         self.0.start_node(name, descr)?;
-        Ok(NodeDumper(self.0, true))
+        Ok(NodeDumper(self.0, true, false))
     }
 
     pub fn add_field(&mut self, name: &str, descr: &str, bytes: &[u8]) -> Result<(), D::Error> {
@@ -185,7 +202,7 @@ impl<'a, D: Dump + ?Sized> NodeDumper<'a, D> {
     {
         let mut wrapper = DynDumpWrapper(self.0);
         let dyn_dumper: &mut dyn Dump<Error = Box<dyn Any + 'static>> = &mut wrapper;
-        let mut dumper = NodeDumper(dyn_dumper, false);
+        let mut dumper = NodeDumper(dyn_dumper, false, false);
         f(&mut dumper).map_err(|e| -> D::Error {
             match e.downcast() {
                 Ok(e) => *e,
@@ -198,14 +215,22 @@ impl<'a, D: Dump + ?Sized> NodeDumper<'a, D> {
 impl<'a, D: Dump + ?Sized> Drop for NodeDumper<'a, D> {
     fn drop(&mut self) {
         if self.1 {
-            self.0.end_node();
+            if self.2 {
+                self.0.end_packet();
+            } else {
+                self.0.end_node();
+            }
         }
     }
 }
 
 impl<W: std::io::Write> DebugDumper<W> {
     pub fn new(writer: W) -> Dumper<Self> {
-        Dumper::new(Self { writer, depth: 0 })
+        Dumper::new(Self {
+            writer,
+            depth: 0,
+            count: 0,
+        })
     }
 
     pub fn as_inner(&self) -> &W {
@@ -214,6 +239,10 @@ impl<W: std::io::Write> DebugDumper<W> {
 
     pub fn as_inner_mut(&mut self) -> &mut W {
         &mut self.writer
+    }
+
+    pub fn packet_count(&self) -> u64 {
+        self.count
     }
 
     fn indent(&mut self) -> std::io::Result<()> {
@@ -226,6 +255,16 @@ impl<W: std::io::Write> DebugDumper<W> {
 
 impl<W: std::io::Write> Dump for DebugDumper<W> {
     type Error = std::io::Error;
+
+    fn start_packet(&mut self) -> Result<(), Self::Error> {
+        self.depth += 1;
+        self.count += 1;
+        write!(self.writer, "Packet {}\n", self.count)
+    }
+
+    fn end_packet(&mut self) {
+        self.depth -= 1;
+    }
 
     fn start_node(&mut self, name: &str, descr: Option<&str>) -> Result<(), Self::Error> {
         self.indent()?;

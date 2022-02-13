@@ -296,7 +296,7 @@ impl PDU for EthernetII {
         )?;
         node.add_field(
             "ethertype",
-            &self.ethertype.0.to_string()[..],
+            &format!("0x{:04x}", self.ethertype.0)[..],
             &self.ethertype.0.to_be_bytes()[..],
         )?;
         let trailer = self.trailer();
