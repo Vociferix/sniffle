@@ -137,6 +137,14 @@ impl<D: Dump> Dumper<D> {
         Self(raw_dumper)
     }
 
+    pub fn as_inner(&self) -> &D {
+        &self.0
+    }
+
+    pub fn as_inner_mut(&mut self) -> &mut D {
+        &mut self.0
+    }
+
     pub fn add_node(
         &mut self,
         name: &str,
@@ -214,6 +222,14 @@ impl<W: std::io::Write> DebugDumper<W> {
         Dumper::new(Self { writer, depth: 0 })
     }
 
+    pub fn as_inner(&self) -> &W {
+        &self.writer
+    }
+
+    pub fn as_inner_mut(&mut self) -> &mut W {
+        &mut self.writer
+    }
+
     fn indent(&mut self) -> std::io::Result<()> {
         for _ in 0..self.depth {
             write!(self.writer, "  ")?;
@@ -230,7 +246,7 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
         self.depth += 1;
         match descr {
             Some(descr) => write!(self.writer, "{}: {}\n", name, descr),
-            None => write!(self.writer, "{}", name),
+            None => write!(self.writer, "{}\n", name),
         }
     }
 
