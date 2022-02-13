@@ -2,6 +2,10 @@
 name = "sniffle"
 version = "0.1.0"
 edition = "2018"
+license = "MIT OR Apache-2.0"
+authors = ["Jack Bernard <jack.a.bernard.jr@gmail.com>"]
+repository = "https://github.com/Vociferix/sniffle"
+description = "Packet sniffing and crafting library"
 
 [dependencies]
 sniffle-core = { path = "core", default-features = false }
