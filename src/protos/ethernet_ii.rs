@@ -161,7 +161,8 @@ impl PDU for EthernetII {
         let (buf, mut eth) = map(
             tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
             |hdr| Self::new(hdr.0, hdr.1, Ethertype(hdr.2)),
-        )(buf)?;
+        )(buf)
+        .unwrap();
         let before = buf.len();
         let ethertype = *eth.ethertype();
         let mut tmp = TempPDU::new_with_parent(parent, &mut eth);

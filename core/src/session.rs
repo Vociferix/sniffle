@@ -159,7 +159,7 @@ macro_rules! register_dissector {
             #[allow(non_snake_case)]
             fn reg_name() {
                 $crate::_register_dissector(|session| {
-                    session.load_dissector::<$table>($param, $pri, $dissector);
+                    session.load_dissector::<$table, _>($param, $pri, $dissector);
                 });
             }
         });

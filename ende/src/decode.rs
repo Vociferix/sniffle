@@ -155,9 +155,11 @@ impl<D: DecodeLE, const LEN: usize> DecodeLE for [D; LEN] {
     }
 }
 
-pub unsafe fn cast<T>(mut buf: &[u8]) -> IResult<&[u8], T, DecodeError<'_>> {
+pub unsafe fn cast<T>(buf: &[u8]) -> IResult<&[u8], T, DecodeError<'_>> {
     let mut ret: T = std::mem::MaybeUninit::uninit().assume_init();
+
     if std::mem::size_of::<T>() != 0 {
+        let mut buf: &[u8] = &buf[..std::mem::size_of::<T>()];
         if let Err(_) = std::io::copy(
             &mut buf,
             &mut (std::slice::from_raw_parts_mut(
