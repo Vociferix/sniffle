@@ -1,3 +1,5 @@
+#![allow(clippy::modulo_one)]
+
 /// A 8-bit unsigned integer.
 pub type U8 = u8;
 
@@ -700,10 +702,6 @@ macro_rules! uint {
         impl std::cmp::PartialEq<$name> for $name {
             fn eq(&self, other: &$name) -> bool {
                 std::cmp::PartialEq::<$repr>::eq(&self.0, &other.0)
-            }
-
-            fn ne(&self, other: &$name) -> bool {
-                std::cmp::PartialEq::<$repr>::ne(&self.0, &other.0)
             }
         }
 
