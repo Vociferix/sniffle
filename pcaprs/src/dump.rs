@@ -20,13 +20,13 @@ impl DumpFile {
             let name = match CString::new(filepath.as_ref().to_string_lossy().as_ref().as_bytes()) {
                 Ok(name) => name,
                 Err(e) => {
-                    return Err(PcapError::NoSuchDevice(String::from(format!("{}", e))));
+                    return Err(PcapError::NoSuchDevice(format!("{}", e)));
                 }
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
             let dumper = pcap_dump_open(pcap.raw_handle(), c_name);
-            if dumper == std::ptr::null_mut() {
+            if dumper.is_null() {
                 Err(PcapError::General(make_string(pcap_geterr(
                     pcap.raw_handle(),
                 ))))
@@ -59,13 +59,13 @@ impl DumpFile {
             let name = match CString::new(filepath.as_ref().to_string_lossy().as_ref().as_bytes()) {
                 Ok(name) => name,
                 Err(e) => {
-                    return Err(PcapError::NoSuchDevice(String::from(format!("{}", e))));
+                    return Err(PcapError::NoSuchDevice(format!("{}", e)));
                 }
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
             let dumper = pcap_dump_open_append(pcap.raw_handle(), c_name);
-            if dumper == std::ptr::null_mut() {
+            if dumper.is_null() {
                 Err(PcapError::General(make_string(pcap_geterr(
                     pcap.raw_handle(),
                 ))))
@@ -103,7 +103,7 @@ impl DumpFile {
                 } as suseconds_t;
             }
             Err(e) => {
-                return Err(PcapError::General(String::from(format!("{}", e))));
+                return Err(PcapError::General(format!("{}", e)));
             }
         }
         hdr.caplen = pkt.len() as u32;

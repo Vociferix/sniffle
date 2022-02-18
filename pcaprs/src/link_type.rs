@@ -4,7 +4,7 @@ use std::ffi::{CStr, CString};
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct LinkType(pub u16);
 
 #[derive(Debug, Clone, Copy)]
@@ -43,7 +43,7 @@ impl fmt::Display for LinkType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
             let c_name = pcap_datalink_val_to_name(self.0 as i32);
-            if c_name == std::ptr::null() {
+            if c_name.is_null() {
                 write!(f, "DLT({})", self.0)
             } else {
                 write!(f, "{}", CStr::from_ptr(c_name).to_string_lossy())
@@ -64,7 +64,7 @@ impl LinkType {
     pub fn name(&self) -> Option<String> {
         unsafe {
             let c_name = pcap_datalink_val_to_name(self.0 as i32);
-            if c_name == std::ptr::null() {
+            if c_name.is_null() {
                 None
             } else {
                 Some(make_string(c_name))
@@ -75,7 +75,7 @@ impl LinkType {
     pub fn description(&self) -> Option<String> {
         unsafe {
             let c_desc = pcap_datalink_val_to_description(self.0 as i32);
-            if c_desc == std::ptr::null() {
+            if c_desc.is_null() {
                 None
             } else {
                 Some(make_string(c_desc))
@@ -108,11 +108,3 @@ impl From<LinkType> for link_types::LinkType {
         Self(link.0)
     }
 }
-
-impl PartialEq for LinkType {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for LinkType {}

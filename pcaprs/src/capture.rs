@@ -140,7 +140,7 @@ pub trait Capture: Sized + AsEventHandle {
         Ok(Stats(stats))
     }
 
-    fn try_next_packet<'a>(&'a mut self) -> Option<Result<Option<Packet<'a>>>> {
+    fn try_next_packet(&mut self) -> Option<Result<Option<Packet<'_>>>> {
         unsafe {
             let mut data: *const u8 = std::ptr::null_mut();
             let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
@@ -189,7 +189,7 @@ pub trait Capture: Sized + AsEventHandle {
         }
     }
 
-    fn next_packet<'a>(&'a mut self) -> Option<Result<Packet<'a>>> {
+    fn next_packet(&mut self) -> Option<Result<Packet<'_>>> {
         unsafe {
             let mut data: *const u8 = std::ptr::null_mut();
             let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();

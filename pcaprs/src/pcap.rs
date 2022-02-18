@@ -23,7 +23,7 @@ pub struct PcapConfig {
 }
 
 impl Pcap {
-    pub unsafe fn raw_handle(&self) -> *mut pcap_t {
+    pub(crate) unsafe fn raw_handle(&self) -> *mut pcap_t {
         self.0
     }
 
@@ -31,6 +31,13 @@ impl Pcap {
         self.0
     }
 
+    /// Constructs a Pcap object from a raw libpcap handle
+    ///
+    /// # Safety
+    /// The raw handle must be a non-null pointer to an _active_ libpcap
+    /// packet capture instance. A handle returned by Pcap::into_raw will
+    /// satisfy this condition upon release, usage in direct calls into
+    /// libpcap can cause it to no longer satisfy the condition.
     pub unsafe fn from_raw(handle: *mut pcap_t) -> Pcap {
         Pcap(handle)
     }
@@ -42,14 +49,14 @@ impl Pcap {
             let name = match CString::new(&config.source[..]) {
                 Ok(name) => name,
                 Err(e) => {
-                    return Err(PcapError::NoSuchDevice(String::from(format!("{}", e))));
+                    return Err(PcapError::NoSuchDevice(format!("{}", e)));
                 }
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
 
             let hndl = pcap_create(c_name, errbuf_ptr);
-            if hndl == std::ptr::null_mut() {
+            if hndl.is_null() {
                 return Err(PcapError::General(make_string(errbuf_ptr)));
             }
 
@@ -214,7 +221,7 @@ impl Pcap {
             let name = match CString::new(device.as_device_name()) {
                 Ok(name) => name,
                 Err(e) => {
-                    return Err(PcapError::NoSuchDevice(String::from(format!("{}", e))));
+                    return Err(PcapError::NoSuchDevice(format!("{}", e)));
                 }
             };
             let c_name =
@@ -224,7 +231,7 @@ impl Pcap {
             let timeout = timeout.as_millis() as i32;
 
             let hndl = pcap_open_live(c_name, snaplen as i32, promisc, timeout, errbuf_ptr);
-            if hndl == std::ptr::null_mut() {
+            if hndl.is_null() {
                 return Err(PcapError::General(make_string(errbuf_ptr)));
             }
 
@@ -243,7 +250,7 @@ impl Pcap {
             let name = match CString::new(filepath.as_ref().to_string_lossy().as_ref().as_bytes()) {
                 Ok(name) => name,
                 Err(e) => {
-                    return Err(PcapError::NoSuchDevice(String::from(format!("{}", e))));
+                    return Err(PcapError::NoSuchDevice(format!("{}", e)));
                 }
             };
             let c_name =
@@ -264,7 +271,7 @@ impl Pcap {
             #[cfg(not(feature = "npcap"))]
             let hndl = pcap_open_offline(c_name, errbuf_ptr);
 
-            if hndl == std::ptr::null_mut() {
+            if hndl.is_null() {
                 return Err(PcapError::General(make_string(errbuf_ptr)));
             }
             Ok(Pcap(hndl))
@@ -293,7 +300,7 @@ impl Pcap {
             #[cfg(not(feature = "npcap"))]
             let hndl = pcap_open_dead(linktype.0 as i32, snaplen as i32);
 
-            if hndl == std::ptr::null_mut() {
+            if hndl.is_null() {
                 return Err(PcapError::General(String::from("unknown error")));
             }
             Ok(Pcap(hndl))
@@ -320,7 +327,7 @@ impl Pcap {
             let filter = match CString::new(filter) {
                 Ok(filter) => filter,
                 Err(e) => {
-                    return Err(PcapError::General(String::from(format!("{}", e))));
+                    return Err(PcapError::General(format!("{}", e)));
                 }
             };
             let c_filter =
@@ -356,7 +363,7 @@ impl Capture for Pcap {
 impl Drop for Pcap {
     fn drop(&mut self) {
         let hndl = self.0;
-        if hndl != std::ptr::null_mut() {
+        if !hndl.is_null() {
             unsafe {
                 pcap_close(hndl);
             }

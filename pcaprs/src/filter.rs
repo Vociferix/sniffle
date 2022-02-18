@@ -31,7 +31,7 @@ impl OfflineFilter {
             let filter = match CString::new(filter) {
                 Ok(filter) => filter,
                 Err(e) => {
-                    return Err(PcapError::General(String::from(format!("{}", e))));
+                    return Err(PcapError::General(format!("{}", e)));
                 }
             };
             let c_filter =

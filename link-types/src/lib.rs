@@ -3,7 +3,7 @@
 use std::hash::Hash;
 
 /// A 16-bit value representing a link type, otherwise known as a DLT.
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct LinkType(pub u16);
 
@@ -293,11 +293,3 @@ impl LinkType {
     link_type!(USB_2_0, 288);
     link_type!(ATSC_ALP, 289);
 }
-
-impl PartialEq for LinkType {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for LinkType {}

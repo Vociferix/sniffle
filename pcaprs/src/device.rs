@@ -141,7 +141,7 @@ impl DeviceIPv6 {
     }
 
     pub fn prefix_length(&self) -> Option<u32> {
-        self.prefix_len.clone()
+        self.prefix_len
     }
 }
 
@@ -152,7 +152,7 @@ impl Device {
             let errbuf_ptr = errbuf.as_mut_ptr();
             let mut devs: *mut pcap_if_t = std::ptr::null_mut();
             let rc = pcap_findalldevs(&mut devs as *mut *mut pcap_if_t, errbuf_ptr);
-            if rc < 0 || devs == std::ptr::null_mut() {
+            if rc < 0 || devs.is_null() {
                 AllDevicesIter {
                     ptr: std::ptr::null_mut(),
                     curr: std::ptr::null(),
@@ -176,17 +176,17 @@ impl Device {
             let rc = pcap_findalldevs(&mut devs as *mut *mut pcap_if_t, errbuf_ptr);
             if rc == 0 {
                 let free_ptr = devs;
-                while devs != std::ptr::null_mut() {
+                while !devs.is_null() {
                     let dev = &*devs;
-                    if dev.name != std::ptr::null_mut() {
-                        if name == &std::ffi::CStr::from_ptr(dev.name).to_string_lossy() {
-                            ret = Some(Device::from(dev));
-                            break;
-                        }
+                    if !dev.name.is_null()
+                        && name == std::ffi::CStr::from_ptr(dev.name).to_string_lossy()
+                    {
+                        ret = Some(Device::from(dev));
+                        break;
                     }
                     devs = dev.next;
                 }
-                if free_ptr != std::ptr::null_mut() {
+                if !free_ptr.is_null() {
                     pcap_freealldevs(free_ptr);
                 }
             }
@@ -204,7 +204,7 @@ impl Device {
     }
 
     pub fn description(&self) -> Option<&str> {
-        self.desc.as_ref().map(|d| d.as_str())
+        self.desc.as_deref()
     }
 
     pub fn mac_addresses(&self) -> &[MacAddress] {
@@ -256,7 +256,7 @@ impl Device {
     }
 
     pub fn refresh_inplace(&mut self) -> bool {
-        let name = std::mem::replace(&mut self.name, String::new());
+        let name = std::mem::take(&mut self.name);
         match Self::lookup(&name[..]) {
             Some(dev) => {
                 *self = dev;
@@ -343,9 +343,15 @@ impl DeviceBuilder {
     }
 }
 
+impl Default for DeviceBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(target_os = "windows")]
 unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
-    if addr.addr != std::ptr::null_mut() {
+    if !addr.addr.is_null() {
         match (*addr.addr).sa_family as i32 {
             winapi::shared::ws2def::AF_INET => {
                 let ip4addr = (*std::mem::transmute::<
@@ -356,7 +362,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 .S_un
                 .S_addr()
                 .to_be_bytes();
-                let mask: Option<IPv4Address> = if addr.netmask != std::ptr::null_mut() {
+                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -370,7 +376,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if addr.broadaddr != std::ptr::null_mut() {
+                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -384,7 +390,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if addr.dstaddr != std::ptr::null_mut() {
+                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -401,15 +407,14 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 bldr.add_ipv4(DeviceIPv4::new(ip4addr, mask, brd, dst));
             }
             winapi::shared::ws2def::AF_INET6 => {
-                let ip6addr = (*std::mem::transmute::<
+                let ip6addr = *(*std::mem::transmute::<
                     *mut sockaddr,
                     *mut winapi::shared::ws2ipdef::SOCKADDR_IN6,
                 >(addr.addr))
                 .sin6_addr
                 .u
-                .Byte()
-                .clone();
-                let prefixlen: Option<u32> = if addr.netmask != std::ptr::null_mut() {
+                .Byte();
+                let prefixlen: Option<u32> = if !addr.netmask.is_null() {
                     let mask = &(*std::mem::transmute::<
                         *mut sockaddr,
                         *mut winapi::shared::ws2ipdef::SOCKADDR_IN6,
@@ -430,27 +435,21 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                                 } else {
                                     count += 1;
                                 }
+                            } else if byte < 0b11100000 {
+                                count += 2;
                             } else {
-                                if byte < 0b11100000 {
-                                    count += 2;
-                                } else {
-                                    count += 3;
-                                }
+                                count += 3;
                             }
+                        } else if byte < 0b11111100 {
+                            if byte < 0b11111000 {
+                                count += 4;
+                            } else {
+                                count += 5;
+                            }
+                        } else if byte < 0b11111110 {
+                            count += 6;
                         } else {
-                            if byte < 0b11111100 {
-                                if byte < 0b11111000 {
-                                    count += 4;
-                                } else {
-                                    count += 5;
-                                }
-                            } else {
-                                if byte < 0b11111110 {
-                                    count += 6;
-                                } else {
-                                    count += 7;
-                                }
-                            }
+                            count += 7;
                         }
                     }
                     Some(count)
@@ -485,7 +484,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
     target_os = "illumos"
 ))]
 unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
-    if addr.addr != std::ptr::null_mut() {
+    if !addr.addr.is_null() {
         match (*addr.addr).sa_family as i32 {
             libc::AF_INET => {
                 let ip4addr =
@@ -493,7 +492,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin_addr
                         .s_addr
                         .to_be_bytes();
-                let mask: Option<IPv4Address> = if addr.netmask != std::ptr::null_mut() {
+                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.netmask,
@@ -505,7 +504,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if addr.broadaddr != std::ptr::null_mut() {
+                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.broadaddr,
@@ -517,7 +516,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if addr.dstaddr != std::ptr::null_mut() {
+                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.dstaddr,
@@ -537,7 +536,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin6_addr
                         .s6_addr
                         .clone();
-                let prefixlen: Option<u32> = if addr.netmask != std::ptr::null_mut() {
+                let prefixlen: Option<u32> = if !addr.netmask.is_null() {
                     let mask = &(*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(
                         addr.netmask,
                     ))
@@ -610,7 +609,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
     target_os = "windows"
 )))]
 unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
-    if addr.addr != std::ptr::null_mut() {
+    if !addr.addr.is_null() {
         match (*addr.addr).sa_family as i32 {
             libc::AF_INET => {
                 let ip4addr =
@@ -618,7 +617,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin_addr
                         .s_addr
                         .to_be_bytes();
-                let mask: Option<IPv4Address> = if addr.netmask != std::ptr::null_mut() {
+                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.netmask,
@@ -630,7 +629,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if addr.broadaddr != std::ptr::null_mut() {
+                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.broadaddr,
@@ -642,7 +641,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if addr.dstaddr != std::ptr::null_mut() {
+                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.dstaddr,
@@ -662,7 +661,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin6_addr
                         .s6_addr
                         .clone();
-                let prefixlen: Option<u32> = if addr.netmask != std::ptr::null_mut() {
+                let prefixlen: Option<u32> = if !addr.netmask.is_null() {
                     let mask = &(*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(
                         addr.netmask,
                     ))
@@ -725,12 +724,12 @@ impl From<&pcap_if_t> for Device {
         let mut builder = DeviceBuilder::new();
         builder.name(unsafe { make_string(pcap_if.name) });
 
-        if pcap_if.description != std::ptr::null_mut() {
+        if !pcap_if.description.is_null() {
             builder.description(unsafe { make_string(pcap_if.description) });
         }
 
         let mut addresses = pcap_if.addresses;
-        while addresses != std::ptr::null_mut() {
+        while !addresses.is_null() {
             let addr = unsafe { &*addresses };
             unsafe {
                 read_address(&mut builder, addr);
@@ -749,7 +748,7 @@ impl Iterator for AllDevicesIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         let curr = self.curr;
-        if curr == std::ptr::null() {
+        if curr.is_null() {
             None
         } else {
             let dev = unsafe { &*curr };
@@ -762,7 +761,7 @@ impl Iterator for AllDevicesIter {
 impl Drop for AllDevicesIter {
     fn drop(&mut self) {
         let ptr = self.ptr;
-        if ptr != std::ptr::null_mut() {
+        if !ptr.is_null() {
             unsafe {
                 pcap_freealldevs(ptr);
             }

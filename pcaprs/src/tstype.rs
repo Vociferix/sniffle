@@ -60,7 +60,7 @@ impl fmt::Display for TSType {
                 TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_name = pcap_tstamp_type_val_to_name(t);
-            if c_name == std::ptr::null() {
+            if c_name.is_null() {
                 write!(f, "UNKNOWN")
             } else {
                 write!(f, "{}", CStr::from_ptr(c_name).to_string_lossy())
@@ -81,7 +81,7 @@ impl TSType {
                 TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_name = pcap_tstamp_type_val_to_name(t);
-            if c_name == std::ptr::null() {
+            if c_name.is_null() {
                 None
             } else {
                 Some(make_string(c_name))
@@ -99,7 +99,7 @@ impl TSType {
                 TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_desc = pcap_tstamp_type_val_to_description(t);
-            if c_desc == std::ptr::null() {
+            if c_desc.is_null() {
                 None
             } else {
                 Some(make_string(c_desc))
