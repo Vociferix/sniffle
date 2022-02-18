@@ -1,6 +1,7 @@
 use super::*;
 use nom::combinator::map;
 use nom::{error::ParseError, IResult};
+use std::mem::MaybeUninit;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -17,34 +18,25 @@ pub trait Decode: Sized {
 
     fn decode_many<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
         unsafe {
-            let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
+            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
                 let (rem, val) = match Self::decode(buf) {
                     Ok(res) => res,
                     Err(e) => {
-                        for idx in 0..i {
-                            drop(std::mem::replace(
-                                &mut ret[idx],
-                                std::mem::MaybeUninit::uninit().assume_init(),
-                            ));
-                        }
-                        std::mem::forget(ret);
                         return match e {
-                            nom::Err::Incomplete(needed) => {
-                                if i == LEN - 1 {
-                                    Err(nom::Err::Incomplete(needed))
-                                } else {
-                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
-                                }
+                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
+                                Err(nom::Err::Incomplete(needed))
+                            } else {
+                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
                             }
                             _ => Err(e),
                         };
-                    }
+                    },
                 };
                 buf = rem;
-                *elem = val;
+                *elem = MaybeUninit::new(val);
             }
-            Ok((buf, ret))
+            Ok((buf, transmute(ret)))
         }
     }
 }
@@ -54,25 +46,25 @@ pub trait DecodeBE: Sized {
 
     fn decode_many_be<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
         unsafe {
-            let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
+            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
                 let (rem, val) = match Self::decode_be(buf) {
                     Ok(res) => res,
                     Err(e) => {
-                        for idx in 0..i {
-                            drop(std::mem::replace(
-                                &mut ret[idx],
-                                std::mem::MaybeUninit::uninit().assume_init(),
-                            ));
-                        }
-                        std::mem::forget(ret);
-                        return Err(e);
-                    }
+                        return match e {
+                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
+                                Err(nom::Err::Incomplete(needed))
+                            } else {
+                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                            }
+                            _ => Err(e),
+                        };
+                    },
                 };
                 buf = rem;
-                *elem = val;
+                *elem = MaybeUninit::new(val);
             }
-            Ok((buf, ret))
+            Ok((buf, transmute(ret)))
         }
     }
 }
@@ -82,25 +74,25 @@ pub trait DecodeLE: Sized {
 
     fn decode_many_le<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
         unsafe {
-            let mut ret: [Self; LEN] = std::mem::MaybeUninit::uninit().assume_init();
+            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
             for (i, elem) in ret.iter_mut().enumerate() {
                 let (rem, val) = match Self::decode_le(buf) {
                     Ok(res) => res,
                     Err(e) => {
-                        for idx in 0..i {
-                            drop(std::mem::replace(
-                                &mut ret[idx],
-                                std::mem::MaybeUninit::uninit().assume_init(),
-                            ));
-                        }
-                        std::mem::forget(ret);
-                        return Err(e);
-                    }
+                        return match e {
+                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
+                                Err(nom::Err::Incomplete(needed))
+                            } else {
+                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                            }
+                            _ => Err(e),
+                        };
+                    },
                 };
                 buf = rem;
-                *elem = val;
+                *elem = MaybeUninit::new(val);
             }
-            Ok((buf, ret))
+            Ok((buf, transmute(ret)))
         }
     }
 }
@@ -151,29 +143,45 @@ impl<D: DecodeLE, const LEN: usize> DecodeLE for [D; LEN] {
     }
 }
 
+/// Decodes a type, T, by directly filling the memory it occupies with
+/// the bytes contained in the in the byte slice, up to the size of the
+/// resulting type.
+///
+/// # Safety
+/// Great care must be taken to ensure this function is safe to use on
+/// any given type, T. In general, it is unsound to decode any arbitrary
+/// type with this function, but the only necessary condition is that the
+/// first `std::mem::size_of::<T>()` bytes (agnostic of alignment) are
+/// guaranteed to constitute a valid instance of type T. Although it is
+/// possible for this function to be sound in more exotic scenarios, most
+/// uses of this function should be for built in types, such as integers
+/// and floating point types (not references!), and arrays,
+/// `repr(transparent)` types, and `repr(C)` types, consisting entirely
+/// of built in types; in short, types with well defined layout and which
+/// have no invalid representations.
 pub unsafe fn cast<T>(buf: &[u8]) -> DResult<'_, T> {
-    let mut ret: T = std::mem::MaybeUninit::uninit().assume_init();
+    let mut ret: MaybeUninit<T> = MaybeUninit::uninit();
 
     if std::mem::size_of::<T>() != 0 {
         let mut buf: &[u8] = &buf[..std::mem::size_of::<T>()];
-        if let Err(_) = std::io::copy(
+        if std::io::copy(
             &mut buf,
             &mut (std::slice::from_raw_parts_mut(
-                &mut ret as *mut T as *mut u8,
+                std::ptr::addr_of_mut!(ret) as *mut u8,
                 std::mem::size_of::<T>(),
             )),
-        ) {
+        ).is_err() {
             return Err(nom::Err::Incomplete(nom::Needed::Size(
                 std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>()),
             )));
         };
     }
-    Ok((&buf[std::mem::size_of::<T>()..], ret))
+    Ok((&buf[std::mem::size_of::<T>()..], transmute(ret)))
 }
 
 impl Decode for u8 {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             unsafe {
                 Err(nom::Err::Incomplete(nom::Needed::Size(
                     std::num::NonZeroUsize::new_unchecked(1),
@@ -249,6 +257,10 @@ macro_rules! make_decode {
             }
         }
     };
+}
+
+unsafe fn transmute<T, U>(x: T) -> U {
+    std::ptr::read(std::mem::transmute::<_, *const U>(std::ptr::addr_of!(x)))
 }
 
 make_decode!(u16);
