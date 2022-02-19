@@ -9,7 +9,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::RwLock;
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct LinkType(pub u16);
 
 lazy_static! {
@@ -59,27 +59,15 @@ impl LinkType {
             .read()
             .unwrap()
             .get(&PDUType::of::<P>())
-            .map(|lt| lt.clone())
+            .copied()
     }
 
     pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
-        LINK_TYPE_PDUS
-            .read()
-            .unwrap()
-            .get(&pdu.pdu_type())
-            .map(|lt| lt.clone())
+        LINK_TYPE_PDUS.read().unwrap().get(&pdu.pdu_type()).copied()
     }
 
     link_types::for_each_link_type!(link_type);
 }
-
-impl PartialEq for LinkType {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for LinkType {}
 
 #[cfg(feature = "pcaprs")]
 impl From<pcaprs::LinkType> for LinkType {
@@ -111,11 +99,14 @@ dissector_table!(pub LinkTypeTable, LinkType);
 register_dissector_table!(LinkTypeTable);
 
 pub fn _register_link_layer_pdu<P: PDU>(link_type: LinkType) {
-    LINK_TYPE_PDUS
+    if LINK_TYPE_PDUS
         .write()
         .unwrap()
         .insert(PDUType::of::<P>(), link_type)
-        .map(|_| panic!("A PDU can only registered for one link type"));
+        .is_some()
+    {
+        panic!("A PDU can only registered for one link type");
+    }
 }
 
 #[macro_export]

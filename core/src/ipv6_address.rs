@@ -4,7 +4,7 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct IPv6Address([u8; 16]);
 
@@ -23,10 +23,10 @@ impl Iterator for IPv6NetworkIter {
     type Item = IPv6Address;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let tmp = self.curr.clone();
+        let tmp = self.curr;
         match tmp {
             Some(addr) => {
-                let last = self.last.clone();
+                let last = self.last;
                 if addr == last {
                     self.curr = None;
                 } else {
@@ -91,39 +91,21 @@ impl IntoIterator for IPv6Network {
 impl IPv6Address {
     const UNSPECIFIED: IPv6Address = IPv6Address([0u8; 16]);
 
-    const LOOPBACK: IPv6Address = IPv6Address::new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+    const LOOPBACK: IPv6Address =
+        IPv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
     const LOCAL_UNICAST_NET: IPv6Network = IPv6Network::from_prefix_len(
-        IPv6Address::new(0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        IPv6Address::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         10,
     );
 
     const MULTICAST_NET: IPv6Network = IPv6Network::from_prefix_len(
-        IPv6Address::new(0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        IPv6Address::new([0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         8,
     );
 
-    pub const fn new(
-        b0: u8,
-        b1: u8,
-        b2: u8,
-        b3: u8,
-        b4: u8,
-        b5: u8,
-        b6: u8,
-        b7: u8,
-        b8: u8,
-        b9: u8,
-        b10: u8,
-        b11: u8,
-        b12: u8,
-        b13: u8,
-        b14: u8,
-        b15: u8,
-    ) -> Self {
-        Self([
-            b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15,
-        ])
+    pub const fn new(bytes: [u8; 16]) -> Self {
+        Self(bytes)
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
@@ -131,19 +113,11 @@ impl IPv6Address {
     }
 
     pub fn next(&self) -> IPv6Address {
-        IPv6Address::from(
-            u128::from_be_bytes(self.0.clone())
-                .wrapping_add(1)
-                .to_be_bytes(),
-        )
+        IPv6Address::from(u128::from_be_bytes(self.0).wrapping_add(1).to_be_bytes())
     }
 
     pub fn prev(&self) -> IPv6Address {
-        IPv6Address::from(
-            u128::from_be_bytes(self.0.clone())
-                .wrapping_sub(1)
-                .to_be_bytes(),
-        )
+        IPv6Address::from(u128::from_be_bytes(self.0).wrapping_sub(1).to_be_bytes())
     }
 
     pub fn is_unspecified(&self) -> bool {
@@ -201,7 +175,7 @@ impl From<IPv6Address> for i128 {
 
 impl Decode for IPv6Address {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 16]>::decode, |bytes| Self::from(bytes))(buf)
+        map(<[u8; 16]>::decode, Self::from)(buf)
     }
 
     fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -262,7 +236,7 @@ impl std::str::FromStr for IPv6Address {
         let mut addr = [0u8; 16];
         let mut iter = s.split(':');
         let mut idx: usize = 0;
-        while let Some(word) = iter.next() {
+        for word in iter.by_ref() {
             if idx >= 16 {
                 return Err(IPv6ParseError::BadLength);
             }
@@ -281,7 +255,7 @@ impl std::str::FromStr for IPv6Address {
         let mut iter = iter.rev();
         let end = idx;
         idx = 15;
-        while let Some(word) = iter.next() {
+        for word in iter.by_ref() {
             if idx < end {
                 return Err(IPv6ParseError::BadLength);
             }
@@ -403,12 +377,12 @@ impl std::ops::Not for IPv6Address {
 
 impl PartialOrd for IPv6Address {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        u128::from_be_bytes(self.clone().0).partial_cmp(&u128::from_be_bytes(other.clone().0))
+        u128::from_be_bytes(self.0).partial_cmp(&u128::from_be_bytes(other.0))
     }
 }
 
 impl Ord for IPv6Address {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        u128::from_be_bytes(self.clone().0).cmp(&u128::from_be_bytes(other.clone().0))
+        u128::from_be_bytes(self.0).cmp(&u128::from_be_bytes(other.0))
     }
 }

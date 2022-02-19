@@ -52,7 +52,7 @@ impl<'a> RawPacket<'a> {
     }
 
     pub fn device(&self) -> Option<&Device> {
-        self.device.as_ref().map(|dev| &**dev)
+        self.device.as_deref()
     }
 
     pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {
@@ -129,10 +129,7 @@ impl<'a, S: Sniff> Iterator for SniffIter<'a, S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.0.sniff() {
-            Ok(res) => match res {
-                Some(pkt) => Some(Ok(pkt)),
-                None => None,
-            },
+            Ok(res) => res.map(Ok),
             Err(e) => Some(Err(e)),
         }
     }

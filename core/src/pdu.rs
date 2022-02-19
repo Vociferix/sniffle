@@ -8,6 +8,7 @@ use std::any::Any;
 
 pub type PDUType = std::any::TypeId;
 
+#[derive(Default)]
 pub struct BasePDU {
     parent: Option<AnyPDU>,
     inner: Option<AnyPDU>,
@@ -54,17 +55,11 @@ impl<'a> TempPDU<'a> {
     }
 
     pub fn pop_inner(&mut self) {
-        match std::mem::replace(&mut self.pdu_mut().base_pdu_mut().inner, None) {
-            Some(mut pdu) => {
-                match std::mem::replace(&mut pdu.base_pdu_mut().parent, None) {
-                    Some(parent) => {
-                        let _ = Box::into_raw(parent.pdu);
-                    }
-                    None => {}
-                }
-                let _ = Box::into_raw(pdu.pdu);
+        if let Some(mut pdu) = std::mem::replace(&mut self.pdu_mut().base_pdu_mut().inner, None) {
+            if let Some(parent) = std::mem::replace(&mut pdu.base_pdu_mut().parent, None) {
+                let _ = Box::into_raw(parent.pdu);
             }
-            None => {}
+            let _ = Box::into_raw(pdu.pdu);
         }
     }
 }
@@ -81,39 +76,21 @@ impl<'a> std::ops::Deref for TempPDU<'a> {
 
 impl<'a> Drop for TempPDU<'a> {
     fn drop(&mut self) {
-        match self.pdu_mut().take_inner_pdu() {
-            Some(pdu) => {
-                let _ = Box::into_raw(pdu.pdu);
-            }
-            None => {}
+        if let Some(pdu) = self.pdu_mut().take_inner_pdu() {
+            let _ = Box::into_raw(pdu.pdu);
         }
-        match std::mem::replace(&mut self.pdu, None) {
-            Some(pdu) => {
-                let _ = Box::into_raw(pdu.pdu);
-            }
-            None => {}
+        if let Some(pdu) = std::mem::replace(&mut self.pdu, None) {
+            let _ = Box::into_raw(pdu.pdu);
         }
     }
 }
 
 impl Drop for BasePDU {
     fn drop(&mut self) {
-        match std::mem::replace(&mut self.parent, None) {
-            Some(pdu) => {
-                let _ = Box::into_raw(pdu.pdu);
-            }
-            None => {}
+        if let Some(pdu) = std::mem::replace(&mut self.parent, None) {
+            let _ = Box::into_raw(pdu.pdu);
         }
         let _ = std::mem::replace(&mut self.inner, None);
-    }
-}
-
-impl Default for BasePDU {
-    fn default() -> Self {
-        Self {
-            parent: None,
-            inner: None,
-        }
     }
 }
 
@@ -194,10 +171,7 @@ pub trait PDU: 'static + Any + Clone {
         let is_type = self.is::<P>();
         if is_type {
             let mut s = self;
-            let pdu = std::mem::replace(
-                std::mem::transmute::<&mut Self, &mut P>(&mut s),
-                std::mem::MaybeUninit::uninit().assume_init(),
-            );
+            let pdu = std::ptr::read(std::mem::transmute::<&mut Self, &mut P>(&mut s));
             std::mem::forget(s);
             Ok(pdu)
         } else {
@@ -236,8 +210,9 @@ pub trait PDUExt: PDU {
 
     fn deep_clone(&self) -> Self {
         let mut ret = self.clone();
-        self.inner_pdu()
-            .map(|inner| ret.set_inner_pdu(inner.deep_clone()));
+        if let Some(inner) = self.inner_pdu() {
+            ret.set_inner_pdu(inner.deep_clone())
+        }
         ret
     }
 
@@ -265,18 +240,12 @@ pub trait PDUExt: PDU {
     }
 
     fn take_inner_pdu(&mut self) -> Option<AnyPDU> {
-        match std::mem::replace(&mut self.base_pdu_mut().inner, None) {
-            Some(mut pdu) => {
-                match std::mem::replace(&mut pdu.base_pdu_mut().parent, None) {
-                    Some(pdu) => {
-                        let _ = Box::into_raw(pdu.pdu);
-                    }
-                    None => {}
-                }
-                Some(pdu)
+        std::mem::replace(&mut self.base_pdu_mut().inner, None).map(|mut pdu| {
+            if let Some(pdu) = std::mem::replace(&mut pdu.base_pdu_mut().parent, None) {
+                let _ = Box::into_raw(pdu.pdu);
             }
-            None => None,
-        }
+            pdu
+        })
     }
 
     fn set_inner_pdu<P: PDU>(&mut self, pdu: P) {
@@ -325,7 +294,9 @@ pub trait PDUExt: PDU {
 
     fn make_all_canonical(&mut self) {
         self.make_canonical();
-        self.inner_pdu_mut().map(|inner| inner.make_all_canonical());
+        if let Some(inner) = self.inner_pdu_mut() {
+            inner.make_all_canonical();
+        }
     }
 }
 

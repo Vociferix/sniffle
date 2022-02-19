@@ -6,15 +6,15 @@ use sniffle_ende::{
 
 use super::MACAddress;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct EUIAddress([u8; 8]);
 
 impl EUIAddress {
-    const BROADCAST: EUIAddress = EUIAddress::new(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+    const BROADCAST: EUIAddress = EUIAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
 
-    pub const fn new(b0: u8, b1: u8, b2: u8, b3: u8, b4: u8, b5: u8, b6: u8, b7: u8) -> Self {
-        Self([b0, b1, b2, b3, b4, b5, b6, b7])
+    pub const fn new(bytes: [u8; 8]) -> Self {
+        Self(bytes)
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
@@ -87,7 +87,7 @@ impl From<MACAddress> for EUIAddress {
 
 impl Decode for EUIAddress {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 8]>::decode, |bytes| Self::from(bytes))(buf)
+        map(<[u8; 8]>::decode, Self::from)(buf)
     }
 
     fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -211,12 +211,12 @@ impl std::ops::Not for EUIAddress {
 
 impl PartialOrd for EUIAddress {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        u64::from_be_bytes(self.clone().0).partial_cmp(&u64::from_be_bytes(other.clone().0))
+        u64::from_be_bytes(self.0).partial_cmp(&u64::from_be_bytes(other.0))
     }
 }
 
 impl Ord for EUIAddress {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        u64::from_be_bytes(self.clone().0).cmp(&u64::from_be_bytes(other.clone().0))
+        u64::from_be_bytes(self.0).cmp(&u64::from_be_bytes(other.0))
     }
 }

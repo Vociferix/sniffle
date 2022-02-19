@@ -26,7 +26,7 @@ impl DeviceSniffer {
         Ok(Self {
             pcap: config.activate()?,
             dev: device,
-            session: session.unwrap_or_else(|| Session::default()),
+            session: session.unwrap_or_default(),
         })
     }
 

@@ -92,7 +92,7 @@ impl DeviceIPv6 {
     }
 
     pub fn prefix_length(&self) -> Option<u32> {
-        self.prefix_len.clone()
+        self.prefix_len
     }
 }
 
@@ -104,7 +104,7 @@ impl Device {
 
     #[cfg(feature = "pcaprs")]
     pub fn lookup(name: &str) -> Option<Device> {
-        pcaprs::Device::lookup(name).map(|dev| Device::from(dev))
+        pcaprs::Device::lookup(name).map(Device::from)
     }
 
     #[cfg(feature = "pcaprs")]
@@ -117,7 +117,7 @@ impl Device {
     }
 
     pub fn description(&self) -> Option<&str> {
-        self.desc.as_ref().map(|d| d.as_str())
+        self.desc.as_deref()
     }
 
     pub fn mac_addresses(&self) -> &[MACAddress] {
@@ -169,7 +169,7 @@ impl Device {
 
     #[cfg(feature = "pcaprs")]
     pub fn refresh_inplace(&mut self) -> bool {
-        let name = std::mem::replace(&mut self.name, String::new());
+        let name = std::mem::take(&mut self.name);
         match Self::lookup(&name[..]) {
             Some(dev) => {
                 *self = dev;
@@ -213,12 +213,12 @@ impl From<pcaprs::Device> for Device {
         }
         Self {
             name: String::from(dev.name()),
-            desc: dev.description().map(|d| String::from(d)),
+            desc: dev.description().map(String::from),
             flags,
             mac_addrs: dev
                 .mac_addresses()
                 .iter()
-                .map(|addr| MACAddress::from(addr.clone()))
+                .map(|addr| MACAddress::from(*addr))
                 .collect(),
             ipv4_addrs: dev
                 .ipv4_addresses()
@@ -238,10 +238,10 @@ impl From<pcaprs::Device> for Device {
 impl From<pcaprs::DeviceIPv4> for DeviceIPv4 {
     fn from(ipv4: pcaprs::DeviceIPv4) -> Self {
         Self {
-            addr: ipv4.address().clone().into(),
-            mask: ipv4.netmask().map(|addr| addr.clone().into()),
-            brd: ipv4.broadcast().map(|addr| addr.clone().into()),
-            dst: ipv4.destination().map(|addr| addr.clone().into()),
+            addr: (*ipv4.address()).into(),
+            mask: ipv4.netmask().map(|addr| (*addr).into()),
+            brd: ipv4.broadcast().map(|addr| (*addr).into()),
+            dst: ipv4.destination().map(|addr| (*addr).into()),
         }
     }
 }
@@ -250,7 +250,7 @@ impl From<pcaprs::DeviceIPv4> for DeviceIPv4 {
 impl From<pcaprs::DeviceIPv6> for DeviceIPv6 {
     fn from(ipv6: pcaprs::DeviceIPv6) -> Self {
         Self {
-            addr: ipv6.address().clone().into(),
+            addr: (*ipv6.address()).into(),
             prefix_len: ipv6.prefix_length(),
         }
     }
@@ -310,6 +310,12 @@ impl DeviceBuilder {
 
     pub fn into_device(self) -> Device {
         self.device
+    }
+}
+
+impl Default for DeviceBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

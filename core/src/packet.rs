@@ -1,3 +1,5 @@
+#![allow(clippy::len_without_is_empty)]
+
 use super::{AnyPDU, Device, Dump, Dumper, PDUExt, PDU};
 use chrono::{offset::Utc, DateTime};
 use std::time::SystemTime;
@@ -49,7 +51,7 @@ impl Packet {
     }
 
     pub fn device(&self) -> Option<&Device> {
-        self.dev.as_ref().map(|dev| &**dev)
+        self.dev.as_deref()
     }
 
     pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {

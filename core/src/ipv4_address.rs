@@ -4,7 +4,7 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct IPv4Address([u8; 4]);
 
@@ -22,7 +22,7 @@ impl Iterator for IPv4NetworkIter {
     type Item = IPv4Address;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let tmp = self.curr.clone();
+        let tmp = self.curr;
         match tmp {
             Some(addr) => {
                 if addr == self.last {
@@ -88,19 +88,19 @@ impl IntoIterator for IPv4Network {
 
 impl IPv4Address {
     const PRIVATE_NETS: [IPv4Network; 3] = [
-        IPv4Network::from_prefix_len(IPv4Address::new(10, 0, 0, 0), 8),
-        IPv4Network::from_prefix_len(IPv4Address::new(172, 16, 0, 0), 12),
-        IPv4Network::from_prefix_len(IPv4Address::new(192, 168, 0, 0), 16),
+        IPv4Network::from_prefix_len(IPv4Address::new([10, 0, 0, 0]), 8),
+        IPv4Network::from_prefix_len(IPv4Address::new([172, 16, 0, 0]), 12),
+        IPv4Network::from_prefix_len(IPv4Address::new([192, 168, 0, 0]), 16),
     ];
 
     const LOOPBACK_NET: IPv4Network =
-        IPv4Network::from_prefix_len(IPv4Address::new(127, 0, 0, 0), 8);
+        IPv4Network::from_prefix_len(IPv4Address::new([127, 0, 0, 0]), 8);
 
     const MULTICAST_NET: IPv4Network =
-        IPv4Network::from_prefix_len(IPv4Address::new(224, 0, 0, 0), 4);
+        IPv4Network::from_prefix_len(IPv4Address::new([224, 0, 0, 0]), 4);
 
-    pub const fn new(b0: u8, b1: u8, b2: u8, b3: u8) -> Self {
-        Self([b0, b1, b2, b3])
+    pub const fn new(bytes: [u8; 4]) -> Self {
+        Self(bytes)
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> IPv4Address {
@@ -175,7 +175,7 @@ impl From<IPv4Address> for i32 {
 
 impl Decode for IPv4Address {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 4]>::decode, |bytes| Self::from(bytes))(buf)
+        map(<[u8; 4]>::decode, Self::from)(buf)
     }
 
     fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -234,10 +234,10 @@ impl std::str::FromStr for IPv4Address {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut addr = [0u8; 4];
         let mut iter = s.split('.');
-        addr[0] = u8::from_str_radix(iter.next().ok_or(IPv4ParseError::BadLength)?, 10)?;
-        addr[1] = u8::from_str_radix(iter.next().ok_or(IPv4ParseError::BadLength)?, 10)?;
-        addr[2] = u8::from_str_radix(iter.next().ok_or(IPv4ParseError::BadLength)?, 10)?;
-        addr[3] = u8::from_str_radix(iter.next().ok_or(IPv4ParseError::BadLength)?, 10)?;
+        addr[0] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
+        addr[1] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
+        addr[2] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
+        addr[3] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
         iter.next()
             .ok_or(())
             .err()
@@ -290,12 +290,12 @@ impl std::ops::Not for IPv4Address {
 
 impl PartialOrd for IPv4Address {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        u32::from_be_bytes(self.clone().0).partial_cmp(&u32::from_be_bytes(other.clone().0))
+        u32::from_be_bytes(self.0).partial_cmp(&u32::from_be_bytes(other.0))
     }
 }
 
 impl Ord for IPv4Address {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        u32::from_be_bytes(self.clone().0).cmp(&u32::from_be_bytes(other.clone().0))
+        u32::from_be_bytes(self.0).cmp(&u32::from_be_bytes(other.0))
     }
 }

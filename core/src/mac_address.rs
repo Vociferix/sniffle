@@ -4,15 +4,17 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct MACAddress([u8; 8]);
 
 impl MACAddress {
-    const BROADCAST: MACAddress = MACAddress::new(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+    const BROADCAST: MACAddress = MACAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
 
-    pub const fn new(b0: u8, b1: u8, b2: u8, b3: u8, b4: u8, b5: u8) -> Self {
-        Self([b0, b1, b2, b3, b4, b5, 0, 0])
+    pub const fn new(bytes: [u8; 6]) -> Self {
+        Self([
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], 0, 0,
+        ])
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
@@ -20,13 +22,11 @@ impl MACAddress {
     }
 
     pub fn next(&self) -> MACAddress {
-        let addr = (u64::from_be_bytes(self.0.clone()).wrapping_add(0x10000)).to_be_bytes();
-        Self::new(addr[0], addr[1], addr[2], addr[3], addr[4], addr[5])
+        Self((u64::from_be_bytes(self.0).wrapping_add(0x10000)).to_be_bytes())
     }
 
     pub fn prev(&self) -> MACAddress {
-        let addr = (u64::from_be_bytes(self.0.clone()).wrapping_sub(0x10000)).to_be_bytes();
-        Self::new(addr[0], addr[1], addr[2], addr[3], addr[4], addr[5])
+        Self((u64::from_be_bytes(self.0).wrapping_sub(0x10000)).to_be_bytes())
     }
 
     pub fn is_broadcast(&self) -> bool {
@@ -36,7 +36,7 @@ impl MACAddress {
 
 impl From<[u8; 6]> for MACAddress {
     fn from(addr: [u8; 6]) -> Self {
-        Self::new(addr[0], addr[1], addr[2], addr[3], addr[4], addr[5])
+        Self::new(addr)
     }
 }
 
@@ -50,7 +50,7 @@ impl From<MACAddress> for [u8; 6] {
 
 impl Decode for MACAddress {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 6]>::decode, |bytes| Self::from(bytes))(buf)
+        map(<[u8; 6]>::decode, Self::from)(buf)
     }
 }
 
@@ -156,12 +156,12 @@ impl std::ops::Not for MACAddress {
 
 impl PartialOrd for MACAddress {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        u64::from_be_bytes(self.clone().0).partial_cmp(&u64::from_be_bytes(other.clone().0))
+        u64::from_be_bytes(self.0).partial_cmp(&u64::from_be_bytes(other.0))
     }
 }
 
 impl Ord for MACAddress {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        u64::from_be_bytes(self.clone().0).cmp(&u64::from_be_bytes(other.clone().0))
+        u64::from_be_bytes(self.0).cmp(&u64::from_be_bytes(other.0))
     }
 }

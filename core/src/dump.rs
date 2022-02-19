@@ -45,7 +45,7 @@ pub struct ByteDumpFormatter<'a>(pub &'a [u8]);
 impl<'a> std::fmt::Display for ByteDumpFormatter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.0 {
-            write!(f, "{:05X}", byte)?;
+            write!(f, "{:02X}", byte)?;
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
     fn start_packet(&mut self) -> Result<(), Self::Error> {
         self.depth += 1;
         self.count += 1;
-        write!(self.writer, "Packet {}\n", self.count)
+        writeln!(self.writer, "Packet {}", self.count)
     }
 
     fn end_packet(&mut self) {
@@ -270,8 +270,8 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
         self.indent()?;
         self.depth += 1;
         match descr {
-            Some(descr) => write!(self.writer, "{}: {}\n", name, descr),
-            None => write!(self.writer, "{}\n", name),
+            Some(descr) => writeln!(self.writer, "{}: {}", name, descr),
+            None => writeln!(self.writer, "{}", name),
         }
     }
 
@@ -281,7 +281,7 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
 
     fn add_field(&mut self, name: &str, descr: &str, _bytes: &[u8]) -> Result<(), Self::Error> {
         self.indent()?;
-        write!(self.writer, "{}: {}\n", name, descr)
+        writeln!(self.writer, "{}: {}", name, descr)
     }
 
     fn add_bit_field(
@@ -292,7 +292,7 @@ impl<W: std::io::Write> Dump for DebugDumper<W> {
         _bits: u8,
     ) -> Result<(), Self::Error> {
         self.indent()?;
-        write!(self.writer, "{}: {}\n", name, descr)
+        writeln!(self.writer, "{}: {}", name, descr)
     }
 
     fn add_padding(&mut self, _num_bytes: usize, _byte_value: u8) -> Result<(), Self::Error> {

@@ -24,14 +24,16 @@ pub trait Decode: Sized {
                     Ok(res) => res,
                     Err(e) => {
                         return match e {
-                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
-                                Err(nom::Err::Incomplete(needed))
-                            } else {
-                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                            nom::Err::Incomplete(needed) => {
+                                if i == LEN - 1 {
+                                    Err(nom::Err::Incomplete(needed))
+                                } else {
+                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                                }
                             }
                             _ => Err(e),
                         };
-                    },
+                    }
                 };
                 buf = rem;
                 *elem = MaybeUninit::new(val);
@@ -52,14 +54,16 @@ pub trait DecodeBE: Sized {
                     Ok(res) => res,
                     Err(e) => {
                         return match e {
-                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
-                                Err(nom::Err::Incomplete(needed))
-                            } else {
-                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                            nom::Err::Incomplete(needed) => {
+                                if i == LEN - 1 {
+                                    Err(nom::Err::Incomplete(needed))
+                                } else {
+                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                                }
                             }
                             _ => Err(e),
                         };
-                    },
+                    }
                 };
                 buf = rem;
                 *elem = MaybeUninit::new(val);
@@ -80,14 +84,16 @@ pub trait DecodeLE: Sized {
                     Ok(res) => res,
                     Err(e) => {
                         return match e {
-                            nom::Err::Incomplete(needed) => if i == LEN - 1 {
-                                Err(nom::Err::Incomplete(needed))
-                            } else {
-                                Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                            nom::Err::Incomplete(needed) => {
+                                if i == LEN - 1 {
+                                    Err(nom::Err::Incomplete(needed))
+                                } else {
+                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
+                                }
                             }
                             _ => Err(e),
                         };
-                    },
+                    }
                 };
                 buf = rem;
                 *elem = MaybeUninit::new(val);
@@ -170,7 +176,9 @@ pub unsafe fn cast<T>(buf: &[u8]) -> DResult<'_, T> {
                 std::ptr::addr_of_mut!(ret) as *mut u8,
                 std::mem::size_of::<T>(),
             )),
-        ).is_err() {
+        )
+        .is_err()
+        {
             return Err(nom::Err::Incomplete(nom::Needed::Size(
                 std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>()),
             )));

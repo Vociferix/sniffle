@@ -34,7 +34,7 @@ impl DeviceInjector {
     }
 
     pub fn inject_pdu<P: PDU>(&mut self, pdu: &P) -> Result<(), TransmitError> {
-        let mut data = std::mem::replace(&mut self.buf, Vec::new());
+        let mut data = std::mem::take(&mut self.buf);
         data.clear();
         pdu.serialize(&mut data)?;
         self.inject_raw(&data[..])?;
