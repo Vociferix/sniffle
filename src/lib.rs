@@ -32,7 +32,7 @@ pub mod dissect {
 
 pub mod dump {
     #[doc(inline)]
-    pub use sniffle_core::{ByteDumpFormatter, DebugDumper, Dump, Dumper, NodeDumper};
+    pub use sniffle_core::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};
 }
 
 pub mod sniff {
@@ -92,9 +92,8 @@ pub mod prelude {
         address::EUIAddress, address::EUIParseError, address::IPv4Address, address::IPv6Address,
         address::MACAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
         device::ConnectionStatus, device::Device, dissect::register_dissector, dissect::Priority,
-        dissect::Session, dump::DebugDumper, dump::Dump, pdu::AnyPDU, pdu::PDUExt, pdu::PDU,
-        protos, sniff::Sniff, sniff::SniffError, transmit::Transmit, transmit::TransmitError,
-        Packet,
+        dissect::Session, dump::Dump, dump::LogDumper, pdu::AnyPDU, pdu::PDUExt, pdu::PDU, protos,
+        sniff::Sniff, sniff::SniffError, transmit::Transmit, transmit::TransmitError, Packet,
     };
 
     #[cfg(feature = "libpcap")]

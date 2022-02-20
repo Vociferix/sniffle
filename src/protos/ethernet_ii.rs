@@ -285,25 +285,20 @@ impl PDU for EthernetII {
             Some(&format!("{}->{}", self.src_addr, self.dst_addr)[..]),
         )?;
         node.add_field(
-            "dst address",
-            &self.dst_addr.to_string()[..],
-            &self.dst_addr[..],
+            "Dst Address",
+            DumpValue::Bytes(&self.dst_addr[..]),
+            Some(&self.dst_addr.to_string()[..]),
         )?;
         node.add_field(
-            "src address",
-            &self.src_addr.to_string()[..],
-            &self.src_addr[..],
+            "Src Address",
+            DumpValue::Bytes(&self.src_addr[..]),
+            Some(&self.src_addr.to_string()[..]),
         )?;
         node.add_field(
-            "ethertype",
-            &format!("0x{:04x}", self.ethertype.0)[..],
-            &self.ethertype.0.to_be_bytes()[..],
-        )?;
-        let trailer = self.trailer();
-        if !trailer.is_empty() {
-            node.add_padding_bytes(trailer)?;
-        }
-        Ok(())
+            "Ethertype",
+            DumpValue::UInt(self.ethertype.0.into()),
+            Some(&format!("0x{:04x}", self.ethertype.0)[..]),
+        )
     }
 
     // We will fill in the match later when more protocols are implemented,

@@ -3,7 +3,7 @@ use std::io::Write;
 
 fn dump<S: Sniff>(mut sniffer: S) -> Result<(), SniffError> {
     let stdout = std::io::stdout();
-    let mut dumper = DebugDumper::new(stdout.lock());
+    let mut dumper = LogDumper::new(stdout.lock());
     let mut first = true;
     for pkt in sniffer.iter() {
         if !first {

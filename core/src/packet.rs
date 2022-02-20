@@ -1,7 +1,6 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::{AnyPDU, Device, Dump, Dumper, PDUExt, PDU};
-use chrono::{offset::Utc, DateTime};
+use super::{AnyPDU, Device, Dump, DumpValue, Dumper, PDUExt, PDU};
 use std::time::SystemTime;
 
 pub struct Packet {
@@ -64,12 +63,7 @@ impl Packet {
 
     pub fn dump<D: Dump>(&self, dumper: &mut Dumper<D>) -> Result<(), D::Error> {
         let mut node = dumper.add_packet()?;
-        let ts: DateTime<Utc> = self.ts.into();
-        node.add_field(
-            "Timestamp",
-            &format!("{}", ts.format("%Y-%m-%d %H:%M:%S%.f"))[..],
-            &[][..],
-        )?;
+        node.add_field("Timestamp", DumpValue::Time(self.ts), None)?;
         let mut pdu = self.pdu();
         loop {
             pdu.dump(&mut node)?;

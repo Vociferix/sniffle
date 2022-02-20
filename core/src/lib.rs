@@ -35,7 +35,7 @@ pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, 
 
 pub use dissection::{AnyDissector, Dissector, DissectorTable, Priority};
 
-pub use dump::{ByteDumpFormatter, DebugDumper, Dump, Dumper, NodeDumper};
+pub use dump::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};
 
 pub use eui_address::{EUIAddress, EUIParseError};
 
