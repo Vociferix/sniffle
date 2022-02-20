@@ -16,7 +16,7 @@ enum Trailer {
     Manual(Vec<u8>),
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Ethertype(pub u16);
 
 struct EthertypeRange {
@@ -132,7 +132,7 @@ impl EthernetII {
         let trailer = match &mut self.trailer {
             Trailer::Auto => vec![0u8; self.auto_trailer_len()],
             Trailer::Zeros(len) => vec![0u8; *len],
-            Trailer::Manual(trailer) => std::mem::replace(trailer, Vec::new()),
+            Trailer::Manual(trailer) => std::mem::take(trailer),
         };
         self.trailer = Trailer::Manual(trailer);
         match &mut self.trailer {
@@ -306,6 +306,9 @@ impl PDU for EthernetII {
         Ok(())
     }
 
+    // We will fill in the match later when more protocols are implemented,
+    // so suppress this lint for now.
+    #[allow(clippy::match_single_binding)]
     fn make_canonical(&mut self) {
         let ethertype = match self.inner_pdu() {
             Some(inner) => match inner.pdu_type() {
@@ -653,13 +656,5 @@ impl Iterator for EthertypeIter {
         ret
     }
 }
-
-impl PartialEq for Ethertype {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for Ethertype {}
 
 register_link_layer_pdu!(EthernetII, LinkType::ETHERNET);
