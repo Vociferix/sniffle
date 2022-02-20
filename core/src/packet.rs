@@ -64,6 +64,20 @@ impl Packet {
     pub fn dump<D: Dump>(&self, dumper: &mut Dumper<D>) -> Result<(), D::Error> {
         let mut node = dumper.add_packet()?;
         node.add_field("Timestamp", DumpValue::Time(self.ts), None)?;
+        let mut capnode = node.add_node("Capture", None)?;
+        if let Ok(len) = self.len.try_into() {
+            capnode.add_field("Length", DumpValue::UInt(len), None)?;
+        }
+        if let Ok(caplen) = self.pdu.total_len().try_into() {
+            capnode.add_field("Capture Length", DumpValue::UInt(caplen), None)?;
+        }
+        if let Ok(snaplen) = self.snaplen.try_into() {
+            capnode.add_field("Snap Length", DumpValue::UInt(snaplen), None)?;
+        }
+        if let Some(dev) = self.device() {
+            capnode.add_info("Interface", dev.name())?;
+        }
+        drop(capnode);
         let mut pdu = self.pdu();
         loop {
             pdu.dump(&mut node)?;

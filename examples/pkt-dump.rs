@@ -7,7 +7,7 @@ fn dump<S: Sniff>(mut sniffer: S) -> Result<(), SniffError> {
     let mut first = true;
     for pkt in sniffer.iter() {
         if !first {
-            write!(dumper.as_inner_mut().as_inner_mut(), "\n")?;
+            writeln!(dumper.as_inner_mut().as_inner_mut())?;
         } else {
             first = false;
         }
@@ -17,7 +17,7 @@ fn dump<S: Sniff>(mut sniffer: S) -> Result<(), SniffError> {
 }
 
 fn main() -> Result<(), SniffError> {
-    let src = std::env::args().skip(1).next().unwrap_or_else(|| {
+    let src = std::env::args().nth(1).unwrap_or_else(|| {
         panic!("Expected one argument of either an interface name or a capture file path");
     });
     match Device::lookup(&src[..]) {
