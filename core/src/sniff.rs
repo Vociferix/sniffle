@@ -81,7 +81,17 @@ pub trait Sniff: Sized {
     fn session_mut(&mut self) -> &mut Session;
 
     fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
-        let session = std::mem::replace(self.session_mut(), Session::new_from_scratch());
+        let mut session = std::mem::replace(self.session_mut(), Session::new_from_scratch());
+        if let Some(pdu) = session.next_virtual_packet() {
+            let info = session.last_info();
+            return Ok(Some(Packet::new(
+                info.ts,
+                pdu,
+                None,
+                Some(info.snaplen),
+                info.dev.clone(),
+            )));
+        }
         let ret = match self.next_raw()? {
             Some(pkt) => {
                 let RawPacket {
@@ -92,6 +102,9 @@ pub trait Sniff: Sized {
                     data,
                     device,
                 } = pkt;
+                session.last_info_mut().ts = ts;
+                session.last_info_mut().dev = device.clone();
+                session.last_info_mut().snaplen = snaplen;
                 match session.table_dissect::<LinkTypeTable>(&datalink, data, None) {
                     Ok((_rem, Some(pdu))) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))

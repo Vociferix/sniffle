@@ -1,14 +1,34 @@
-use super::{AnyPDU, Dissector, DissectorTable, Priority, RawPDU, TempPDU};
+use super::{AnyPDU, Device, Dissector, DissectorTable, Priority, RawPDU, TempPDU, PDU};
 use lazy_static::*;
 use sniffle_ende::decode::DResult;
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    cell::Cell,
+    collections::{HashMap, VecDeque},
+    rc::Rc,
     sync::RwLock,
 };
 
+pub(crate) struct LastInfo {
+    pub(crate) ts: std::time::SystemTime,
+    pub(crate) dev: Option<Rc<Device>>,
+    pub(crate) snaplen: usize,
+}
+
 pub struct Session {
     state: HashMap<TypeId, Box<dyn Any + 'static>>,
+    virt_packets: Cell<VecDeque<AnyPDU>>,
+    last_info: LastInfo,
+}
+
+impl Default for LastInfo {
+    fn default() -> Self {
+        Self {
+            ts: std::time::SystemTime::UNIX_EPOCH,
+            dev: None,
+            snaplen: 0xFFFF,
+        }
+    }
 }
 
 impl Session {
@@ -20,6 +40,8 @@ impl Session {
     pub fn new_from_scratch() -> Self {
         Self {
             state: HashMap::new(),
+            virt_packets: Cell::new(VecDeque::new()),
+            last_info: LastInfo::default(),
         }
     }
 
@@ -105,6 +127,27 @@ impl Session {
                     AnyPDU::new(RawPDU::new(Vec::from(buffer))),
                 ))
             })
+    }
+
+    pub fn enqueue_virtual_packet<P: PDU>(&self, packet: P) {
+        let mut queue = self.virt_packets.take();
+        queue.push_back(AnyPDU::new(packet));
+        self.virt_packets.set(queue);
+    }
+
+    pub fn next_virtual_packet(&self) -> Option<AnyPDU> {
+        let mut queue = self.virt_packets.take();
+        let ret = queue.pop_front();
+        self.virt_packets.set(queue);
+        ret
+    }
+
+    pub(crate) fn last_info(&self) -> &LastInfo {
+        &self.last_info
+    }
+
+    pub(crate) fn last_info_mut(&mut self) -> &mut LastInfo {
+        &mut self.last_info
     }
 }
 
