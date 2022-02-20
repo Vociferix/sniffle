@@ -27,12 +27,12 @@ pub struct RawFilterOptionWriter<'a, 'b, 'c, F: Write + Seek> {
     opt: &'a mut RawOptionWriter<'b, 'c, F>,
 }
 
-pub struct SHBOptionWriter<'a, F: Write + Seek> {
+pub struct ShbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
 
-pub struct IDBOptionWriter<'a, F: Write + Seek> {
+pub struct IdbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
@@ -41,12 +41,12 @@ pub struct FilterOptionWriter<'a, 'b, F: Write + Seek> {
     opt: RawOptionWriter<'a, 'b, F>,
 }
 
-pub struct EPBDataWriter<'a, F: Write + Seek> {
+pub struct EpbDataWriter<'a, F: Write + Seek> {
     block: Option<RawBlockWriter<'a, F>>,
     custom_orig_len: bool,
 }
 
-pub struct EPBOptionWriter<'a, F: Write + Seek> {
+pub struct EpbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
@@ -57,41 +57,41 @@ pub struct PacketFlagsOptionWriter<'a, 'b, F: Write + Seek> {
     finished: bool,
 }
 
-pub struct SPBDataWriter<'a, F: Write + Seek> {
+pub struct SpbDataWriter<'a, F: Write + Seek> {
     block: Option<RawBlockWriter<'a, F>>,
     custom_orig_len: bool,
 }
 
-pub struct NRBRecordWriter<'a, F: Write + Seek> {
+pub struct NrbRecordWriter<'a, F: Write + Seek> {
     block: Option<RawBlockWriter<'a, F>>,
 }
 
-pub struct NRBNameWriter<'a, 'b, F: Write + Seek> {
+pub struct NrbNameWriter<'a, 'b, F: Write + Seek> {
     block: &'a mut RawBlockWriter<'b, F>,
     len_pos: u64,
 }
 
-pub struct NRBOptionWriter<'a, F: Write + Seek> {
+pub struct NrbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
 
-pub struct ISBOptionWriter<'a, F: Write + Seek> {
+pub struct IsbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
 
-pub struct SJBEntryWriter<'a, F: Write + Seek> {
+pub struct SjbEntryWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
 
-pub struct DSBSecretsWriter<'a, F: Write + Seek> {
+pub struct DsbSecretsWriter<'a, F: Write + Seek> {
     block: Option<RawBlockWriter<'a, F>>,
     body_start: u64,
 }
 
-pub struct DSBOptionWriter<'a, F: Write + Seek> {
+pub struct DsbOptionWriter<'a, F: Write + Seek> {
     block: RawBlockWriter<'a, F>,
     finished: bool,
 }
@@ -145,7 +145,7 @@ impl<F: Write + Seek> Writer<F> {
         big_endian: bool,
         version_major: u16,
         version_minor: u16,
-    ) -> Result<SHBOptionWriter<'_, F>, TransmitError> {
+    ) -> Result<ShbOptionWriter<'_, F>, TransmitError> {
         self.finish_section()?;
         let mut block = self.write_raw_block(SHB_ID)?;
         block.writer.be = big_endian;
@@ -153,7 +153,7 @@ impl<F: Write + Seek> Writer<F> {
         block.write_u16(version_major)?;
         block.write_u16(version_minor)?;
         block.write_u64(u64::MAX)?;
-        Ok(SHBOptionWriter {
+        Ok(ShbOptionWriter {
             block,
             finished: true,
         })
@@ -163,13 +163,13 @@ impl<F: Write + Seek> Writer<F> {
         &mut self,
         link_type: u16,
         snaplen: u32,
-    ) -> Result<IDBOptionWriter<'_, F>, TransmitError> {
+    ) -> Result<IdbOptionWriter<'_, F>, TransmitError> {
         self.first_snaplen.get_or_insert(snaplen);
         let mut block = self.write_raw_block(IDB_ID)?;
         block.write_u16(link_type)?;
         block.write_u16(0)?;
         block.write_u32(snaplen)?;
-        Ok(IDBOptionWriter {
+        Ok(IdbOptionWriter {
             block,
             finished: true,
         })
@@ -179,26 +179,26 @@ impl<F: Write + Seek> Writer<F> {
         &mut self,
         iface_id: u32,
         timestamp: u64,
-    ) -> Result<EPBDataWriter<'_, F>, TransmitError> {
+    ) -> Result<EpbDataWriter<'_, F>, TransmitError> {
         let mut block = self.write_raw_block(EPB_ID)?;
         block.write_u32(iface_id)?;
         block.write_u32((timestamp >> 32) as u32)?;
         block.write_u32((timestamp & 0xFFFFFFFF) as u32)?;
-        Ok(EPBDataWriter {
+        Ok(EpbDataWriter {
             block: Some(block),
             custom_orig_len: false,
         })
     }
 
-    pub fn write_spb(&mut self) -> Result<SPBDataWriter<'_, F>, TransmitError> {
-        Ok(SPBDataWriter {
+    pub fn write_spb(&mut self) -> Result<SpbDataWriter<'_, F>, TransmitError> {
+        Ok(SpbDataWriter {
             block: Some(self.write_raw_block(SPB_ID)?),
             custom_orig_len: false,
         })
     }
 
-    pub fn write_nrb(&mut self) -> Result<NRBRecordWriter<'_, F>, TransmitError> {
-        Ok(NRBRecordWriter {
+    pub fn write_nrb(&mut self) -> Result<NrbRecordWriter<'_, F>, TransmitError> {
+        Ok(NrbRecordWriter {
             block: Some(self.write_raw_block(NRB_ID)?),
         })
     }
@@ -207,19 +207,19 @@ impl<F: Write + Seek> Writer<F> {
         &mut self,
         iface_id: u32,
         timestamp: u64,
-    ) -> Result<ISBOptionWriter<'_, F>, TransmitError> {
+    ) -> Result<IsbOptionWriter<'_, F>, TransmitError> {
         let mut block = self.write_raw_block(ISB_ID)?;
         block.write_u32(iface_id)?;
         block.write_u32((timestamp >> 32) as u32)?;
         block.write_u32((timestamp & 0xFFFFFFFF) as u32)?;
-        Ok(ISBOptionWriter {
+        Ok(IsbOptionWriter {
             block,
             finished: true,
         })
     }
 
-    pub fn write_sjb(&mut self) -> Result<SJBEntryWriter<'_, F>, TransmitError> {
-        Ok(SJBEntryWriter {
+    pub fn write_sjb(&mut self) -> Result<SjbEntryWriter<'_, F>, TransmitError> {
+        Ok(SjbEntryWriter {
             block: self.write_raw_block(SJB_ID)?,
             finished: true,
         })
@@ -228,12 +228,12 @@ impl<F: Write + Seek> Writer<F> {
     pub fn write_dsb(
         &mut self,
         secrets_type: u32,
-    ) -> Result<DSBSecretsWriter<'_, F>, TransmitError> {
+    ) -> Result<DsbSecretsWriter<'_, F>, TransmitError> {
         let mut block = self.write_raw_block(DSB_ID)?;
         block.write_u32(secrets_type)?;
         block.write_u32(0)?;
         let body_start = block.stream_position()?;
-        Ok(DSBSecretsWriter {
+        Ok(DsbSecretsWriter {
             block: Some(block),
             body_start,
         })
@@ -638,7 +638,7 @@ impl<'a, 'b, 'c, F: Write + Seek> RawFilterOptionWriter<'a, 'b, 'c, F> {
 
 const END_OPT: [u8; 4] = [0u8; 4];
 
-impl<'a, F: Write + Seek> SHBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> ShbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;
@@ -684,13 +684,13 @@ impl<'a, F: Write + Seek> SHBOptionWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for SHBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for ShbOptionWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap();
     }
 }
 
-impl<'a, F: Write + Seek> IDBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> IdbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;
@@ -837,13 +837,13 @@ impl<'a, 'b, F: Write + Seek> FilterOptionWriter<'a, 'b, F> {
     pub fn write_string(mut self, filter: &str) -> Result<(), TransmitError> {
         self.opt.write_u8(0)?;
         self.opt.write_all(filter.as_bytes())?;
-        Ok(self.opt.finish()?)
+        self.opt.finish()
     }
 
     pub fn write_byte_code(mut self, filter: &[u8]) -> Result<(), TransmitError> {
         self.opt.write_u8(1)?;
         self.opt.write_all(filter)?;
-        Ok(self.opt.finish()?)
+        self.opt.finish()
     }
 
     pub fn write_raw(
@@ -855,28 +855,26 @@ impl<'a, 'b, F: Write + Seek> FilterOptionWriter<'a, 'b, F> {
     }
 }
 
-impl<'a, F: Write + Seek> EPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> EpbDataWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         let custom_orig_len = self.custom_orig_len;
-        Ok(match self.block.as_mut() {
-            Some(block) => {
-                let end = block.seek(SeekFrom::End(0))?;
-                if end < 16 {
-                    block.write_u32(0)?;
-                    block.write_u32(0)?;
-                } else {
-                    block.seek(SeekFrom::Start(16))?;
-                    let len = (end - 20) as u32;
+        if let Some(block) = self.block.as_mut() {
+            let end = block.seek(SeekFrom::End(0))?;
+            if end < 16 {
+                block.write_u32(0)?;
+                block.write_u32(0)?;
+            } else {
+                block.seek(SeekFrom::Start(16))?;
+                let len = (end - 20) as u32;
+                block.write_u32(len)?;
+                if !custom_orig_len {
                     block.write_u32(len)?;
-                    if !custom_orig_len {
-                        block.write_u32(len)?;
-                    }
-                    block.seek(SeekFrom::End(0))?;
-                    write_padding(block, len as usize)?;
                 }
+                block.seek(SeekFrom::End(0))?;
+                write_padding(block, len as usize)?;
             }
-            None => (),
-        })
+        }
+        Ok(())
     }
 
     pub fn finish(mut self) -> Result<(), TransmitError> {
@@ -884,10 +882,10 @@ impl<'a, F: Write + Seek> EPBDataWriter<'a, F> {
         guarantee(std::mem::replace(&mut self.block, None)).finish()
     }
 
-    pub fn write_options(mut self) -> Result<EPBOptionWriter<'a, F>, TransmitError> {
+    pub fn write_options(mut self) -> Result<EpbOptionWriter<'a, F>, TransmitError> {
         self.finish_impl()?;
         let block = guarantee(std::mem::replace(&mut self.block, None));
-        Ok(EPBOptionWriter {
+        Ok(EpbOptionWriter {
             block,
             finished: true,
         })
@@ -904,7 +902,7 @@ impl<'a, F: Write + Seek> EPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Write for EPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Write for EpbDataWriter<'a, F> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         guarantee(self.block.as_mut()).write(buf)
     }
@@ -914,7 +912,7 @@ impl<'a, F: Write + Seek> Write for EPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Seek for EPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Seek for EpbDataWriter<'a, F> {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         offset_seek(guarantee(self.block.as_mut()), 20, pos)
     }
@@ -929,13 +927,13 @@ impl<'a, F: Write + Seek> Seek for EPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for EPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for EpbDataWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> EPBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> EpbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;
@@ -1136,34 +1134,32 @@ impl<'a, 'b, F: Write + Seek> Drop for PacketFlagsOptionWriter<'a, 'b, F> {
     }
 }
 
-impl<'a, F: Write + Seek> SPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> SpbDataWriter<'a, F> {
     fn finish_impl(&mut self) -> Result<(), TransmitError> {
         let custom_orig_len = self.custom_orig_len;
-        Ok(match self.block.as_mut() {
-            Some(block) => {
-                let snaplen = match block.writer.first_snaplen {
-                    Some(snaplen) => snaplen,
-                    None => {
-                        return Err(TransmitError::MalformedCapture);
-                    }
-                };
-                let end = block.seek(SeekFrom::End(0))?;
-                if end < 4 {
-                    block.write_u32(0)?;
-                } else {
-                    let len = (end - 4) as u32;
-                    if len > snaplen {
-                        return Err(TransmitError::MalformedCapture);
-                    } else if !custom_orig_len {
-                        block.seek(SeekFrom::Start(0))?;
-                        block.write_u32(len)?;
-                    }
-                    block.seek(SeekFrom::End(0))?;
-                    write_padding(block, len as usize)?;
+        if let Some(block) = self.block.as_mut() {
+            let snaplen = match block.writer.first_snaplen {
+                Some(snaplen) => snaplen,
+                None => {
+                    return Err(TransmitError::MalformedCapture);
                 }
+            };
+            let end = block.seek(SeekFrom::End(0))?;
+            if end < 4 {
+                block.write_u32(0)?;
+            } else {
+                let len = (end - 4) as u32;
+                if len > snaplen {
+                    return Err(TransmitError::MalformedCapture);
+                } else if !custom_orig_len {
+                    block.seek(SeekFrom::Start(0))?;
+                    block.write_u32(len)?;
+                }
+                block.seek(SeekFrom::End(0))?;
+                write_padding(block, len as usize)?;
             }
-            None => (),
-        })
+        }
+        Ok(())
     }
 
     pub fn finish(mut self) -> Result<(), TransmitError> {
@@ -1182,7 +1178,7 @@ impl<'a, F: Write + Seek> SPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Write for SPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Write for SpbDataWriter<'a, F> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         guarantee(self.block.as_mut()).write(buf)
     }
@@ -1192,7 +1188,7 @@ impl<'a, F: Write + Seek> Write for SPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Seek for SPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Seek for SpbDataWriter<'a, F> {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         offset_seek(guarantee(self.block.as_mut()), 4, pos)
     }
@@ -1207,20 +1203,17 @@ impl<'a, F: Write + Seek> Seek for SPBDataWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for SPBDataWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for SpbDataWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> NRBRecordWriter<'a, F> {
+impl<'a, F: Write + Seek> NrbRecordWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
-        match self.block.as_mut() {
-            Some(block) => {
-                block.write_u16(NRB_RECORD_END)?;
-                block.write_u16(0)?;
-            }
-            None => (),
+        if let Some(block) = self.block.as_mut() {
+            block.write_u16(NRB_RECORD_END)?;
+            block.write_u16(0)?;
         }
         Ok(())
     }
@@ -1228,25 +1221,25 @@ impl<'a, F: Write + Seek> NRBRecordWriter<'a, F> {
     pub fn write_ipv4_record(
         &mut self,
         addr: IPv4Address,
-    ) -> Result<NRBNameWriter<'_, 'a, F>, TransmitError> {
+    ) -> Result<NrbNameWriter<'_, 'a, F>, TransmitError> {
         let block = guarantee(self.block.as_mut());
         block.write_u16(NRB_RECORD_IPV4)?;
         let len_pos = block.stream_position()?;
         block.write_u16(0)?;
         block.write_all(&addr[..])?;
-        Ok(NRBNameWriter { block, len_pos })
+        Ok(NrbNameWriter { block, len_pos })
     }
 
     pub fn write_ipv6_record(
         &mut self,
         addr: IPv6Address,
-    ) -> Result<NRBNameWriter<'_, 'a, F>, TransmitError> {
+    ) -> Result<NrbNameWriter<'_, 'a, F>, TransmitError> {
         let block = guarantee(self.block.as_mut());
         block.write_u16(NRB_RECORD_IPV4)?;
         let len_pos = block.stream_position()?;
         block.write_u16(0)?;
         block.write_all(&addr[..])?;
-        Ok(NRBNameWriter { block, len_pos })
+        Ok(NrbNameWriter { block, len_pos })
     }
 
     pub fn finish(mut self) -> Result<(), TransmitError> {
@@ -1254,22 +1247,22 @@ impl<'a, F: Write + Seek> NRBRecordWriter<'a, F> {
         guarantee(std::mem::replace(&mut self.block, None)).finish()
     }
 
-    pub fn write_options(mut self) -> Result<NRBOptionWriter<'a, F>, TransmitError> {
+    pub fn write_options(mut self) -> Result<NrbOptionWriter<'a, F>, TransmitError> {
         self.finish_impl()?;
-        Ok(NRBOptionWriter {
+        Ok(NrbOptionWriter {
             block: guarantee(std::mem::replace(&mut self.block, None)),
             finished: true,
         })
     }
 }
 
-impl<'a, F: Write + Seek> Drop for NRBRecordWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for NrbRecordWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, 'b, F: Write + Seek> NRBNameWriter<'a, 'b, F> {
+impl<'a, 'b, F: Write + Seek> NrbNameWriter<'a, 'b, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if self.len_pos != u64::MAX {
             let end = self.block.stream_position()?;
@@ -1294,13 +1287,13 @@ impl<'a, 'b, F: Write + Seek> NRBNameWriter<'a, 'b, F> {
     }
 }
 
-impl<'a, 'b, F: Write + Seek> Drop for NRBNameWriter<'a, 'b, F> {
+impl<'a, 'b, F: Write + Seek> Drop for NrbNameWriter<'a, 'b, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> NRBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> NrbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;
@@ -1346,13 +1339,13 @@ impl<'a, F: Write + Seek> NRBOptionWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for NRBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for NrbOptionWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> ISBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> IsbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;
@@ -1424,13 +1417,13 @@ impl<'a, F: Write + Seek> ISBOptionWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for ISBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for IsbOptionWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> SJBEntryWriter<'a, F> {
+impl<'a, F: Write + Seek> SjbEntryWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             let end = self.block.seek(SeekFrom::End(0))?;
@@ -1446,7 +1439,7 @@ impl<'a, F: Write + Seek> SJBEntryWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Write for SJBEntryWriter<'a, F> {
+impl<'a, F: Write + Seek> Write for SjbEntryWriter<'a, F> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.block.write(buf)
     }
@@ -1456,7 +1449,7 @@ impl<'a, F: Write + Seek> Write for SJBEntryWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Seek for SJBEntryWriter<'a, F> {
+impl<'a, F: Write + Seek> Seek for SjbEntryWriter<'a, F> {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         self.block.seek(pos)
     }
@@ -1470,26 +1463,24 @@ impl<'a, F: Write + Seek> Seek for SJBEntryWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for SJBEntryWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for SjbEntryWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> DSBSecretsWriter<'a, F> {
+impl<'a, F: Write + Seek> DsbSecretsWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         let body_start = self.body_start;
-        Ok(match self.block.as_mut() {
-            Some(block) => {
-                let end = block.seek(SeekFrom::End(0))?;
-                let len = (end - body_start) as u32;
-                block.seek(SeekFrom::Start(4))?;
-                block.write_u32(len)?;
-                block.seek(SeekFrom::End(0))?;
-                write_padding(block, len as usize)?;
-            }
-            None => (),
-        })
+        if let Some(block) = self.block.as_mut() {
+            let end = block.seek(SeekFrom::End(0))?;
+            let len = (end - body_start) as u32;
+            block.seek(SeekFrom::Start(4))?;
+            block.write_u32(len)?;
+            block.seek(SeekFrom::End(0))?;
+            write_padding(block, len as usize)?;
+        }
+        Ok(())
     }
 
     pub fn finish(mut self) -> Result<(), TransmitError> {
@@ -1497,17 +1488,17 @@ impl<'a, F: Write + Seek> DSBSecretsWriter<'a, F> {
         guarantee(std::mem::replace(&mut self.block, None)).finish()
     }
 
-    pub fn write_options(mut self) -> Result<DSBOptionWriter<'a, F>, TransmitError> {
+    pub fn write_options(mut self) -> Result<DsbOptionWriter<'a, F>, TransmitError> {
         self.finish_impl()?;
         let block = guarantee(std::mem::replace(&mut self.block, None));
-        Ok(DSBOptionWriter {
+        Ok(DsbOptionWriter {
             block,
             finished: true,
         })
     }
 }
 
-impl<'a, F: Write + Seek> Write for DSBSecretsWriter<'a, F> {
+impl<'a, F: Write + Seek> Write for DsbSecretsWriter<'a, F> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         guarantee(self.block.as_mut()).write(buf)
     }
@@ -1517,7 +1508,7 @@ impl<'a, F: Write + Seek> Write for DSBSecretsWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Seek for DSBSecretsWriter<'a, F> {
+impl<'a, F: Write + Seek> Seek for DsbSecretsWriter<'a, F> {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         offset_seek(guarantee(self.block.as_mut()), self.body_start, pos)
     }
@@ -1532,13 +1523,13 @@ impl<'a, F: Write + Seek> Seek for DSBSecretsWriter<'a, F> {
     }
 }
 
-impl<'a, F: Write + Seek> Drop for DSBSecretsWriter<'a, F> {
+impl<'a, F: Write + Seek> Drop for DsbSecretsWriter<'a, F> {
     fn drop(&mut self) {
         self.finish_impl().unwrap()
     }
 }
 
-impl<'a, F: Write + Seek> DSBOptionWriter<'a, F> {
+impl<'a, F: Write + Seek> DsbOptionWriter<'a, F> {
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.finished {
             self.block.write_all(&END_OPT[..])?;

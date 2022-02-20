@@ -39,24 +39,15 @@ impl CapfileType {
     }
 
     pub fn is_pcap(&self) -> bool {
-        match self {
-            Self::Pcap => true,
-            _ => false,
-        }
+        matches!(self, Self::Pcap)
     }
 
     pub fn is_pcapng(&self) -> bool {
-        match self {
-            Self::PcapNG => true,
-            _ => false,
-        }
+        matches!(self, Self::PcapNG)
     }
 
     pub fn is_unknown(&self) -> bool {
-        match self {
-            Self::Unknown => true,
-            _ => false,
-        }
+        matches!(self, Self::Unknown)
     }
 }
 

@@ -15,7 +15,7 @@ impl<F: std::io::BufRead> Sniffer<F> {
     pub fn new(file: F, session: Option<Session>) -> Result<Self, SniffError> {
         Ok(Self {
             reader: Reader::new(file)?,
-            session: session.unwrap_or_else(|| Session::default()),
+            session: session.unwrap_or_default(),
             buf: Vec::new(),
         })
     }
@@ -26,7 +26,7 @@ impl<F: std::io::BufRead> Sniffer<F> {
     ) -> Result<FileSniffer, SniffError> {
         Ok(FileSniffer {
             reader: FileReader::open(path)?,
-            session: session.unwrap_or_else(|| Session::default()),
+            session: session.unwrap_or_default(),
             buf: Vec::new(),
         })
     }
@@ -50,7 +50,7 @@ impl<F: std::io::BufRead> Sniff for Sniffer<F> {
     }
 
     fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
-        let mut buf = std::mem::replace(&mut self.buf, Vec::new());
+        let mut buf = std::mem::take(&mut self.buf);
         let hdr = match self.reader.next_record(&mut buf)? {
             Some(hdr) => hdr,
             None => {

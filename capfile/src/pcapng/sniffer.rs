@@ -71,7 +71,7 @@ impl<F: BufRead + Seek> Sniffer<F> {
     fn init(file: Reader<F>, session: Option<Session>) -> Self {
         Self {
             file,
-            session: session.unwrap_or_else(|| Session::default()),
+            session: session.unwrap_or_default(),
             ifaces: Vec::new(),
             buf: Vec::new(),
         }
@@ -83,26 +83,26 @@ impl<F: BufRead + Seek> Sniff for Sniffer<F> {
         loop {
             match self.file.next_block()? {
                 Some(block) => match block {
-                    Block::SHB(_) => {
+                    Block::Shb(_) => {
                         self.ifaces.clear();
                     }
-                    Block::IDB(mut idb) => {
+                    Block::Idb(mut idb) => {
                         let mut bldr = DeviceBuilder::new();
                         let mut tsresol = 6u8;
                         let mut tsoffset = 0i64;
                         while let Some(opt) = idb.next_option()? {
                             match opt {
-                                IDBOption::Name(mut opt) => {
+                                IdbOption::Name(mut opt) => {
                                     let mut name = String::new();
                                     opt.string(&mut name)?;
                                     bldr.name(name);
                                 }
-                                IDBOption::Description(mut opt) => {
+                                IdbOption::Description(mut opt) => {
                                     let mut desc = String::new();
                                     opt.string(&mut desc)?;
                                     bldr.description(desc);
                                 }
-                                IDBOption::IPv4(mut opt) => {
+                                IdbOption::IPv4(mut opt) => {
                                     bldr.add_ipv4(DeviceIPv4::new(
                                         opt.address()?,
                                         Some(opt.netmask()?),
@@ -110,19 +110,19 @@ impl<F: BufRead + Seek> Sniff for Sniffer<F> {
                                         None,
                                     ));
                                 }
-                                IDBOption::IPv6(mut opt) => {
+                                IdbOption::IPv6(mut opt) => {
                                     bldr.add_ipv6(DeviceIPv6::new(
                                         opt.address()?,
                                         Some(opt.prefix_length()? as u32),
                                     ));
                                 }
-                                IDBOption::MAC(mut opt) => {
+                                IdbOption::MAC(mut opt) => {
                                     bldr.add_mac(opt.address()?);
                                 }
-                                IDBOption::TSResol(mut opt) => {
+                                IdbOption::TSResol(mut opt) => {
                                     tsresol = opt.value()?;
                                 }
-                                IDBOption::TSOffset(mut opt) => {
+                                IdbOption::TSOffset(mut opt) => {
                                     tsoffset = opt.value()?;
                                 }
                                 _ => {}
@@ -139,7 +139,7 @@ impl<F: BufRead + Seek> Sniff for Sniffer<F> {
                             tsoffset,
                         });
                     }
-                    Block::EPB(mut epb) => {
+                    Block::Epb(mut epb) => {
                         let iface_id = epb.interface_id()? as usize;
                         let tsresol = self.ifaces[iface_id].tsresol;
                         let tsoffset = self.ifaces[iface_id].tsoffset;
@@ -158,7 +158,7 @@ impl<F: BufRead + Seek> Sniff for Sniffer<F> {
                             Some(device),
                         )));
                     }
-                    Block::SPB(mut spb) => {
+                    Block::Spb(mut spb) => {
                         let link = self.ifaces[0].link;
                         let snaplen = self.ifaces[0].snaplen;
                         let device = self.ifaces[0].device.clone();

@@ -32,34 +32,18 @@ const LE_MAGIC_N: u32 = u32::from_ne_bytes([0x4D, 0x3C, 0xB2, 0xA1]);
 
 impl Header {
     pub fn is_big_endian(&self) -> bool {
-        match self.magic {
-            BE_MAGIC_U => true,
-            BE_MAGIC_N => true,
-            _ => false,
-        }
+        matches!(self.magic, BE_MAGIC_U | BE_MAGIC_N)
     }
 
     pub fn is_little_endian(&self) -> bool {
-        match self.magic {
-            LE_MAGIC_U => true,
-            LE_MAGIC_N => true,
-            _ => false,
-        }
+        matches!(self.magic, LE_MAGIC_U | LE_MAGIC_N)
     }
 
     pub fn is_micro(&self) -> bool {
-        match self.magic {
-            LE_MAGIC_U => true,
-            BE_MAGIC_U => true,
-            _ => false,
-        }
+        matches!(self.magic, LE_MAGIC_U | BE_MAGIC_U)
     }
 
     pub fn is_nano(&self) -> bool {
-        match self.magic {
-            LE_MAGIC_N => true,
-            BE_MAGIC_N => true,
-            _ => false,
-        }
+        matches!(self.magic, LE_MAGIC_N | BE_MAGIC_N)
     }
 }

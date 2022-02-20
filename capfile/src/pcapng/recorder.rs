@@ -74,34 +74,25 @@ impl<F: std::io::Write + std::io::Seek> Recorder<F> {
         let mut opts = self
             .writer
             .write_idb(link_type.0, packet.snaplen() as u32)?;
-        match packet.device() {
-            Some(dev) => {
-                opts.write_name(dev.name())?;
-                match dev.description() {
-                    Some(desc) => {
-                        opts.write_description(desc)?;
-                    }
-                    None => {}
-                }
-                for addr in dev.ipv4_addresses() {
-                    opts.write_ipv4_address(
-                        *addr.address(),
-                        addr.netmask()
-                            .map(|mask| *mask)
-                            .unwrap_or(IPv4Address::from([0xFF, 0xFF, 0xFF, 0xFF])),
-                    )?;
-                }
-                for addr in dev.ipv6_addresses() {
-                    opts.write_ipv6_address(
-                        *addr.address(),
-                        addr.prefix_length().unwrap_or(0) as u8,
-                    )?;
-                }
-                for addr in dev.mac_addresses() {
-                    opts.write_mac_address(*addr)?;
-                }
+        if let Some(dev) = packet.device() {
+            opts.write_name(dev.name())?;
+            if let Some(desc) = dev.description() {
+                opts.write_description(desc)?;
             }
-            None => {}
+            for addr in dev.ipv4_addresses() {
+                opts.write_ipv4_address(
+                    *addr.address(),
+                    addr.netmask()
+                        .copied()
+                        .unwrap_or_else(|| IPv4Address::from([0xFF, 0xFF, 0xFF, 0xFF])),
+                )?;
+            }
+            for addr in dev.ipv6_addresses() {
+                opts.write_ipv6_address(*addr.address(), addr.prefix_length().unwrap_or(0) as u8)?;
+            }
+            for addr in dev.mac_addresses() {
+                opts.write_mac_address(*addr)?;
+            }
         }
         opts.write_tsoffset(ts_offset)?;
         opts.write_tsresol(9)?;
@@ -119,7 +110,7 @@ impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
         };
 
         let iface = IfaceKey {
-            iface: packet.device().map(|dev| dev.clone()),
+            iface: packet.device().cloned(),
             link_type,
             snaplen: packet.snaplen() as u32,
         };
@@ -169,7 +160,7 @@ impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
             ts
         };
 
-        let mut buf = std::mem::replace(&mut self.buf, Vec::new());
+        let mut buf = std::mem::take(&mut self.buf);
         let mut data = self.writer.write_epb(id, ts)?;
         packet.pdu().serialize(&mut buf)?;
         data.write_all(&buf[..])?;

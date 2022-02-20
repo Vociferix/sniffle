@@ -14,14 +14,14 @@ pub struct Reader<F: BufRead + Seek> {
 pub type FileReader = Reader<std::io::BufReader<std::fs::File>>;
 
 pub enum Block<'a, F: BufRead + Seek> {
-    SHB(SectionHeaderBlock<'a, F>),
-    IDB(InterfaceDescriptionBlock<'a, F>),
-    EPB(EnhancedPacketBlock<'a, F>),
-    SPB(SimplePacketBlock<'a, F>),
-    NRB(NameResolutionBlock<'a, F>),
-    ISB(InterfaceStatisticsBlock<'a, F>),
-    SJB(SystemdJournalExportBlock<'a, F>),
-    DSB(DecryptionSecretsBlock<'a, F>),
+    Shb(SectionHeaderBlock<'a, F>),
+    Idb(InterfaceDescriptionBlock<'a, F>),
+    Epb(EnhancedPacketBlock<'a, F>),
+    Spb(SimplePacketBlock<'a, F>),
+    Nrb(NameResolutionBlock<'a, F>),
+    Isb(InterfaceStatisticsBlock<'a, F>),
+    Sjb(SystemdJournalExportBlock<'a, F>),
+    Dsb(DecryptionSecretsBlock<'a, F>),
     Other(RawBlock<'a, F>),
 }
 
@@ -204,18 +204,18 @@ pub struct RawVerdictOpt<'a, F: BufRead + Seek> {
 
 pub struct SectionHeaderBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<SHB>,
+    data: Option<Shb>,
     next: u64,
     opt_end: u64,
 }
 
-struct SHB {
+struct Shb {
     version_major: u16,
     version_minor: u16,
     section_len: u64,
 }
 
-pub enum SHBOption<'a, F: BufRead + Seek> {
+pub enum ShbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Hardware(StringOpt<'a, F>),
     OS(StringOpt<'a, F>),
@@ -225,17 +225,17 @@ pub enum SHBOption<'a, F: BufRead + Seek> {
 
 pub struct InterfaceDescriptionBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<IDB>,
+    data: Option<Idb>,
     next: u64,
     opt_end: u64,
 }
 
-struct IDB {
+struct Idb {
     link_type: u16,
     snaplen: u32,
 }
 
-pub enum IDBOption<'a, F: BufRead + Seek> {
+pub enum IdbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Name(StringOpt<'a, F>),
     Description(StringOpt<'a, F>),
@@ -258,20 +258,20 @@ pub enum IDBOption<'a, F: BufRead + Seek> {
 
 pub struct EnhancedPacketBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<EPB>,
+    data: Option<Epb>,
     offset: u64,
     next: u64,
     opt_end: u64,
 }
 
-struct EPB {
+struct Epb {
     iface: u32,
     ts: u64,
     cap_len: u32,
     orig_len: u32,
 }
 
-pub enum EPBOption<'a, F: BufRead + Seek> {
+pub enum EpbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Flags(PacketFlagsOpt<'a, F>),
     Hash(HashOpt<'a, F>),
@@ -284,11 +284,11 @@ pub enum EPBOption<'a, F: BufRead + Seek> {
 
 pub struct SimplePacketBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<SPB>,
+    data: Option<Spb>,
     offset: u64,
 }
 
-struct SPB {
+struct Spb {
     cap_len: u32,
     orig_len: u32,
 }
@@ -320,7 +320,7 @@ pub struct IPv6NameRecord<'a, F: BufRead + Seek> {
     names_end: u64,
 }
 
-pub enum NRBOption<'a, F: BufRead + Seek> {
+pub enum NrbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     DNSName(StringOpt<'a, F>),
     DNSIPv4Addr(IPv4Opt<'a, F>),
@@ -330,17 +330,17 @@ pub enum NRBOption<'a, F: BufRead + Seek> {
 
 pub struct InterfaceStatisticsBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<ISB>,
+    data: Option<Isb>,
     next: u64,
     opt_end: u64,
 }
 
-struct ISB {
+struct Isb {
     iface: u32,
     ts: u64,
 }
 
-pub enum ISBOption<'a, F: BufRead + Seek> {
+pub enum IsbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     StartTime(TimestampOpt<'a, F>),
     EndTime(TimestampOpt<'a, F>),
@@ -360,18 +360,18 @@ pub struct SystemdJournalExportBlock<'a, F: BufRead + Seek> {
 
 pub struct DecryptionSecretsBlock<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    data: Option<DSB>,
+    data: Option<Dsb>,
     offset: u64,
     next: u64,
     opt_end: u64,
 }
 
-struct DSB {
+struct Dsb {
     secrets_type: u32,
     secrets_len: u32,
 }
 
-pub enum DSBOption<'a, F: BufRead + Seek> {
+pub enum DsbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
@@ -426,7 +426,7 @@ impl<F: BufRead + Seek> Reader<F> {
     }
 
     fn read_strz(&mut self, s: &mut String) -> Result<(), SniffError> {
-        let mut buf = std::mem::replace(s, String::new()).into_bytes();
+        let mut buf = std::mem::take(s).into_bytes();
         self.file.read_until(0, &mut buf)?;
         buf.pop();
         *s = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
@@ -539,14 +539,14 @@ impl<F: BufRead + Seek> Reader<F> {
         self.curr = self.pos - 8;
         self.next = self.curr + (len as u64);
         Ok(Some(match id {
-            SHB_ID => Block::SHB(SectionHeaderBlock::new(self, len)?),
-            IDB_ID => Block::IDB(InterfaceDescriptionBlock::new(self, len)?),
-            EPB_ID => Block::EPB(EnhancedPacketBlock::new(self, len)?),
-            SPB_ID => Block::SPB(SimplePacketBlock::new(self, len)?),
-            NRB_ID => Block::NRB(NameResolutionBlock::new(self, len)?),
-            ISB_ID => Block::ISB(InterfaceStatisticsBlock::new(self, len)?),
-            SJB_ID => Block::SJB(SystemdJournalExportBlock::new(self, len)?),
-            DSB_ID => Block::DSB(DecryptionSecretsBlock::new(self, len)?),
+            SHB_ID => Block::Shb(SectionHeaderBlock::new(self, len)?),
+            IDB_ID => Block::Idb(InterfaceDescriptionBlock::new(self, len)?),
+            EPB_ID => Block::Epb(EnhancedPacketBlock::new(self, len)?),
+            SPB_ID => Block::Spb(SimplePacketBlock::new(self, len)?),
+            NRB_ID => Block::Nrb(NameResolutionBlock::new(self, len)?),
+            ISB_ID => Block::Isb(InterfaceStatisticsBlock::new(self, len)?),
+            SJB_ID => Block::Sjb(SystemdJournalExportBlock::new(self, len)?),
+            DSB_ID => Block::Dsb(DecryptionSecretsBlock::new(self, len)?),
             _ => Block::Other(RawBlock::new(self, id, len)?),
         }))
     }
@@ -648,13 +648,13 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut SHB, SniffError> {
+    fn data(&mut self) -> Result<&mut Shb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let version_major = self.reader.read_u16()?;
             let version_minor = self.reader.read_u16()?;
             let section_len = self.reader.read_u64()?;
-            self.data = Some(SHB {
+            self.data = Some(Shb {
                 version_major,
                 version_minor,
                 section_len,
@@ -675,18 +675,18 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
         Ok(self.data()?.section_len)
     }
 
-    impl_next_opt!((&mut self, offset, len) -> SHBOption<'_, F> {
-        SHB_HARDWARE => SHBOption::Hardware(StringOpt {
+    impl_next_opt!((&mut self, offset, len) -> ShbOption<'_, F> {
+        SHB_HARDWARE => ShbOption::Hardware(StringOpt {
             reader: self.reader,
             offset,
             len,
         }),
-        SHB_OS => SHBOption::OS(StringOpt {
+        SHB_OS => ShbOption::OS(StringOpt {
             reader: self.reader,
             offset,
             len,
         }),
-        SHB_USERAPPL => SHBOption::UserApplication(StringOpt {
+        SHB_USERAPPL => ShbOption::UserApplication(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -712,13 +712,13 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         Ok(blk)
     }
 
-    fn data(&mut self) -> Result<&mut IDB, SniffError> {
+    fn data(&mut self) -> Result<&mut Idb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let link_type = self.reader.read_u16()?;
             self.reader.skip(2)?;
             let snaplen = self.reader.read_u32()?;
-            self.data = Some(IDB { link_type, snaplen });
+            self.data = Some(Idb { link_type, snaplen });
         }
         Ok(guarantee(self.data.as_mut()))
     }
@@ -731,13 +731,13 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         Ok(self.data()?.snaplen)
     }
 
-    impl_next_opt!((&mut self, offset, len) -> IDBOption<'_, F> {
-        IF_NAME => IDBOption::Name(StringOpt {
+    impl_next_opt!((&mut self, offset, len) -> IdbOption<'_, F> {
+        IF_NAME => IdbOption::Name(StringOpt {
             reader: self.reader,
             offset,
             len,
         }),
-        IF_DESCRIPTION => IDBOption::Description(StringOpt {
+        IF_DESCRIPTION => IdbOption::Description(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -746,7 +746,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::IPv4(IPv4IfaceOpt {
+            IdbOption::IPv4(IPv4IfaceOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -755,7 +755,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 17 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::IPv6(IPv6IfaceOpt {
+            IdbOption::IPv6(IPv6IfaceOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -764,7 +764,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 6 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::MAC(MACOpt {
+            IdbOption::MAC(MACOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -773,7 +773,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::EUI(EUIOpt {
+            IdbOption::EUI(EUIOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -782,7 +782,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::Speed(U64Opt {
+            IdbOption::Speed(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -791,7 +791,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 1 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::TSResol(U8Opt {
+            IdbOption::TSResol(U8Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -800,7 +800,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 4 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::TimeZone(I32Opt {
+            IdbOption::TimeZone(I32Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -811,17 +811,17 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             }
             let code = self.reader.read_u8_at(offset)?;
             match code {
-                0 => IDBOption::Filter(FilterOpt::String(StringFilterOpt {
+                0 => IdbOption::Filter(FilterOpt::String(StringFilterOpt {
                     reader: self.reader,
                     offset: offset + 1,
                     len: len - 1,
                 })),
-                1 => IDBOption::Filter(FilterOpt::ByteCode(ByteCodeFilterOpt {
+                1 => IdbOption::Filter(FilterOpt::ByteCode(ByteCodeFilterOpt {
                     reader: self.reader,
                     offset: offset + 1,
                     len: len - 1,
                 })),
-                _ => IDBOption::Filter(FilterOpt::Unknown(RawFilterOpt {
+                _ => IdbOption::Filter(FilterOpt::Unknown(RawFilterOpt {
                     reader: self.reader,
                     code,
                     offset: offset + 1,
@@ -829,7 +829,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
                 })),
             }
         },
-        IF_OS => IDBOption::OS(StringOpt {
+        IF_OS => IdbOption::OS(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -838,7 +838,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 1 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::FCSLen(U8Opt {
+            IdbOption::FCSLen(U8Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -847,12 +847,12 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::TSOffset(I64Opt {
+            IdbOption::TSOffset(I64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
-        IF_HARDWARE => IDBOption::Hardware(StringOpt {
+        IF_HARDWARE => IdbOption::Hardware(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -861,7 +861,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::TXSpeed(U64Opt {
+            IdbOption::TXSpeed(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -870,7 +870,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IDBOption::RXSpeed(U64Opt {
+            IdbOption::RXSpeed(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -891,7 +891,7 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut EPB, SniffError> {
+    fn data(&mut self) -> Result<&mut Epb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let iface = self.reader.read_u32_at(self.offset - 20)?;
@@ -901,7 +901,7 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
             let orig_len = self.reader.read_u32()?;
             let ts = ((ts_hi as u64) << 32) | (ts_lo as u64);
             self.next = self.offset + (cap_len as u64) + (((4 - (cap_len % 4)) % 4) as u64);
-            self.data = Some(EPB {
+            self.data = Some(Epb {
                 iface,
                 ts,
                 cap_len,
@@ -933,28 +933,28 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         Ok(())
     }
 
-    impl_next_opt!((&mut self, offset, len) -> EPBOption<'_, F> {
-        EPB_FLAGS => EPBOption::Flags(PacketFlagsOpt {
+    impl_next_opt!((&mut self, offset, len) -> EpbOption<'_, F> {
+        EPB_FLAGS => EpbOption::Flags(PacketFlagsOpt {
             reader: self.reader,
             flags: None,
         }),
         EPB_DROPCOUNT => {
             if len != 8 { return Err(SniffError::MalformedCapture); }
-            EPBOption::DropCount(U64Opt {
+            EpbOption::DropCount(U64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
         EPB_PACKETID => {
             if len != 8 { return Err(SniffError::MalformedCapture); }
-            EPBOption::PacketId(U64Opt {
+            EpbOption::PacketId(U64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
         EPB_QUEUE => {
             if len != 4 { return Err(SniffError::MalformedCapture); }
-            EPBOption::PacketId(U64Opt {
+            EpbOption::PacketId(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -962,7 +962,7 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         EPB_VERDICT => {
             if len < 1 { return Err(SniffError::MalformedCapture); }
             let id = self.reader.read_u8()?;
-            EPBOption::Verdict(match id {
+            EpbOption::Verdict(match id {
                 0 => VerdictOpt::Hardware(HardwareVerdictOpt {
                     reader: self.reader,
                     offset: offset + 1,
@@ -987,7 +987,7 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         EPB_HASH => {
             if len < 1 { return Err(SniffError::MalformedCapture); }
             let id = self.reader.read_u8()?;
-            EPBOption::Hash(match id {
+            EpbOption::Hash(match id {
                 0 => HashOpt::TwosComplement(TwosComplementOpt {
                     reader: self.reader,
                     offset: offset + 1,
@@ -1039,13 +1039,13 @@ impl<'a, F: BufRead + Seek> SimplePacketBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut SPB, SniffError> {
+    fn data(&mut self) -> Result<&mut Spb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let snaplen = self.reader.first_snaplen.unwrap_or(0);
             let orig_len = self.reader.read_u32_at(self.offset - 4)?;
             let cap_len = std::cmp::min(snaplen, orig_len);
-            self.data = Some(SPB { cap_len, orig_len });
+            self.data = Some(Spb { cap_len, orig_len });
         }
         Ok(guarantee(self.data.as_mut()))
     }
@@ -1133,17 +1133,17 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
         }))
     }
 
-    impl_next_opt!((&mut self, offset, len) -> NRBOption<'_, F> {
-        NS_DNSNAME => NRBOption::DNSName(StringOpt {
+    impl_next_opt!((&mut self, offset, len) -> NrbOption<'_, F> {
+        NS_DNSNAME => NrbOption::DNSName(StringOpt {
             reader: self.reader,
             offset,
             len,
         }),
-        NS_DNSIP4ADDR => NRBOption::DNSIPv4Addr(IPv4Opt {
+        NS_DNSIP4ADDR => NrbOption::DNSIPv4Addr(IPv4Opt {
             reader: self.reader,
             addr: None,
         }),
-        NS_DNSIP6ADDR => NRBOption::DNSIPv6Addr(IPv6Opt {
+        NS_DNSIP6ADDR => NrbOption::DNSIPv6Addr(IPv6Opt {
             reader: self.reader,
             addr: None,
         }),
@@ -1162,14 +1162,14 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut ISB, SniffError> {
+    fn data(&mut self) -> Result<&mut Isb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let iface = self.reader.read_u32()?;
             let ts_hi = self.reader.read_u32()?;
             let ts_lo = self.reader.read_u32()?;
             let ts = ((ts_hi as u64) << 32) | (ts_lo as u64);
-            self.data = Some(ISB { iface, ts });
+            self.data = Some(Isb { iface, ts });
         }
         Ok(guarantee(self.data.as_mut()))
     }
@@ -1182,12 +1182,12 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         Ok(self.data()?.ts)
     }
 
-    impl_next_opt!((&mut self, offset, len) -> ISBOption<'_, F> {
+    impl_next_opt!((&mut self, offset, len) -> IsbOption<'_, F> {
         ISB_STARTTIME => {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::StartTime(TimestampOpt {
+            IsbOption::StartTime(TimestampOpt {
                 reader: self.reader,
                 ts: None,
             })
@@ -1196,7 +1196,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::EndTime(TimestampOpt {
+            IsbOption::EndTime(TimestampOpt {
                 reader: self.reader,
                 ts: None,
             })
@@ -1205,7 +1205,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::IfRecv(U64Opt {
+            IsbOption::IfRecv(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1214,7 +1214,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::IfDrop(U64Opt {
+            IsbOption::IfDrop(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1223,7 +1223,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::FilterAccept(U64Opt {
+            IsbOption::FilterAccept(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1232,7 +1232,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::OSDrop(U64Opt {
+            IsbOption::OSDrop(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1241,7 +1241,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            ISBOption::UserDeliv(U64Opt {
+            IsbOption::UserDeliv(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1278,12 +1278,12 @@ impl<'a, F: BufRead + Seek> DecryptionSecretsBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut DSB, SniffError> {
+    fn data(&mut self) -> Result<&mut Dsb, SniffError> {
         let ready = self.data.is_some();
         if !ready {
             let secrets_type = self.reader.read_u32_at(self.offset - 8)?;
             let secrets_len = self.reader.read_u32()?;
-            self.data = Some(DSB {
+            self.data = Some(Dsb {
                 secrets_type,
                 secrets_len,
             });
@@ -1308,7 +1308,7 @@ impl<'a, F: BufRead + Seek> DecryptionSecretsBlock<'a, F> {
         Ok(())
     }
 
-    impl_next_opt!((&mut self, offset, len) -> DSBOption<'_, F> {});
+    impl_next_opt!((&mut self, offset, len) -> DsbOption<'_, F> {});
 }
 
 impl<'a, F: BufRead + Seek> RawBlock<'a, F> {
@@ -1359,7 +1359,7 @@ impl<'a, F: BufRead + Seek> StringOpt<'a, F> {
     }
 
     pub fn string(&mut self, s: &mut String) -> Result<(), SniffError> {
-        let mut buf = std::mem::replace(s, String::new()).into_bytes();
+        let mut buf = std::mem::take(s).into_bytes();
         buf.resize(self.len as usize, 0);
         self.reader.read_buf_at(&mut buf[..], self.offset)?;
         *s = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
@@ -1469,8 +1469,8 @@ impl<'a, F: BufRead + Seek> IPv4IfaceOpt<'a, F> {
             let mut addr = [0u8; 8];
             self.reader.read_buf(&mut addr[..])?;
             self.addr = Some((
-                IPv4Address::new(addr[0], addr[1], addr[2], addr[3]),
-                IPv4Address::new(addr[4], addr[5], addr[6], addr[7]),
+                IPv4Address::new([addr[0], addr[1], addr[2], addr[3]]),
+                IPv4Address::new([addr[4], addr[5], addr[6], addr[7]]),
             ));
         }
         Ok(guarantee(self.addr.as_mut()))
@@ -1492,10 +1492,10 @@ impl<'a, F: BufRead + Seek> IPv6IfaceOpt<'a, F> {
             let mut addr = [0u8; 17];
             self.reader.read_buf(&mut addr[..])?;
             self.addr = Some((
-                IPv6Address::new(
+                IPv6Address::new([
                     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
                     addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15],
-                ),
+                ]),
                 addr[16],
             ));
         }
@@ -1558,7 +1558,7 @@ impl<'a, F: BufRead + Seek> TimestampOpt<'a, F> {
 
 impl<'a, F: BufRead + Seek> StringFilterOpt<'a, F> {
     pub fn filter_string(&mut self, filter: &mut String) -> Result<(), SniffError> {
-        let mut buf = std::mem::replace(filter, String::new()).into_bytes();
+        let mut buf = std::mem::take(filter).into_bytes();
         buf.resize(self.len as usize, 0);
         self.reader.read_buf_at(&mut buf[..], self.offset)?;
         *filter = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
@@ -1685,10 +1685,10 @@ impl<'a, F: BufRead + Seek> CRC32Opt<'a, F> {
         if !ready {
             let mut buf = [0u8; 4];
             self.reader.read_buf(&mut buf[..])?;
-            self.crc = Some(buf.clone());
+            self.crc = Some(buf);
             Ok(buf)
         } else {
-            Ok(guarantee(self.crc.as_ref()).clone())
+            Ok(*guarantee(self.crc.as_ref()))
         }
     }
 }
@@ -1699,10 +1699,10 @@ impl<'a, F: BufRead + Seek> MD5Opt<'a, F> {
         if !ready {
             let mut buf = [0u8; 16];
             self.reader.read_buf(&mut buf[..])?;
-            self.hash = Some(buf.clone());
+            self.hash = Some(buf);
             Ok(buf)
         } else {
-            Ok(guarantee(self.hash.as_ref()).clone())
+            Ok(*guarantee(self.hash.as_ref()))
         }
     }
 }
@@ -1713,10 +1713,10 @@ impl<'a, F: BufRead + Seek> SHA1Opt<'a, F> {
         if !ready {
             let mut buf = [0u8; 20];
             self.reader.read_buf(&mut buf[..])?;
-            self.hash = Some(buf.clone());
+            self.hash = Some(buf);
             Ok(buf)
         } else {
-            Ok(guarantee(self.hash.as_ref()).clone())
+            Ok(*guarantee(self.hash.as_ref()))
         }
     }
 }
@@ -1727,10 +1727,10 @@ impl<'a, F: BufRead + Seek> ToeplitzOpt<'a, F> {
         if !ready {
             let mut buf = [0u8; 4];
             self.reader.read_buf(&mut buf[..])?;
-            self.hash = Some(buf.clone());
+            self.hash = Some(buf);
             Ok(buf)
         } else {
-            Ok(guarantee(self.hash.as_ref()).clone())
+            Ok(*guarantee(self.hash.as_ref()))
         }
     }
 }
