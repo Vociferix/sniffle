@@ -75,9 +75,9 @@ impl Packet {
             capnode.add_field("Snap Length", DumpValue::UInt(snaplen), None)?;
         }
         if let Some(dev) = self.device() {
-            if dev.name() == "" {
+            if dev.name().is_empty() {
                 if let Some(descr) = dev.description() {
-                    if descr != "" {
+                    if !descr.is_empty() {
                         capnode.add_info("Interface", descr)?;
                     }
                 }

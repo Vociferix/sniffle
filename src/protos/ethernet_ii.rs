@@ -77,12 +77,22 @@ impl<'a, 'b, E: Encoder<'a> + ?Sized> std::io::Write for Writer<'a, 'b, E> {
 }
 
 impl EthernetII {
-    pub fn new(dst_addr: MACAddress, src_addr: MACAddress, ethertype: Ethertype) -> Self {
+    pub fn new() -> Self {
+        Self {
+            base: BasePDU::default(),
+            dst_addr: Default::default(),
+            src_addr: Default::default(),
+            ethertype: Ethertype(0),
+            trailer: Trailer::Auto,
+        }
+    }
+
+    pub fn with_addresses(dst_addr: MACAddress, src_addr: MACAddress) -> Self {
         Self {
             base: BasePDU::default(),
             dst_addr,
             src_addr,
-            ethertype,
+            ethertype: Ethertype(0),
             trailer: Trailer::Auto,
         }
     }
@@ -103,8 +113,8 @@ impl EthernetII {
         &mut self.src_addr
     }
 
-    pub fn ethertype(&self) -> &Ethertype {
-        &self.ethertype
+    pub fn ethertype(&self) -> Ethertype {
+        self.ethertype
     }
 
     pub fn ethertype_mut(&mut self) -> &mut Ethertype {
@@ -160,11 +170,16 @@ impl PDU for EthernetII {
     ) -> DResult<'a, Self> {
         let (buf, mut eth) = map(
             tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
-            |hdr| Self::new(hdr.0, hdr.1, Ethertype(hdr.2)),
-        )(buf)
-        .unwrap();
+            |hdr| Self {
+                base: BasePDU::default(),
+                dst_addr: hdr.0,
+                src_addr: hdr.1,
+                ethertype: Ethertype(hdr.2),
+                trailer: Trailer::Auto,
+            },
+        )(buf)?;
         let before = buf.len();
-        let ethertype = *eth.ethertype();
+        let ethertype = eth.ethertype();
         let mut tmp = TempPDU::new_with_parent(parent, &mut eth);
         let (buf, inner) =
             session.table_dissect::<EthertypeDissectorTable>(&ethertype, buf, Some(&mut tmp))?;
@@ -307,12 +322,18 @@ impl PDU for EthernetII {
     fn make_canonical(&mut self) {
         let ethertype = match self.inner_pdu() {
             Some(inner) => match inner.pdu_type() {
-                _ => *self.ethertype(),
+                _ => self.ethertype(),
             },
-            None => *self.ethertype(),
+            None => self.ethertype(),
         };
         self.ethertype = ethertype;
         self.trailer = Trailer::Auto;
+    }
+}
+
+impl Default for EthernetII {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -8,4 +8,5 @@ pub use crate::{
     nom,
     pdu::{BasePDU, PDUExt, TempPDU, PDU},
     sniff::{register_link_layer_pdu, LinkType, LinkTypeTable},
+    uint,
 };
