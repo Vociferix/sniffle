@@ -653,3 +653,10 @@ impl Iterator for EthertypeIter {
 }
 
 register_link_layer_pdu!(EthernetII, LinkType::ETHERNET);
+register_dissector!(
+    ethernet_ii,
+    LinkTypeTable,
+    LinkType::ETHERNET,
+    Priority(0),
+    EthernetII::dissect
+);

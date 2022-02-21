@@ -117,9 +117,6 @@ macro_rules! register_link_layer_pdu {
             #[allow(non_snake_case)]
             fn reg_name() {
                 $crate::_register_link_layer_pdu::<$pdu>($link);
-                $crate::_register_dissector(|session| {
-                    session.load_dissector::<$crate::LinkTypeTable, _>($link, $crate::Priority(0), <$pdu>::dissect);
-                });
             }
         });
     };

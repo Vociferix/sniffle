@@ -75,7 +75,15 @@ impl Packet {
             capnode.add_field("Snap Length", DumpValue::UInt(snaplen), None)?;
         }
         if let Some(dev) = self.device() {
-            capnode.add_info("Interface", dev.name())?;
+            if dev.name() == "" {
+                if let Some(descr) = dev.description() {
+                    if descr != "" {
+                        capnode.add_info("Interface", descr)?;
+                    }
+                }
+            } else {
+                capnode.add_info("Interface", dev.name())?;
+            }
         }
         drop(capnode);
         let mut pdu = self.pdu();
