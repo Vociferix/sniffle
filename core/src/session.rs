@@ -1,6 +1,10 @@
-use super::{AnyPDU, Device, Dissector, DissectorTable, Priority, RawPDU, TempPDU, PDU};
+use super::{
+    AnyPDU, BasePDU, Device, Dissector, DissectorTable, Dump, NodeDumper, PDUExt, Priority, RawPDU,
+    TempPDU, PDU,
+};
 use lazy_static::*;
 use sniffle_ende::decode::DResult;
+use sniffle_ende::encode::Encoder;
 use std::{
     any::{Any, TypeId},
     cell::Cell,
@@ -17,8 +21,12 @@ pub(crate) struct LastInfo {
 
 pub struct Session {
     state: HashMap<TypeId, Box<dyn Any + 'static>>,
-    virt_packets: Cell<VecDeque<AnyPDU>>,
+    virt_packets: Cell<VecDeque<Virtual>>,
     last_info: LastInfo,
+}
+
+pub struct Virtual {
+    base: BasePDU,
 }
 
 impl Default for LastInfo {
@@ -131,11 +139,15 @@ impl Session {
 
     pub fn enqueue_virtual_packet<P: PDU>(&self, packet: P) {
         let mut queue = self.virt_packets.take();
-        queue.push_back(AnyPDU::new(packet));
+        let mut virt = Virtual {
+            base: Default::default(),
+        };
+        virt.set_inner_pdu(packet);
+        queue.push_back(virt);
         self.virt_packets.set(queue);
     }
 
-    pub fn next_virtual_packet(&self) -> Option<AnyPDU> {
+    pub fn next_virtual_packet(&self) -> Option<Virtual> {
         let mut queue = self.virt_packets.take();
         let ret = queue.pop_front();
         self.virt_packets.set(queue);
@@ -154,6 +166,50 @@ impl Session {
 impl Default for Session {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl PDU for Virtual {
+    fn base_pdu(&self) -> &BasePDU {
+        &self.base
+    }
+
+    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+        &mut self.base
+    }
+
+    fn header_len(&self) -> usize {
+        0
+    }
+
+    fn total_len(&self) -> usize {
+        self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0)
+    }
+
+    fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
+        &self,
+        _encoder: &mut W,
+    ) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+        if let Some(inner) = self.inner_pdu() {
+            inner.serialize(encoder)?;
+        }
+        Ok(())
+    }
+
+    fn dump<D: Dump + ?Sized>(&self, _dumper: &mut NodeDumper<D>) -> Result<(), D::Error> {
+        Ok(())
+    }
+}
+
+impl Clone for Virtual {
+    fn clone(&self) -> Self {
+        Self {
+            base: Default::default(),
+        }
     }
 }
 

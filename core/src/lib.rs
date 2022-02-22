@@ -56,7 +56,7 @@ pub use pdu::{AnyPDU, BasePDU, PDUExt, PDUType, TempPDU, PDU};
 
 pub use raw_pdu::RawPDU;
 
-pub use session::Session;
+pub use session::{Session, Virtual};
 
 #[doc(hidden)]
 pub use session::{_register_dissector, _register_dissector_table};

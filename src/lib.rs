@@ -93,7 +93,8 @@ pub mod prelude {
         address::MACAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
         device::ConnectionStatus, device::Device, dissect::register_dissector, dissect::Priority,
         dissect::Session, dump::Dump, dump::LogDumper, pdu::AnyPDU, pdu::PDUExt, pdu::PDU, protos,
-        sniff::Sniff, sniff::SniffError, transmit::Transmit, transmit::TransmitError, Packet,
+        protos::RawPDU, sniff::Sniff, sniff::SniffError, transmit::Transmit,
+        transmit::TransmitError, Packet,
     };
 
     #[cfg(feature = "libpcap")]

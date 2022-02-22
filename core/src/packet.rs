@@ -1,6 +1,6 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::{AnyPDU, Device, Dump, DumpValue, Dumper, PDUExt, PDU};
+use super::{AnyPDU, Device, Dump, DumpValue, Dumper, PDUExt, Virtual, PDU};
 use std::time::SystemTime;
 
 pub struct Packet {
@@ -55,6 +55,10 @@ impl Packet {
 
     pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {
         self.dev.clone()
+    }
+
+    pub fn is_virtual(&self) -> bool {
+        self.pdu.is::<Virtual>()
     }
 
     pub fn make_canonical(&mut self) {

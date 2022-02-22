@@ -1,5 +1,6 @@
 use crate::address::MACAddress;
 use crate::protos::prelude::*;
+use crate::utils::CountingEncoder;
 use nom::{combinator::map, sequence::tuple};
 
 pub struct EthernetII {
@@ -274,11 +275,11 @@ impl PDU for EthernetII {
 
     fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         self.serialize_header(encoder)?;
-        let mut writer = Writer::new(encoder);
+        let mut writer = CountingEncoder::new(encoder);
         self.inner_pdu()
             .map(|inner| inner.serialize(&mut writer))
             .unwrap_or(Ok(()))?;
-        let inner_len = writer.bytes as usize;
+        let inner_len = writer.bytes_written();
         let encoder = writer.into_inner();
         match &self.trailer {
             Trailer::Auto => {
