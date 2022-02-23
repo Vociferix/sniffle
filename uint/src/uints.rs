@@ -16,6 +16,26 @@ pub type U64 = u64;
 /// A 128-bit unsigned integer.
 pub type U128 = u128;
 
+pub trait FromMasked<T> {
+    fn from_masked(value: T) -> Self;
+}
+
+pub trait IntoMasked<T> {
+    fn into_masked(self) -> T;
+}
+
+impl<T, U: FromMasked<T>> IntoMasked<U> for T {
+    fn into_masked(self) -> U {
+        U::from_masked(self)
+    }
+}
+
+impl<T: FromMasked<U31>> FromMasked<i32> for T {
+    fn from_masked(value: i32) -> Self {
+        Self::from_masked(U31((value as u32) & 0x7FFFFFFF))
+    }
+}
+
 macro_rules! uint {
     ($name:ident, $width:literal, $repr:ty) => {
         #[doc=concat!("A ", stringify!($width), "-bit unsigned integer.\n\nRepresented with a `", stringify!($repr), "`.")]
@@ -2146,6 +2166,13 @@ macro_rules! from_impl {
                 } else {
                     Ok(ret)
                 }
+            }
+        }
+
+        impl FromMasked<$tgt> for $src {
+            fn from_masked(val: $tgt) -> Self {
+                let mask: <$tgt as RawValue>::Raw = Self::MAX.into_raw().into();
+                Self::from_raw((val.into_raw() & mask) as <Self as RawValue>::Raw)
             }
         }
     };

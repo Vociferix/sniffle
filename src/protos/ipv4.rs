@@ -1,5 +1,6 @@
 use super::prelude::*;
 use crate::address::IPv4Address;
+use std::time::SystemTime;
 
 pub struct IPv4 {
     base: BasePDU,
@@ -16,55 +17,626 @@ pub struct IPv4 {
     chksum: u16,
     src_addr: IPv4Address,
     dst_addr: IPv4Address,
-    opts: Vec<IPv4Option>,
+    opts: Vec<Opt>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct IPProto(pub u8);
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum IPv4OptionType {
+pub enum OptionType {
     Eool,
     Nop,
-    OldSec,
-    Rr,
-    Zsu,
-    Mtup,
-    Encode,
-    Qs,
-    Ts,
-    Tr,
     Sec,
-    Lsr,
+    Lsrr,
+    Ts,
     ESec,
     Cipso,
+    Rr,
     Sid,
-    Ssr,
+    Ssrr,
+    Zsu,
+    Mtup,
+    Mtur,
+    Finn,
     Visa,
+    Encode,
     Imitd,
     Eip,
+    Tr,
     AddExt,
     RtrAlt,
     Sdb,
     Dps,
     Ump,
-    Finn,
-    Unknown(uint::U5),
+    Qs,
+    Unspecified(u8),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum IPv4OptionClass {
+pub enum OptionClass {
     Control,
     DebugMeas,
     Reserved(uint::U2),
 }
 
 #[derive(Clone, Debug)]
-pub struct IPv4Option {
-    copied: bool,
-    class: IPv4OptionClass,
-    type_num: IPv4OptionType,
+pub struct RawOption {
+    opt_type: OptionType,
+    len: Option<u8>,
     data: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RouteRecord {
+    pointer: u8,
+    routes: Vec<IPv4Address>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct StreamId(pub u16);
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum TimestampFlag {
+    TsOnly,
+    AddrAndTs,
+    PrespecifiedAddrs,
+    Unknown(uint::U4),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum TimestampEntry {
+    Ts(SystemTime),
+    Addr(IPv4Address),
+}
+
+#[derive(Clone, Debug)]
+pub struct Timestamp {
+    pointer: u8,
+    overflow: uint::U4,
+    flag: TimestampFlag,
+    entries: Vec<TimestampEntry>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum Classification {
+    Unclassified,
+    Confidential,
+    Secret,
+    TopSecret,
+    Reserved1,
+    Reserved2,
+    Reserved3,
+    Reserved4,
+    Unspecified(u8),
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicSecurity {
+    classification: Classification,
+    authority: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExtendedSecurity {
+    format: u8,
+    sec_info: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MTU(pub u16);
+
+#[derive(Clone, Debug)]
+pub struct Traceroute {
+    id: u16,
+    out_hops: u16,
+    return_hops: u16,
+    orig_addr: IPv4Address,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct RouterAlert(pub u16);
+
+#[derive(Clone, Debug)]
+pub struct QuickStart {
+    func: uint::U4,
+    rate_req: uint::U4,
+    ttl: u8,
+    nonce: uint::U30,
+    reserved: uint::U2,
+}
+
+#[derive(Clone, Debug)]
+pub enum Opt {
+    Eool,
+    Nop,
+    Sec(BasicSecurity),
+    Lsrr(RouteRecord),
+    Ts(Timestamp),
+    ESec(ExtendedSecurity),
+    Cipso(Vec<u8>),
+    Rr(RouteRecord),
+    Sid(StreamId),
+    Ssrr(RouteRecord),
+    Zsu(Vec<u8>),
+    Mtup(MTU),
+    Mtur(MTU),
+    Finn(Vec<u8>),
+    Visa(Vec<u8>),
+    Encode(Vec<u8>),
+    Imitd(Vec<u8>),
+    Eip(Vec<u8>),
+    Tr(Traceroute),
+    AddExt(Vec<u8>),
+    RtrAlt(RouterAlert),
+    Sdb(Vec<u8>),
+    Dps(Vec<u8>),
+    Ump(Vec<u8>),
+    Qs(QuickStart),
+    Raw(RawOption),
+}
+
+impl From<uint::U2> for OptionClass {
+    fn from(val: uint::U2) -> Self {
+        let num: u8 = val.into();
+        match num {
+            0 => OptionClass::DebugMeas,
+            2 => OptionClass::Control,
+            _ => OptionClass::Reserved(val),
+        }
+    }
+}
+
+impl From<OptionClass> for uint::U2 {
+    fn from(class: OptionClass) -> Self {
+        match class {
+            OptionClass::DebugMeas => 0.into_masked(),
+            OptionClass::Control => 2.into_masked(),
+            OptionClass::Reserved(val) => val,
+        }
+    }
+}
+
+impl OptionType {
+    pub fn new(copied: bool, class: OptionClass, number: uint::U5) -> Self {
+        let copied: u8 = if copied { 0x80 } else { 0 };
+        let class: u8 = u8::from(uint::U2::from(class)) << 5;
+        let number: u8 = number.into();
+        Self::from(copied | class | number)
+    }
+
+    pub fn copied(&self) -> bool {
+        use OptionType::*;
+
+        match *self {
+            Eool | Nop | Ts | Rr | Zsu | Mtup | Mtur | Encode | Tr | Qs => false,
+            Unspecified(val) => (val & 0x80) > 0,
+            _ => true,
+        }
+    }
+
+    pub fn class(&self) -> OptionClass {
+        use OptionType::*;
+
+        match *self {
+            Ts | Finn | Tr => OptionClass::Control,
+            Unspecified(val) => {
+                let class = (val & 0b0110_0000) >> 5;
+                match class {
+                    0 => OptionClass::DebugMeas,
+                    2 => OptionClass::Control,
+                    _ => OptionClass::Reserved(class.into_masked()),
+                }
+            }
+            _ => OptionClass::DebugMeas,
+        }
+    }
+
+    pub fn number(&self) -> uint::U5 {
+        use OptionType::*;
+        match *self {
+            Eool => 0,
+            Nop => 1,
+            Sec => 2,
+            Lsrr => 3,
+            Ts => 4,
+            ESec => 5,
+            Cipso => 6,
+            Rr => 7,
+            Sid => 8,
+            Ssrr => 9,
+            Zsu => 10,
+            Mtup => 11,
+            Mtur => 12,
+            Finn => 13,
+            Visa => 14,
+            Encode => 15,
+            Imitd => 16,
+            Eip => 17,
+            Tr => 18,
+            AddExt => 19,
+            RtrAlt => 20,
+            Sdb => 21,
+            Dps => 23,
+            Ump => 24,
+            Qs => 25,
+            Unspecified(val) => val,
+        }
+        .into_masked()
+    }
+
+    pub fn octet(&self) -> u8 {
+        use OptionType::*;
+        match *self {
+            Eool => 0,
+            Nop => 1,
+            Sec => 130,
+            Lsrr => 131,
+            Ts => 68,
+            ESec => 133,
+            Cipso => 134,
+            Rr => 7,
+            Sid => 136,
+            Ssrr => 137,
+            Zsu => 10,
+            Mtup => 11,
+            Mtur => 12,
+            Finn => 205,
+            Visa => 142,
+            Encode => 15,
+            Imitd => 144,
+            Eip => 145,
+            Tr => 82,
+            AddExt => 147,
+            RtrAlt => 148,
+            Sdb => 149,
+            Dps => 151,
+            Ump => 152,
+            Qs => 25,
+            Unspecified(val) => val,
+        }
+    }
+}
+
+impl From<u8> for OptionType {
+    fn from(value: u8) -> Self {
+        use OptionType::*;
+        match value {
+            0 => Eool,
+            1 => Nop,
+            130 => Sec,
+            131 => Lsrr,
+            68 => Ts,
+            133 => ESec,
+            134 => Cipso,
+            7 => Rr,
+            136 => Sid,
+            137 => Ssrr,
+            10 => Zsu,
+            11 => Mtup,
+            12 => Mtur,
+            205 => Finn,
+            142 => Visa,
+            15 => Encode,
+            144 => Imitd,
+            145 => Eip,
+            82 => Tr,
+            147 => AddExt,
+            148 => RtrAlt,
+            149 => Sdb,
+            151 => Dps,
+            152 => Ump,
+            25 => Qs,
+            _ => Unspecified(value),
+        }
+    }
+}
+
+impl From<OptionType> for u8 {
+    fn from(value: OptionType) -> Self {
+        value.octet()
+    }
+}
+
+impl From<u8> for Classification {
+    fn from(val: u8) -> Self {
+        use Classification::*;
+        match val {
+            0b00000001 => Reserved4,
+            0b00111101 => TopSecret,
+            0b01011010 => Secret,
+            0b10010110 => Confidential,
+            0b01100110 => Reserved3,
+            0b11001100 => Reserved2,
+            0b10101011 => Unclassified,
+            0b11110001 => Reserved1,
+            _ => Unspecified(val),
+        }
+    }
+}
+
+impl From<Classification> for u8 {
+    fn from(val: Classification) -> u8 {
+        use Classification::*;
+        match val {
+            Unclassified => 0b10101011,
+            Confidential => 0b10010110,
+            Secret => 0b01011010,
+            TopSecret => 0b00111101,
+            Reserved1 => 0b11110001,
+            Reserved2 => 0b11001100,
+            Reserved3 => 0b01100110,
+            Reserved4 => 0b00000001,
+            Unspecified(val) => val,
+        }
+    }
+}
+
+impl From<uint::U4> for TimestampFlag {
+    fn from(val: uint::U4) -> Self {
+        let num: u8 = val.into();
+        match num {
+            0 => TimestampFlag::TsOnly,
+            1 => TimestampFlag::AddrAndTs,
+            3 => TimestampFlag::PrespecifiedAddrs,
+            _ => TimestampFlag::Unknown(val),
+        }
+    }
+}
+
+impl From<TimestampFlag> for uint::U4 {
+    fn from(val: TimestampFlag) -> Self {
+        match val {
+            TimestampFlag::TsOnly => 0.into_masked(),
+            TimestampFlag::AddrAndTs => 1.into_masked(),
+            TimestampFlag::PrespecifiedAddrs => 3.into_masked(),
+            TimestampFlag::Unknown(val) => val,
+        }
+    }
+}
+
+fn serialize_basic_security<'a, E: Encoder<'a>>(
+    opt: &BasicSecurity,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder
+        .encode(&u8::from(opt.classification))?
+        .encode(&opt.authority[..])?;
+    Ok(())
+}
+
+fn serialize_route_record<'a, E: Encoder<'a>>(
+    opt: &RouteRecord,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder.encode(&opt.pointer)?.encode(&opt.routes[..])?;
+    Ok(())
+}
+
+fn serialize_timestamp<'a, E: Encoder<'a>>(
+    opt: &Timestamp,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder
+        .encode(&opt.pointer)?
+        .encode(&uint::pack!(opt.overflow, uint::U4::from(opt.flag)))?;
+    for entry in opt.entries.iter() {
+        match entry {
+            TimestampEntry::Ts(ts) => {
+                encoder.encode_be(
+                    &(ts.duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u32),
+                )?;
+            }
+            TimestampEntry::Addr(addr) => {
+                encoder.encode(addr)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn serialize_extended_security<'a, E: Encoder<'a>>(
+    opt: &ExtendedSecurity,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder.encode(&opt.format)?.encode(&opt.sec_info[..])?;
+    Ok(())
+}
+
+fn serialize_traceroute<'a, E: Encoder<'a>>(
+    opt: &Traceroute,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder
+        .encode_be(&opt.id)?
+        .encode_be(&opt.out_hops)?
+        .encode_be(&opt.return_hops)?
+        .encode(&opt.orig_addr)?;
+    Ok(())
+}
+
+fn serialize_quick_start<'a, E: Encoder<'a>>(
+    opt: &QuickStart,
+    encoder: &mut E,
+) -> std::io::Result<()> {
+    encoder
+        .encode(&uint::pack!(opt.func, opt.rate_req))?
+        .encode(&opt.ttl)?
+        .encode_be(&uint::pack!(opt.nonce, opt.reserved))?;
+    Ok(())
+}
+
+impl Opt {
+    pub fn dissect(buf: &[u8]) -> DResult<'_, Self> {
+        todo!()
+    }
+
+    fn serialize_data<'a, E: Encoder<'a>>(&self, encoder: &mut E) -> std::io::Result<()> {
+        use Opt::*;
+        match self {
+            Sec(opt) => serialize_basic_security(opt, encoder)?,
+            Lsrr(opt) => serialize_route_record(opt, encoder)?,
+            Ts(opt) => serialize_timestamp(opt, encoder)?,
+            ESec(opt) => serialize_extended_security(opt, encoder)?,
+            Cipso(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Rr(opt) => serialize_route_record(opt, encoder)?,
+            Sid(opt) => {
+                encoder.encode_be(&opt.0)?;
+            }
+            Ssrr(opt) => serialize_route_record(opt, encoder)?,
+            Zsu(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Mtup(opt) => {
+                encoder.encode_be(&opt.0)?;
+            }
+            Mtur(opt) => {
+                encoder.encode_be(&opt.0)?;
+            }
+            Finn(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Visa(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Encode(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Imitd(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Eip(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Tr(opt) => serialize_traceroute(opt, encoder)?,
+            AddExt(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            RtrAlt(opt) => {
+                encoder.encode_be(&opt.0)?;
+            }
+            Sdb(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Dps(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Ump(opt) => {
+                encoder.encode(&opt[..])?;
+            }
+            Qs(opt) => serialize_quick_start(opt, encoder)?,
+            _ => (),
+        }
+        Ok(())
+    }
+
+    pub fn serialize<'a, E: Encoder<'a>>(&self, encoder: &mut E) -> std::io::Result<()> {
+        if let Opt::Raw(raw) = self {
+            encoder.encode(&raw.opt_type.octet())?;
+            if let Some(len) = raw.len {
+                encoder.encode(&len)?;
+            }
+            encoder.encode(&raw.data[..])?;
+        } else {
+            encoder.encode(&self.option_type().octet())?;
+            if let Some(len) = self.length() {
+                encoder.encode(&len)?;
+                self.serialize_data(encoder)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn to_raw(&self) -> RawOption {
+        if let Opt::Raw(raw) = self {
+            raw.clone()
+        } else {
+            if let Some(len) = self.length() {
+                let mut data = Vec::new();
+                self.serialize_data(&mut data).unwrap();
+                RawOption {
+                    opt_type: self.option_type(),
+                    len: Some(len),
+                    data,
+                }
+            } else {
+                RawOption {
+                    opt_type: self.option_type(),
+                    len: None,
+                    data: Vec::new(),
+                }
+            }
+        }
+    }
+
+    pub fn option_type(&self) -> OptionType {
+        use Opt::*;
+        match self {
+            Eool => OptionType::Eool,
+            Nop => OptionType::Nop,
+            Sec(_) => OptionType::Sec,
+            Lsrr(_) => OptionType::Lsrr,
+            Ts(_) => OptionType::Ts,
+            ESec(_) => OptionType::ESec,
+            Cipso(_) => OptionType::Cipso,
+            Rr(_) => OptionType::Rr,
+            Sid(_) => OptionType::Sid,
+            Ssrr(_) => OptionType::Ssrr,
+            Zsu(_) => OptionType::Zsu,
+            Mtup(_) => OptionType::Mtup,
+            Mtur(_) => OptionType::Mtur,
+            Finn(_) => OptionType::Finn,
+            Visa(_) => OptionType::Visa,
+            Encode(_) => OptionType::Encode,
+            Imitd(_) => OptionType::Imitd,
+            Eip(_) => OptionType::Eip,
+            Tr(_) => OptionType::Tr,
+            AddExt(_) => OptionType::AddExt,
+            RtrAlt(_) => OptionType::RtrAlt,
+            Sdb(_) => OptionType::Sdb,
+            Dps(_) => OptionType::Dps,
+            Ump(_) => OptionType::Ump,
+            Qs(_) => OptionType::Qs,
+            Raw(opt) => opt.opt_type,
+        }
+    }
+
+    pub fn length(&self) -> Option<u8> {
+        use Opt::*;
+        match self {
+            Eool => None,
+            Nop => None,
+            Sec(opt) => Some(1 + opt.authority.len()),
+            Lsrr(opt) => Some(1 + opt.routes.len() * 4),
+            Ts(opt) => Some(2 + opt.entries.len() * 4),
+            ESec(opt) => Some(1 + opt.sec_info.len()),
+            Cipso(opt) => Some(opt.len()),
+            Rr(opt) => Some(1 + opt.routes.len()),
+            Sid(_) => Some(2),
+            Ssrr(opt) => Some(1 + opt.routes.len()),
+            Zsu(opt) => Some(opt.len()),
+            Mtup(_) => Some(2),
+            Mtur(_) => Some(2),
+            Finn(opt) => Some(opt.len()),
+            Visa(opt) => Some(opt.len()),
+            Encode(opt) => Some(opt.len()),
+            Imitd(opt) => Some(opt.len()),
+            Eip(opt) => Some(opt.len()),
+            Tr(_) => Some(10),
+            AddExt(opt) => Some(opt.len()),
+            RtrAlt(_) => Some(2),
+            Sdb(opt) => Some(opt.len()),
+            Dps(opt) => Some(opt.len()),
+            Ump(opt) => Some(opt.len()),
+            Qs(_) => Some(6),
+            Raw(opt) => opt.len.map(|len| len as usize),
+        }
+        .map(|len| if len > 253 { 255u8 } else { (len + 2) as u8 })
+    }
 }
 
 macro_rules! ip_proto {
@@ -378,11 +950,11 @@ impl IPv4 {
         &mut self.dst_addr
     }
 
-    pub fn options(&self) -> &[IPv4Option] {
+    pub fn options(&self) -> &[Opt] {
         &self.opts[..]
     }
 
-    pub fn options_mut(&mut self) -> &mut Vec<IPv4Option> {
+    pub fn options_mut(&mut self) -> &mut Vec<Opt> {
         &mut self.opts
     }
 }
