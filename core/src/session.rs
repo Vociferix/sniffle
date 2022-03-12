@@ -25,6 +25,7 @@ pub struct Session {
     last_info: LastInfo,
 }
 
+#[derive(Debug)]
 pub struct Virtual {
     base: BasePDU,
 }

@@ -2,6 +2,7 @@ use super::prelude::*;
 use crate::address::IPv4Address;
 use std::time::SystemTime;
 
+#[derive(Debug, Clone)]
 pub struct IPv4 {
     base: BasePDU,
     version: uint::U4,
@@ -1008,27 +1009,5 @@ impl PDU for IPv4 {
 impl Default for IPv4 {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Clone for IPv4 {
-    fn clone(&self) -> Self {
-        Self {
-            base: BasePDU::default(),
-            version: self.version,
-            ihl: self.ihl,
-            dscp: self.dscp,
-            ecn: self.ecn,
-            totlen: self.totlen,
-            ident: self.ident,
-            flags: self.flags,
-            frag_offset: self.frag_offset,
-            ttl: self.ttl,
-            proto: self.proto,
-            chksum: self.chksum,
-            src_addr: self.src_addr,
-            dst_addr: self.dst_addr,
-            opts: self.opts.clone(),
-        }
     }
 }

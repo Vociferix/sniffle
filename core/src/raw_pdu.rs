@@ -1,6 +1,7 @@
 use super::{BasePDU, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
 use sniffle_ende::{decode::DResult, encode::Encoder};
 
+#[derive(Debug)]
 pub struct RawPDU {
     base: BasePDU,
     data: Vec<u8>,

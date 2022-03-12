@@ -3,6 +3,7 @@ use crate::protos::prelude::*;
 use crate::utils::CountingEncoder;
 use nom::{combinator::map, sequence::tuple};
 
+#[derive(Debug, Clone)]
 pub struct EthernetII {
     base: BasePDU,
     dst_addr: MACAddress,
@@ -11,6 +12,7 @@ pub struct EthernetII {
     trailer: Trailer,
 }
 
+#[derive(Debug, Clone)]
 enum Trailer {
     Auto,
     Zeros(usize),
@@ -335,22 +337,6 @@ impl PDU for EthernetII {
 impl Default for EthernetII {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Clone for EthernetII {
-    fn clone(&self) -> Self {
-        Self {
-            base: BasePDU::default(),
-            dst_addr: self.dst_addr,
-            src_addr: self.src_addr,
-            ethertype: self.ethertype,
-            trailer: match &self.trailer {
-                Trailer::Auto => Trailer::Auto,
-                Trailer::Zeros(len) => Trailer::Zeros(*len),
-                Trailer::Manual(trailer) => Trailer::Manual(trailer.clone()),
-            },
-        }
     }
 }
 
