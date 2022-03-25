@@ -41,44 +41,6 @@ dissector_table!(pub HeurDissectorTable);
 register_dissector_table!(EthertypeDissectorTable);
 register_dissector_table!(HeurDissectorTable);
 
-struct Writer<'a, 'b, E: Encoder<'a> + ?Sized> {
-    encoder: &'b mut E,
-    bytes: u64,
-    _marker: std::marker::PhantomData<&'a ()>,
-}
-
-impl<'a, 'b, E: Encoder<'a> + ?Sized> Writer<'a, 'b, E> {
-    fn new(encoder: &'b mut E) -> Self {
-        Self {
-            encoder,
-            bytes: 0,
-            _marker: std::marker::PhantomData,
-        }
-    }
-
-    fn into_inner(self) -> &'b mut E {
-        self.encoder
-    }
-}
-
-impl<'a, 'b, E: Encoder<'a> + ?Sized> std::io::Write for Writer<'a, 'b, E> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let bytes = self.encoder.write(buf)?;
-        self.bytes += bytes as u64;
-        Ok(bytes)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.encoder.flush()
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
-        self.encoder.write_all(buf)?;
-        self.bytes += buf.len() as u64;
-        Ok(())
-    }
-}
-
 impl EthernetII {
     pub fn new() -> Self {
         Self {

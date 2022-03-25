@@ -63,15 +63,15 @@ pub enum OptionClass {
 
 #[derive(Clone, Debug)]
 pub struct RawOption {
-    opt_type: OptionType,
-    len: Option<u8>,
-    data: Vec<u8>,
+    pub opt_type: OptionType,
+    pub len: Option<u8>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
 pub struct RouteRecord {
-    pointer: u8,
-    routes: Vec<IPv4Address>,
+    pub pointer: u8,
+    pub routes: Vec<IPv4Address>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -93,10 +93,10 @@ pub enum TimestampEntry {
 
 #[derive(Clone, Debug)]
 pub struct Timestamp {
-    pointer: u8,
-    overflow: uint::U4,
-    flag: TimestampFlag,
-    entries: Vec<TimestampEntry>,
+    pub pointer: u8,
+    pub overflow: uint::U4,
+    pub flag: TimestampFlag,
+    pub entries: Vec<TimestampEntry>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -114,14 +114,14 @@ pub enum Classification {
 
 #[derive(Clone, Debug)]
 pub struct BasicSecurity {
-    classification: Classification,
-    authority: Vec<u8>,
+    pub classification: Classification,
+    pub authority: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ExtendedSecurity {
-    format: u8,
-    sec_info: Vec<u8>,
+    pub format: u8,
+    pub sec_info: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -129,10 +129,10 @@ pub struct MTU(pub u16);
 
 #[derive(Clone, Debug)]
 pub struct Traceroute {
-    id: u16,
-    out_hops: u16,
-    return_hops: u16,
-    orig_addr: IPv4Address,
+    pub id: u16,
+    pub out_hops: u16,
+    pub return_hops: u16,
+    pub orig_addr: IPv4Address,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -140,11 +140,11 @@ pub struct RouterAlert(pub u16);
 
 #[derive(Clone, Debug)]
 pub struct QuickStart {
-    func: uint::U4,
-    rate_req: uint::U4,
-    ttl: u8,
-    nonce: uint::U30,
-    reserved: uint::U2,
+    pub func: uint::U4,
+    pub rate_req: uint::U4,
+    pub ttl: u8,
+    pub nonce: uint::U30,
+    pub reserved: uint::U2,
 }
 
 #[derive(Clone, Debug)]
