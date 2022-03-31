@@ -3,26 +3,25 @@ use super::{
     TempPDU, PDU,
 };
 use lazy_static::*;
+use parking_lot::{Mutex, RwLock};
 use sniffle_ende::decode::DResult;
 use sniffle_ende::encode::Encoder;
 use std::{
     any::{Any, TypeId},
-    cell::Cell,
     collections::{HashMap, VecDeque},
-    rc::Rc,
-    sync::RwLock,
+    sync::Arc,
 };
 
 pub(crate) struct LastInfo {
     pub(crate) ts: std::time::SystemTime,
-    pub(crate) dev: Option<Rc<Device>>,
+    pub(crate) dev: Option<Arc<Device>>,
     pub(crate) snaplen: usize,
 }
 
 pub struct Session {
-    state: HashMap<TypeId, Box<dyn Any + 'static>>,
-    virt_packets: Cell<VecDeque<Virtual>>,
-    last_info: LastInfo,
+    state: HashMap<TypeId, Box<dyn Any + Send + Sync + 'static>>,
+    virt_packets: Mutex<VecDeque<Virtual>>,
+    last_info: RwLock<LastInfo>,
 }
 
 #[derive(Debug)]
@@ -49,8 +48,8 @@ impl Session {
     pub fn new_from_scratch() -> Self {
         Self {
             state: HashMap::new(),
-            virt_packets: Cell::new(VecDeque::new()),
-            last_info: LastInfo::default(),
+            virt_packets: Mutex::new(VecDeque::new()),
+            last_info: RwLock::new(LastInfo::default()),
         }
     }
 
@@ -62,7 +61,7 @@ impl Session {
     /// are loaded.
     pub fn new_with_tables_only() -> Self {
         let mut session = Self::new_from_scratch();
-        for setup in TABLE_SETUP.read().unwrap().iter() {
+        for setup in TABLE_SETUP.read().iter() {
             setup(&mut session);
         }
         session
@@ -71,13 +70,13 @@ impl Session {
     /// Constructs a new Session, with all registered dissectors and tables loaded.
     pub fn new() -> Self {
         let mut session = Self::new_with_tables_only();
-        for setup in DISSECT_SETUP.read().unwrap().iter() {
+        for setup in DISSECT_SETUP.read().iter() {
             setup(&mut session);
         }
         session
     }
 
-    pub fn register<S: Any>(&mut self, state: S) {
+    pub fn register<S: Any + Send + Sync + 'static>(&mut self, state: S) {
         let _ = self
             .state
             .insert(TypeId::of::<S>(), Box::new(state))
@@ -86,21 +85,24 @@ impl Session {
             });
     }
 
-    pub fn get<S: Any>(&self) -> Option<&S> {
+    pub fn get<S: Any + Send + Sync + 'static>(&self) -> Option<&S> {
         match self.state.get(&TypeId::of::<S>()) {
             Some(s) => s.downcast_ref(),
             None => None,
         }
     }
 
-    pub fn get_mut<S: Any>(&mut self) -> Option<&mut S> {
+    pub fn get_mut<S: Any + Send + Sync + 'static>(&mut self) -> Option<&mut S> {
         match self.state.get_mut(&TypeId::of::<S>()) {
             Some(s) => s.downcast_mut(),
             None => None,
         }
     }
 
-    pub fn load_dissector<T: 'static + DissectorTable, D: 'static + Dissector>(
+    pub fn load_dissector<
+        T: DissectorTable + Send + Sync + 'static,
+        D: Dissector + Send + Sync + 'static,
+    >(
         &mut self,
         param: T::Param,
         priority: Priority,
@@ -111,7 +113,7 @@ impl Session {
             .expect("Requested dissector table is not loaded");
     }
 
-    pub fn table_dissect<'a, T: 'static + DissectorTable>(
+    pub fn table_dissect<'a, T: DissectorTable + Send + Sync + 'static>(
         &self,
         param: &T::Param,
         buffer: &'a [u8],
@@ -122,7 +124,7 @@ impl Session {
             .unwrap_or(Ok((buffer, None)))
     }
 
-    pub fn table_dissect_or_raw<'a, T: 'static + DissectorTable>(
+    pub fn table_dissect_or_raw<'a, T: DissectorTable + Send + Sync + 'static>(
         &self,
         param: &T::Param,
         buffer: &'a [u8],
@@ -138,29 +140,26 @@ impl Session {
             })
     }
 
-    pub fn enqueue_virtual_packet<P: PDU>(&self, packet: P) {
-        let mut queue = self.virt_packets.take();
+    pub fn enqueue_virtual_packet<P: PDU + Send + Sync + 'static>(&self, packet: P) {
         let mut virt = Virtual {
             base: Default::default(),
         };
         virt.set_inner_pdu(packet);
-        queue.push_back(virt);
-        self.virt_packets.set(queue);
+        self.virt_packets.lock().push_back(virt);
     }
 
     pub fn next_virtual_packet(&self) -> Option<Virtual> {
-        let mut queue = self.virt_packets.take();
-        let ret = queue.pop_front();
-        self.virt_packets.set(queue);
-        ret
+        self.virt_packets.lock().pop_front()
     }
 
-    pub(crate) fn last_info(&self) -> &LastInfo {
-        &self.last_info
+    pub(crate) fn last_info<R, F: FnOnce(&LastInfo) -> R>(&self, f: F) -> R {
+        let guard = self.last_info.read();
+        f(&*guard)
     }
 
-    pub(crate) fn last_info_mut(&mut self) -> &mut LastInfo {
-        &mut self.last_info
+    pub(crate) fn last_info_mut<R, F: FnOnce(&mut LastInfo) -> R>(&self, f: F) -> R {
+        let mut guard = self.last_info.write();
+        f(&mut *guard)
     }
 }
 
@@ -220,11 +219,11 @@ lazy_static! {
 }
 
 pub fn _register_dissector(cb: fn(&mut Session)) {
-    DISSECT_SETUP.write().unwrap().push(cb);
+    DISSECT_SETUP.write().push(cb);
 }
 
 pub fn _register_dissector_table(cb: fn(&mut Session)) {
-    TABLE_SETUP.write().unwrap().push(cb);
+    TABLE_SETUP.write().push(cb);
 }
 
 /// Adds a dissector table to be loaded into the default state of a `Session`.

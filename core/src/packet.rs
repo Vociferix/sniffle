@@ -8,7 +8,7 @@ pub struct Packet {
     pdu: AnyPDU,
     len: usize,
     snaplen: usize,
-    dev: Option<std::rc::Rc<Device>>,
+    dev: Option<std::sync::Arc<Device>>,
 }
 
 impl Packet {
@@ -17,7 +17,7 @@ impl Packet {
         pdu: P,
         length: Option<usize>,
         snaplen: Option<usize>,
-        device: Option<std::rc::Rc<Device>>,
+        device: Option<std::sync::Arc<Device>>,
     ) -> Self {
         let len = length.unwrap_or_else(|| pdu.total_len());
         Self {
@@ -53,7 +53,7 @@ impl Packet {
         self.dev.as_deref()
     }
 
-    pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {
+    pub fn share_device(&self) -> Option<std::sync::Arc<Device>> {
         self.dev.clone()
     }
 

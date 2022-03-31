@@ -16,12 +16,12 @@ pub trait Dissector {
     ) -> DResult<'a, Self::Out>;
 }
 
-pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + 'static>);
+pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + Send + Sync + 'static>);
 
 pub trait DissectorTable: Default {
     type Param;
 
-    fn load<D: Dissector + 'static>(
+    fn load<D: Dissector + Send + Sync + 'static>(
         &mut self,
         param: Self::Param,
         priority: Priority,
@@ -131,7 +131,7 @@ impl<D: Dissector> Dissector for DissectorAdapter<D> {
 }
 
 impl AnyDissector {
-    pub fn new<D: Dissector + 'static>(dissector: D) -> Self {
+    pub fn new<D: Dissector + Send + Sync + 'static>(dissector: D) -> Self {
         Self(Box::new(DissectorAdapter(dissector)))
     }
 }
@@ -205,7 +205,7 @@ macro_rules! dissector_table {
         impl $crate::DissectorTable for $name {
             type Param = ();
 
-            fn load<D: $crate::Dissector + 'static>(
+            fn load<D: $crate::Dissector + Send + Sync + 'static>(
                 &mut self,
                 _param: Self::Param,
                 priority: $crate::Priority,
@@ -241,7 +241,7 @@ macro_rules! dissector_table {
         impl $crate::DissectorTable for $name {
             type Param = $param;
 
-            fn load<D: $crate::Dissector + 'static>(
+            fn load<D: $crate::Dissector + Send + Sync + 'static>(
                 &mut self,
                 param: Self::Param,
                 priority: $crate::Priority,

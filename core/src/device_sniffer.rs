@@ -6,12 +6,12 @@ pub type DeviceTSPrecision = pcaprs::TSPrecision;
 
 pub struct DeviceSniffer {
     pcap: pcaprs::Pcap,
-    dev: std::rc::Rc<Device>,
+    dev: std::sync::Arc<Device>,
 }
 
 pub struct DeviceSnifferConfig {
     config: pcaprs::PcapConfig,
-    device: std::rc::Rc<Device>,
+    device: std::sync::Arc<Device>,
 }
 
 impl DeviceSniffer {
@@ -51,10 +51,10 @@ impl DeviceSniffer {
     }
 
     pub fn device_mut(&mut self) -> Option<&mut Device> {
-        std::rc::Rc::get_mut(&mut self.dev)
+        std::sync::Arc::get_mut(&mut self.dev)
     }
 
-    pub fn share_device(&self) -> std::rc::Rc<Device> {
+    pub fn share_device(&self) -> std::sync::Arc<Device> {
         self.dev.clone()
     }
 }
@@ -84,7 +84,7 @@ impl DeviceSnifferConfig {
         let config = pcaprs::PcapConfig::create(device.name());
         Self {
             config,
-            device: std::rc::Rc::new(device),
+            device: std::sync::Arc::new(device),
         }
     }
 

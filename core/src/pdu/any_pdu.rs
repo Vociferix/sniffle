@@ -7,7 +7,7 @@ use std::any::Any;
 use std::convert::AsRef;
 
 pub struct AnyPDU {
-    pub(super) pdu: Box<dyn DynPDU>,
+    pub(super) pdu: Box<dyn DynPDU + Send + Sync + 'static>,
 }
 
 pub trait DynPDU: std::fmt::Debug {
@@ -23,10 +23,10 @@ pub trait DynPDU: std::fmt::Debug {
     fn dyn_serialize(&self, encoder: &mut DynEncoder<'_>) -> std::io::Result<()>;
     fn dyn_dump(
         &self,
-        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + 'static>> + '_>,
-    ) -> Result<(), Box<dyn Any + 'static>>;
-    fn dyn_debug(&self) -> &(dyn std::fmt::Debug + 'static);
-    fn dyn_clone(&self) -> Box<dyn DynPDU + 'static>;
+        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + Send + Sync + 'static>> + '_>,
+    ) -> Result<(), Box<dyn Any + Send + Sync + 'static>>;
+    fn dyn_debug(&self) -> &(dyn std::fmt::Debug + Send + Sync + 'static);
+    fn dyn_clone(&self) -> Box<dyn DynPDU + Send + Sync + 'static>;
 }
 
 impl<P: PDU> DynPDU for P {
@@ -72,16 +72,16 @@ impl<P: PDU> DynPDU for P {
 
     fn dyn_dump(
         &self,
-        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + 'static>> + '_>,
-    ) -> Result<(), Box<dyn Any + 'static>> {
+        dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + Send + Sync + 'static>> + '_>,
+    ) -> Result<(), Box<dyn Any + Send + Sync + 'static>> {
         self.dump(dumper)
     }
 
-    fn dyn_debug(&self) -> &(dyn std::fmt::Debug + 'static) {
+    fn dyn_debug(&self) -> &(dyn std::fmt::Debug + Send + Sync + 'static) {
         self
     }
 
-    fn dyn_clone(&self) -> Box<dyn DynPDU + 'static> {
+    fn dyn_clone(&self) -> Box<dyn DynPDU + Send + Sync + 'static> {
         Box::new(self.clone())
     }
 }

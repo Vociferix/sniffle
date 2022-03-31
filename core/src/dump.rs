@@ -15,7 +15,7 @@ pub enum DumpValue<'a> {
 }
 
 pub trait Dump {
-    type Error: Any + 'static;
+    type Error: Any + Send + Sync + 'static;
 
     fn start_packet(&mut self) -> Result<(), Self::Error>;
 
@@ -158,12 +158,12 @@ impl<'a, D: Dump + ?Sized> Dump for &'a mut D {
     }
 }
 
-fn to_boxed_any<T: Any + 'static>(val: T) -> Box<dyn Any + 'static> {
+fn to_boxed_any<T: Any + Send + Sync + 'static>(val: T) -> Box<dyn Any + Send + Sync + 'static> {
     Box::new(val)
 }
 
 impl<'a, D: Dump + ?Sized> Dump for DynDumpWrapper<'a, D> {
-    type Error = Box<dyn Any + 'static>;
+    type Error = Box<dyn Any + Send + Sync + 'static>;
 
     fn start_packet(&mut self) -> Result<(), Self::Error> {
         self.0.start_packet().map_err(to_boxed_any)
@@ -281,11 +281,11 @@ impl<'a, D: Dump + ?Sized> NodeDumper<'a, D> {
     pub(crate) fn as_dyn_dumper<F>(&mut self, f: F) -> Result<(), D::Error>
     where
         F: for<'b, 'c> Fn(
-            &mut NodeDumper<'b, dyn Dump<Error = Box<dyn Any + 'static>> + 'c>,
-        ) -> Result<(), Box<dyn Any + 'static>>,
+            &mut NodeDumper<'b, dyn Dump<Error = Box<dyn Any + Send + Sync + 'static>> + 'c>,
+        ) -> Result<(), Box<dyn Any + Send + Sync + 'static>>,
     {
         let mut wrapper = DynDumpWrapper(self.0);
-        let dyn_dumper: &mut dyn Dump<Error = Box<dyn Any + 'static>> = &mut wrapper;
+        let dyn_dumper: &mut dyn Dump<Error = Box<dyn Any + Send + Sync + 'static>> = &mut wrapper;
         let mut dumper = NodeDumper(dyn_dumper, NodeKind::Virtual);
         f(&mut dumper).map_err(|e| -> D::Error {
             match e.downcast() {

@@ -21,7 +21,7 @@ pub struct BasePDU {
     inner: Option<AnyPDU>,
 }
 
-pub trait PDU: 'static + Any + Clone + std::fmt::Debug {
+pub trait PDU: 'static + Any + Clone + std::fmt::Debug + Send + Sync {
     fn base_pdu(&self) -> &BasePDU;
     fn base_pdu_mut(&mut self) -> &mut BasePDU;
 
@@ -243,6 +243,6 @@ impl Clone for BasePDU {
 
 pub(self) unsafe fn fake_any_pdu<P: PDU>(pdu: &mut P) -> AnyPDU {
     AnyPDU {
-        pdu: Box::from_raw(pdu as *mut P as *mut dyn DynPDU),
+        pdu: Box::from_raw(pdu as *mut P as *mut (dyn DynPDU + Send + Sync)),
     }
 }

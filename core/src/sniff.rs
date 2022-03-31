@@ -9,7 +9,7 @@ pub struct RawPacket<'a> {
     snaplen: usize,
     len: usize,
     data: &'a [u8],
-    device: Option<std::rc::Rc<Device>>,
+    device: Option<std::sync::Arc<Device>>,
 }
 
 impl<'a> RawPacket<'a> {
@@ -19,7 +19,7 @@ impl<'a> RawPacket<'a> {
         orig_len: usize,
         snaplen: Option<usize>,
         data: &'a [u8],
-        device: Option<std::rc::Rc<Device>>,
+        device: Option<std::sync::Arc<Device>>,
     ) -> Self {
         Self {
             datalink,
@@ -55,7 +55,7 @@ impl<'a> RawPacket<'a> {
         self.device.as_deref()
     }
 
-    pub fn share_device(&self) -> Option<std::rc::Rc<Device>> {
+    pub fn share_device(&self) -> Option<std::sync::Arc<Device>> {
         self.device.clone()
     }
 }
@@ -124,16 +124,11 @@ impl<S: SniffRaw> Sniffer<S> {
 
 impl<S: SniffRaw> Sniff for Sniffer<S> {
     fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
-        let mut session = std::mem::replace(&mut self.session, Session::new_from_scratch());
+        let session = std::mem::replace(&mut self.session, Session::new_from_scratch());
         if let Some(pdu) = session.next_virtual_packet() {
-            let info = session.last_info();
-            let ret = Ok(Some(Packet::new(
-                info.ts,
-                pdu,
-                None,
-                Some(info.snaplen),
-                info.dev.clone(),
-            )));
+            let ret = Ok(Some(session.last_info(move |info| {
+                Packet::new(info.ts, pdu, None, Some(info.snaplen), info.dev.clone())
+            })));
             let _ = std::mem::replace(self.session_mut(), session);
             return ret;
         }
@@ -147,9 +142,11 @@ impl<S: SniffRaw> Sniff for Sniffer<S> {
                     data,
                     device,
                 } = pkt;
-                session.last_info_mut().ts = ts;
-                session.last_info_mut().dev = device.clone();
-                session.last_info_mut().snaplen = snaplen;
+                session.last_info_mut(|info| {
+                    info.ts = ts;
+                    info.dev = device.clone();
+                    info.snaplen = snaplen;
+                });
                 match session.table_dissect::<LinkTypeTable>(&datalink, data, None) {
                     Ok((_rem, Some(pdu))) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))
