@@ -1,34 +1,58 @@
 use super::reader::*;
 use super::*;
-use sniffle_core::{LinkType, RawPacket, Session, Sniff, SniffError};
+use sniffle_core::{LinkType, RawPacket, Session, SniffError, SniffRaw};
 use std::time::{Duration, SystemTime};
 
 pub struct Sniffer<F: std::io::BufRead> {
     reader: Reader<F>,
-    session: Session,
     buf: Vec<u8>,
 }
 
 pub type FileSniffer = Sniffer<std::io::BufReader<std::fs::File>>;
 
 impl<F: std::io::BufRead> Sniffer<F> {
-    pub fn new(file: F, session: Option<Session>) -> Result<Self, SniffError> {
+    pub fn new_raw(file: F) -> Result<Self, SniffError> {
         Ok(Self {
             reader: Reader::new(file)?,
-            session: session.unwrap_or_default(),
+            buf: Vec::new(),
+        })
+    }
+
+    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    }
+
+    pub fn new_with_session(
+        file: F,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::new_raw(file)?,
+            session,
+        ))
+    }
+
+    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
+        Ok(FileSniffer {
+            reader: FileReader::open(path)?,
             buf: Vec::new(),
         })
     }
 
     pub fn open<P: AsRef<std::path::Path>>(
         path: P,
-        session: Option<Session>,
-    ) -> Result<FileSniffer, SniffError> {
-        Ok(FileSniffer {
-            reader: FileReader::open(path)?,
-            session: session.unwrap_or_default(),
-            buf: Vec::new(),
-        })
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
+    }
+
+    pub fn open_with_session<P: AsRef<std::path::Path>>(
+        path: P,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::open_raw(path)?,
+            session,
+        ))
     }
 
     pub fn reader(&self) -> &Reader<F> {
@@ -40,16 +64,8 @@ impl<F: std::io::BufRead> Sniffer<F> {
     }
 }
 
-impl<F: std::io::BufRead> Sniff for Sniffer<F> {
-    fn session(&self) -> &Session {
-        &self.session
-    }
-
-    fn session_mut(&mut self) -> &mut Session {
-        &mut self.session
-    }
-
-    fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+impl<F: std::io::BufRead> SniffRaw for Sniffer<F> {
+    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
         let mut buf = std::mem::take(&mut self.buf);
         let hdr = match self.reader.next_record(&mut buf)? {
             Some(hdr) => hdr,

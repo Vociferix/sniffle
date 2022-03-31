@@ -28,6 +28,6 @@ fn main() -> Result<(), SniffError> {
                 .open()?;
             dump(sniffer)
         }
-        None => dump(FileSniffer::open(&src[..], None)?),
+        None => dump(FileSniffer::open(&src[..])?),
     }
 }

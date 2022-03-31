@@ -6,12 +6,12 @@ use sniffle_ende::{
 };
 use std::any::Any;
 
-mod temp_pdu;
 mod any_pdu;
+mod temp_pdu;
 
-pub use temp_pdu::TempPDU;
 pub use any_pdu::AnyPDU;
-pub(in self) use any_pdu::DynPDU;
+pub(self) use any_pdu::DynPDU;
+pub use temp_pdu::TempPDU;
 
 pub type PDUType = std::any::TypeId;
 
@@ -226,7 +226,9 @@ impl Drop for BasePDU {
 
 impl std::fmt::Debug for BasePDU {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BasePDU").field("inner", &self.inner).finish()
+        f.debug_struct("BasePDU")
+            .field("inner", &self.inner)
+            .finish()
     }
 }
 
@@ -239,7 +241,7 @@ impl Clone for BasePDU {
     }
 }
 
-pub(in self) unsafe fn fake_any_pdu<P: PDU>(pdu: &mut P) -> AnyPDU {
+pub(self) unsafe fn fake_any_pdu<P: PDU>(pdu: &mut P) -> AnyPDU {
     AnyPDU {
         pdu: Box::from_raw(pdu as *mut P as *mut dyn DynPDU),
     }

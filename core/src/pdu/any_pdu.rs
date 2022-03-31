@@ -1,10 +1,13 @@
-use super::{BasePDU, PDU, PDUExt, PDUType, super::{Dump, NodeDumper}};
+use super::{
+    super::{Dump, NodeDumper},
+    BasePDU, PDUExt, PDUType, PDU,
+};
 use sniffle_ende::encode::{DynEncoder, Encoder};
 use std::any::Any;
 use std::convert::AsRef;
 
 pub struct AnyPDU {
-    pub(in super) pdu: Box<dyn DynPDU>,
+    pub(super) pdu: Box<dyn DynPDU>,
 }
 
 pub trait DynPDU: std::fmt::Debug {
@@ -184,8 +187,6 @@ impl AnyPDU {
 
 impl std::fmt::Debug for AnyPDU {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("AnyPDU")
-            .field(self.pdu.dyn_debug())
-            .finish()
+        f.debug_tuple("AnyPDU").field(self.pdu.dyn_debug()).finish()
     }
 }

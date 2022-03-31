@@ -1,4 +1,4 @@
-use super::{PDU, PDUExt, AnyPDU, DynPDU, fake_any_pdu};
+use super::{fake_any_pdu, AnyPDU, DynPDU, PDUExt, PDU};
 
 pub struct TempPDU<'a> {
     pdu: Option<AnyPDU>,

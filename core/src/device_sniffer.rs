@@ -1,4 +1,4 @@
-use super::{Device, LinkType, RawPacket, Session, Sniff, SniffError};
+use super::{Device, LinkType, RawPacket, Session, SniffError, SniffRaw, Sniffer};
 use pcaprs::Capture;
 
 pub type DeviceTSType = pcaprs::TSType;
@@ -7,27 +7,31 @@ pub type DeviceTSPrecision = pcaprs::TSPrecision;
 pub struct DeviceSniffer {
     pcap: pcaprs::Pcap,
     dev: std::rc::Rc<Device>,
-    session: Session,
 }
 
 pub struct DeviceSnifferConfig {
     config: pcaprs::PcapConfig,
     device: std::rc::Rc<Device>,
-    session: Option<Session>,
 }
 
 impl DeviceSniffer {
-    pub fn open(config: DeviceSnifferConfig) -> Result<Self, SniffError> {
-        let DeviceSnifferConfig {
-            config,
-            device,
-            session,
-        } = config;
+    pub fn open_raw(config: DeviceSnifferConfig) -> Result<Self, SniffError> {
+        let DeviceSnifferConfig { config, device } = config;
         Ok(Self {
             pcap: config.activate()?,
             dev: device,
-            session: session.unwrap_or_default(),
         })
+    }
+
+    pub fn open(config: DeviceSnifferConfig) -> Result<Sniffer<Self>, SniffError> {
+        Ok(Sniffer::new(Self::open_raw(config)?))
+    }
+
+    pub fn open_with_session(
+        config: DeviceSnifferConfig,
+        session: Session,
+    ) -> Result<Sniffer<Self>, SniffError> {
+        Ok(Sniffer::with_session(Self::open_raw(config)?, session))
     }
 
     pub fn pcap(&self) -> &pcaprs::Pcap {
@@ -55,8 +59,8 @@ impl DeviceSniffer {
     }
 }
 
-impl Sniff for DeviceSniffer {
-    fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+impl SniffRaw for DeviceSniffer {
+    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
         let snaplen = self.pcap.snaplen()? as usize;
         match self.pcap.next_packet() {
             Some(res) => match res {
@@ -73,14 +77,6 @@ impl Sniff for DeviceSniffer {
             None => Ok(None),
         }
     }
-
-    fn session(&self) -> &Session {
-        &self.session
-    }
-
-    fn session_mut(&mut self) -> &mut Session {
-        &mut self.session
-    }
 }
 
 impl DeviceSnifferConfig {
@@ -89,12 +85,19 @@ impl DeviceSnifferConfig {
         Self {
             config,
             device: std::rc::Rc::new(device),
-            session: None,
         }
     }
 
-    pub fn open(self) -> Result<DeviceSniffer, SniffError> {
+    pub fn open_raw(self) -> Result<DeviceSniffer, SniffError> {
+        DeviceSniffer::open_raw(self)
+    }
+
+    pub fn open(self) -> Result<Sniffer<DeviceSniffer>, SniffError> {
         DeviceSniffer::open(self)
+    }
+
+    pub fn open_with_session(self, session: Session) -> Result<Sniffer<DeviceSniffer>, SniffError> {
+        DeviceSniffer::open_with_session(self, session)
     }
 
     pub fn snaplen(self, snaplen: u32) -> Self {
@@ -142,12 +145,6 @@ impl DeviceSnifferConfig {
     pub fn timestamp_precision(self, prec: DeviceTSPrecision) -> Self {
         let mut config = self;
         let _ = config.config.timestamp_precision(prec);
-        config
-    }
-
-    pub fn session(self, session: Session) -> Self {
-        let mut config = self;
-        config.session = Some(session);
         config
     }
 }

@@ -61,6 +61,6 @@ pub use session::{Session, Virtual};
 #[doc(hidden)]
 pub use session::{_register_dissector, _register_dissector_table};
 
-pub use sniff::{RawPacket, Sniff, SniffError, SniffIter};
+pub use sniff::{RawPacket, Sniff, SniffError, SniffIter, SniffRaw, Sniffer};
 
 pub use transmit::{Transmit, TransmitError};

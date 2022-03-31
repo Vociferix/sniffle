@@ -3,7 +3,7 @@
 pub mod pcap;
 pub mod pcapng;
 
-use sniffle_core::{Packet, RawPacket, Session, Sniff, SniffError};
+use sniffle_core::{RawPacket, Session, SniffError, SniffRaw};
 
 #[non_exhaustive]
 pub enum CapfileType {
@@ -52,22 +52,49 @@ impl CapfileType {
 }
 
 impl<F: std::io::BufRead + std::io::Seek> Sniffer<F> {
-    pub fn new(mut file: F, session: Option<Session>) -> Result<Self, SniffError> {
+    pub fn new_raw(mut file: F) -> Result<Self, SniffError> {
         let ft = CapfileType::from_file(&mut file)?;
         Ok(match ft {
-            CapfileType::Pcap => Self::Pcap(pcap::Sniffer::new(file, session)?),
-            CapfileType::PcapNG => Self::PcapNG(pcapng::Sniffer::new(file, session)?),
+            CapfileType::Pcap => Self::Pcap(pcap::Sniffer::new_raw(file)?),
+            CapfileType::PcapNG => Self::PcapNG(pcapng::Sniffer::new_raw(file)?),
             CapfileType::Unknown => {
                 return Err(SniffError::MalformedCapture);
             }
         })
     }
 
+    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    }
+
+    pub fn new_with_session(
+        file: F,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::new_raw(file)?,
+            session,
+        ))
+    }
+
+    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
+        FileSniffer::new_raw(std::io::BufReader::new(std::fs::File::open(path)?))
+    }
+
     pub fn open<P: AsRef<std::path::Path>>(
         path: P,
-        session: Option<Session>,
-    ) -> Result<FileSniffer, SniffError> {
-        FileSniffer::new(std::io::BufReader::new(std::fs::File::open(path)?), session)
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
+    }
+
+    pub fn open_with_session<P: AsRef<std::path::Path>>(
+        path: P,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::open_raw(path)?,
+            session,
+        ))
     }
 
     pub fn capfile_type(&self) -> CapfileType {
@@ -78,32 +105,11 @@ impl<F: std::io::BufRead + std::io::Seek> Sniffer<F> {
     }
 }
 
-impl<F: std::io::BufRead + std::io::Seek> Sniff for Sniffer<F> {
-    fn session(&self) -> &Session {
+impl<F: std::io::BufRead + std::io::Seek> SniffRaw for Sniffer<F> {
+    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
         match self {
-            Self::Pcap(pcap) => pcap.session(),
-            Self::PcapNG(pcapng) => pcapng.session(),
-        }
-    }
-
-    fn session_mut(&mut self) -> &mut Session {
-        match self {
-            Self::Pcap(pcap) => pcap.session_mut(),
-            Self::PcapNG(pcapng) => pcapng.session_mut(),
-        }
-    }
-
-    fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
-        match self {
-            Self::Pcap(pcap) => pcap.next_raw(),
-            Self::PcapNG(pcapng) => pcapng.next_raw(),
-        }
-    }
-
-    fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
-        match self {
-            Self::Pcap(pcap) => pcap.sniff(),
-            Self::PcapNG(pcapng) => pcapng.sniff(),
+            Self::Pcap(pcap) => pcap.sniff_raw(),
+            Self::PcapNG(pcapng) => pcapng.sniff_raw(),
         }
     }
 }

@@ -1,6 +1,7 @@
 use super::reader::*;
 use sniffle_core::{
-    Device, DeviceBuilder, DeviceIPv4, DeviceIPv6, LinkType, RawPacket, Session, Sniff, SniffError,
+    Device, DeviceBuilder, DeviceIPv4, DeviceIPv6, LinkType, RawPacket, Session, SniffError,
+    SniffRaw,
 };
 use std::io::{BufRead, Seek};
 use std::time::{Duration, SystemTime};
@@ -15,7 +16,6 @@ struct Iface {
 
 pub struct Sniffer<F: BufRead + Seek> {
     file: Reader<F>,
-    session: Session,
     ifaces: Vec<Iface>,
     buf: Vec<u8>,
 }
@@ -57,29 +57,55 @@ fn ts_calc(ts: u64, tsresol: u8, tsoffset: i64) -> SystemTime {
 }
 
 impl<F: BufRead + Seek> Sniffer<F> {
-    pub fn new(file: F, session: Option<Session>) -> Result<Self, SniffError> {
-        Ok(Self::init(Reader::new(file)?, session))
+    pub fn new_raw(file: F) -> Result<Self, SniffError> {
+        Ok(Self {
+            file: Reader::new(file)?,
+            ifaces: Vec::new(),
+            buf: Vec::new(),
+        })
+    }
+
+    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    }
+
+    pub fn new_with_session(
+        file: F,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::new_raw(file)?,
+            session,
+        ))
+    }
+
+    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
+        Ok(FileSniffer {
+            file: FileReader::open(path)?,
+            ifaces: Vec::new(),
+            buf: Vec::new(),
+        })
     }
 
     pub fn open<P: AsRef<std::path::Path>>(
         path: P,
-        session: Option<Session>,
-    ) -> Result<FileSniffer, SniffError> {
-        Ok(FileSniffer::init(FileReader::open(path)?, session))
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
     }
 
-    fn init(file: Reader<F>, session: Option<Session>) -> Self {
-        Self {
-            file,
-            session: session.unwrap_or_default(),
-            ifaces: Vec::new(),
-            buf: Vec::new(),
-        }
+    pub fn open_with_session<P: AsRef<std::path::Path>>(
+        path: P,
+        session: Session,
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+        Ok(sniffle_core::Sniffer::with_session(
+            Self::open_raw(path)?,
+            session,
+        ))
     }
 }
 
-impl<F: BufRead + Seek> Sniff for Sniffer<F> {
-    fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
+    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
         loop {
             match self.file.next_block()? {
                 Some(block) => match block {
@@ -180,13 +206,5 @@ impl<F: BufRead + Seek> Sniff for Sniffer<F> {
                 }
             }
         }
-    }
-
-    fn session(&self) -> &Session {
-        &self.session
-    }
-
-    fn session_mut(&mut self) -> &mut Session {
-        &mut self.session
     }
 }

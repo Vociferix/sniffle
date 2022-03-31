@@ -74,25 +74,70 @@ pub enum SniffError {
     User(#[from] Box<dyn std::error::Error + 'static>),
 }
 
-pub trait Sniff: Sized {
-    fn next_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError>;
+pub trait SniffRaw {
+    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError>;
+}
 
-    fn session(&self) -> &Session;
-    fn session_mut(&mut self) -> &mut Session;
+pub trait Sniff {
+    fn sniff(&mut self) -> Result<Option<Packet>, SniffError>;
 
+    fn iter(&mut self) -> SniffIter<'_, Self> {
+        SniffIter(self)
+    }
+}
+
+pub struct Sniffer<S: SniffRaw> {
+    raw_sniffer: S,
+    session: Session,
+}
+
+#[repr(transparent)]
+pub struct SniffIter<'a, S: Sniff + ?Sized>(&'a mut S);
+
+impl<S: SniffRaw> Sniffer<S> {
+    pub fn new(raw_sniffer: S) -> Self {
+        Self {
+            raw_sniffer,
+            session: Session::default(),
+        }
+    }
+
+    pub fn with_session(raw_sniffer: S, session: Session) -> Self {
+        Self {
+            raw_sniffer,
+            session,
+        }
+    }
+
+    pub fn into_raw(self) -> S {
+        self.raw_sniffer
+    }
+
+    pub fn session(&self) -> &Session {
+        &self.session
+    }
+
+    pub fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
+    }
+}
+
+impl<S: SniffRaw> Sniff for Sniffer<S> {
     fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
-        let mut session = std::mem::replace(self.session_mut(), Session::new_from_scratch());
+        let mut session = std::mem::replace(&mut self.session, Session::new_from_scratch());
         if let Some(pdu) = session.next_virtual_packet() {
             let info = session.last_info();
-            return Ok(Some(Packet::new(
+            let ret = Ok(Some(Packet::new(
                 info.ts,
                 pdu,
                 None,
                 Some(info.snaplen),
                 info.dev.clone(),
             )));
+            let _ = std::mem::replace(self.session_mut(), session);
+            return ret;
         }
-        let ret = match self.next_raw()? {
+        let ret = match self.raw_sniffer.sniff_raw()? {
             Some(pkt) => {
                 let RawPacket {
                     datalink,
@@ -129,21 +174,30 @@ pub trait Sniff: Sized {
         let _ = std::mem::replace(self.session_mut(), session);
         ret
     }
-
-    fn iter(&mut self) -> SniffIter<'_, Self> {
-        SniffIter(self)
-    }
 }
-
-pub struct SniffIter<'a, S: Sniff>(&'a mut S);
 
 impl<'a, S: Sniff> Iterator for SniffIter<'a, S> {
     type Item = Result<Packet, SniffError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.0.sniff() {
-            Ok(res) => res.map(Ok),
+            Ok(Some(pkt)) => Some(Ok(pkt)),
+            Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+impl<S: SniffRaw> Sniff for S {
+    fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
+        Ok(self.sniff_raw()?.map(|pkt| {
+            Packet::new(
+                pkt.ts,
+                AnyPDU::new(RawPDU::new(Vec::from(pkt.data))),
+                Some(pkt.len),
+                Some(pkt.snaplen),
+                pkt.device,
+            )
+        }))
     }
 }
