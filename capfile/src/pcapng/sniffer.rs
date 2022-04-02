@@ -7,7 +7,7 @@ use std::io::{BufRead, Seek};
 use std::time::{Duration, SystemTime};
 
 struct Iface {
-    device: std::rc::Rc<Device>,
+    device: std::sync::Arc<Device>,
     link: LinkType,
     snaplen: u32,
     tsresol: u8,
@@ -158,7 +158,7 @@ impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
                         let snaplen = idb.snaplen()?;
                         let _ = idb;
                         self.ifaces.push(Iface {
-                            device: std::rc::Rc::new(bldr.into_device()),
+                            device: std::sync::Arc::new(bldr.into_device()),
                             link,
                             snaplen,
                             tsresol,

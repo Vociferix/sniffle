@@ -1,6 +1,15 @@
 use super::prelude::*;
 use crate::address::IPv4Address;
-use std::time::SystemTime;
+use chrono::{offset::Utc, DateTime};
+use nom::{
+    combinator::{all_consuming, flat_map, map, rest},
+    multi::{fold_many0, length_value, many0},
+    number::complete::u8 as ubyte,
+    number::complete::{be_u16, be_u32},
+    sequence::tuple,
+    Parser,
+};
+use std::time::{Duration, SystemTime};
 
 #[derive(Debug, Clone)]
 pub struct IPv4 {
@@ -19,6 +28,13 @@ pub struct IPv4 {
     src_addr: IPv4Address,
     dst_addr: IPv4Address,
     opts: Vec<Opt>,
+    padding: Padding,
+}
+
+#[derive(Debug, Clone)]
+enum Padding {
+    Auto,
+    Manual(Vec<u8>),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -396,7 +412,7 @@ impl From<TimestampFlag> for uint::U4 {
     }
 }
 
-fn serialize_basic_security<'a, E: Encoder<'a>>(
+fn serialize_basic_security<'a, E: Encoder<'a> + ?Sized>(
     opt: &BasicSecurity,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -406,7 +422,7 @@ fn serialize_basic_security<'a, E: Encoder<'a>>(
     Ok(())
 }
 
-fn serialize_route_record<'a, E: Encoder<'a>>(
+fn serialize_route_record<'a, E: Encoder<'a> + ?Sized>(
     opt: &RouteRecord,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -414,7 +430,7 @@ fn serialize_route_record<'a, E: Encoder<'a>>(
     Ok(())
 }
 
-fn serialize_timestamp<'a, E: Encoder<'a>>(
+fn serialize_timestamp<'a, E: Encoder<'a> + ?Sized>(
     opt: &Timestamp,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -438,7 +454,7 @@ fn serialize_timestamp<'a, E: Encoder<'a>>(
     Ok(())
 }
 
-fn serialize_extended_security<'a, E: Encoder<'a>>(
+fn serialize_extended_security<'a, E: Encoder<'a> + ?Sized>(
     opt: &ExtendedSecurity,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -446,7 +462,7 @@ fn serialize_extended_security<'a, E: Encoder<'a>>(
     Ok(())
 }
 
-fn serialize_traceroute<'a, E: Encoder<'a>>(
+fn serialize_traceroute<'a, E: Encoder<'a> + ?Sized>(
     opt: &Traceroute,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -458,7 +474,7 @@ fn serialize_traceroute<'a, E: Encoder<'a>>(
     Ok(())
 }
 
-fn serialize_quick_start<'a, E: Encoder<'a>>(
+fn serialize_quick_start<'a, E: Encoder<'a> + ?Sized>(
     opt: &QuickStart,
     encoder: &mut E,
 ) -> std::io::Result<()> {
@@ -469,12 +485,296 @@ fn serialize_quick_start<'a, E: Encoder<'a>>(
     Ok(())
 }
 
+fn dissect_body<F: for<'a> FnMut(&'a [u8]) -> DResult<'a, Opt>>(
+    buf: &[u8],
+    opt_type: OptionType,
+    f: F,
+) -> DResult<'_, Opt> {
+    length_value(ubyte, all_consuming(f))
+        .or(move |buf| dissect_raw(buf, opt_type))
+        .parse(buf)
+}
+
+fn dissect_sec(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Sec, |buf| {
+        ubyte
+            .map(Classification::from)
+            .and(rest.map(Vec::from))
+            .map(|(classification, authority)| {
+                Opt::Sec(BasicSecurity {
+                    classification,
+                    authority,
+                })
+            })
+            .parse(buf)
+    })
+}
+
+fn dissect_lsrr(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Lsrr, |buf| {
+        ubyte
+            .and(many0(decode::<IPv4Address>))
+            .map(|(pointer, routes)| Opt::Lsrr(RouteRecord { pointer, routes }))
+            .parse(buf)
+    })
+}
+
+fn dissect_ts(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Ts, |buf| {
+        flat_map(tuple((ubyte, ubyte)), |(pointer, of)| {
+            let (overflow, flag): (uint::U4, uint::U4) = uint::unpack!(of);
+            let flag = TimestampFlag::from(flag);
+            all_consuming(move |buf| match flag {
+                TimestampFlag::TsOnly | TimestampFlag::Unknown(_) => fold_many0(
+                    be_u32.map(|ts| {
+                        SystemTime::UNIX_EPOCH
+                            .checked_add(Duration::from_millis(ts as u64))
+                            .unwrap()
+                    }),
+                    Vec::new,
+                    |mut acc: Vec<_>, ts| {
+                        acc.push(TimestampEntry::Ts(ts));
+                        acc
+                    },
+                )(buf),
+                TimestampFlag::AddrAndTs | TimestampFlag::PrespecifiedAddrs => {
+                    fold_many0(
+                        (decode::<IPv4Address>).and(be_u32.map(|ts| {
+                            SystemTime::UNIX_EPOCH
+                                .checked_add(Duration::from_millis(ts as u64))
+                                .unwrap()
+                        })),
+                        Vec::new,
+                        |mut acc: Vec<_>, (addr, ts)| {
+                            acc.push(TimestampEntry::Addr(addr));
+                            acc.push(TimestampEntry::Ts(ts));
+                            acc
+                        },
+                    )(buf)
+                }
+            })
+            .map(move |entries| {
+                Opt::Ts(Timestamp {
+                    pointer,
+                    overflow,
+                    flag,
+                    entries,
+                })
+            })
+        })(buf)
+    })
+}
+
+fn dissect_esec(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::ESec, |buf| {
+        map(
+            tuple((ubyte, map(rest, Vec::from))),
+            |(format, sec_info)| Opt::ESec(ExtendedSecurity { format, sec_info }),
+        )(buf)
+    })
+}
+
+fn dissect_cipso(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Cipso, |buf| {
+        map(rest, |data| Opt::Cipso(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_rr(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Rr, |buf| {
+        ubyte
+            .and(many0(decode::<IPv4Address>))
+            .map(|(pointer, routes)| Opt::Rr(RouteRecord { pointer, routes }))
+            .parse(buf)
+    })
+}
+
+fn dissect_sid(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Sid, |buf| {
+        map(be_u16, |sid| Opt::Sid(StreamId(sid)))(buf)
+    })
+}
+
+fn dissect_ssrr(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Ssrr, |buf| {
+        ubyte
+            .and(many0(decode::<IPv4Address>))
+            .map(|(pointer, routes)| Opt::Ssrr(RouteRecord { pointer, routes }))
+            .parse(buf)
+    })
+}
+
+fn dissect_zsu(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Zsu, |buf| {
+        map(rest, |data| Opt::Zsu(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_mtup(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Mtup, |buf| {
+        map(be_u16, |sid| Opt::Mtup(MTU(sid)))(buf)
+    })
+}
+
+fn dissect_mtur(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Mtur, |buf| {
+        map(be_u16, |sid| Opt::Mtur(MTU(sid)))(buf)
+    })
+}
+
+fn dissect_finn(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Finn, |buf| {
+        map(rest, |data| Opt::Finn(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_visa(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Visa, |buf| {
+        map(rest, |data| Opt::Visa(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_encode(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Encode, |buf| {
+        map(rest, |data| Opt::Encode(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_imitd(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Imitd, |buf| {
+        map(rest, |data| Opt::Imitd(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_eip(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Eip, |buf| {
+        map(rest, |data| Opt::Eip(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_tr(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Tr, |buf| {
+        map(
+            tuple((be_u16, be_u16, be_u16, decode::<IPv4Address>)),
+            |(id, out_hops, return_hops, orig_addr)| {
+                Opt::Tr(Traceroute {
+                    id,
+                    out_hops,
+                    return_hops,
+                    orig_addr,
+                })
+            },
+        )(buf)
+    })
+}
+
+fn dissect_addext(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::AddExt, |buf| {
+        map(rest, |data| Opt::AddExt(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_rtralt(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::RtrAlt, |buf| {
+        map(be_u16, |ra| Opt::RtrAlt(RouterAlert(ra)))(buf)
+    })
+}
+
+fn dissect_sdb(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Sdb, |buf| {
+        map(rest, |data| Opt::Sdb(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_dps(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Dps, |buf| {
+        map(rest, |data| Opt::Dps(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_ump(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Ump, |buf| {
+        map(rest, |data| Opt::Ump(Vec::from(data)))(buf)
+    })
+}
+
+fn dissect_qs(buf: &[u8]) -> DResult<'_, Opt> {
+    dissect_body(buf, OptionType::Qs, |buf| {
+        map(tuple((ubyte, ubyte, be_u32)), |(frr, ttl, nr)| {
+            let (func, rate_req): (uint::U4, uint::U4) = uint::unpack!(frr);
+            let (nonce, reserved): (uint::U30, uint::U2) = uint::unpack!(nr);
+            Opt::Qs(QuickStart {
+                func,
+                rate_req,
+                ttl,
+                nonce,
+                reserved,
+            })
+        })(buf)
+    })
+}
+
+fn dissect_raw(buf: &[u8], opt_type: OptionType) -> DResult<'_, Opt> {
+    if buf.is_empty() {
+        Ok((
+            buf,
+            Opt::Raw(RawOption {
+                opt_type,
+                len: None,
+                data: Vec::new(),
+            }),
+        ))
+    } else {
+        ubyte
+            .and(rest)
+            .map(move |(len, data)| {
+                Opt::Raw(RawOption {
+                    opt_type,
+                    len: Some(len),
+                    data: Vec::from(data),
+                })
+            })
+            .parse(buf)
+    }
+}
+
 impl Opt {
     pub fn dissect(buf: &[u8]) -> DResult<'_, Self> {
-        todo!()
+        flat_map(map(ubyte, OptionType::from), |opt_type| {
+            move |buf| match opt_type {
+                OptionType::Eool => Ok((buf, Opt::Eool)),
+                OptionType::Nop => Ok((buf, Opt::Nop)),
+                OptionType::Sec => dissect_sec(buf),
+                OptionType::Lsrr => dissect_lsrr(buf),
+                OptionType::Ts => dissect_ts(buf),
+                OptionType::ESec => dissect_esec(buf),
+                OptionType::Cipso => dissect_cipso(buf),
+                OptionType::Rr => dissect_rr(buf),
+                OptionType::Sid => dissect_sid(buf),
+                OptionType::Ssrr => dissect_ssrr(buf),
+                OptionType::Zsu => dissect_zsu(buf),
+                OptionType::Mtup => dissect_mtup(buf),
+                OptionType::Mtur => dissect_mtur(buf),
+                OptionType::Finn => dissect_finn(buf),
+                OptionType::Visa => dissect_visa(buf),
+                OptionType::Encode => dissect_encode(buf),
+                OptionType::Imitd => dissect_imitd(buf),
+                OptionType::Eip => dissect_eip(buf),
+                OptionType::Tr => dissect_tr(buf),
+                OptionType::AddExt => dissect_addext(buf),
+                OptionType::RtrAlt => dissect_rtralt(buf),
+                OptionType::Sdb => dissect_sdb(buf),
+                OptionType::Dps => dissect_dps(buf),
+                OptionType::Ump => dissect_ump(buf),
+                OptionType::Qs => dissect_qs(buf),
+                OptionType::Unspecified(opt_type) => {
+                    dissect_raw(buf, OptionType::Unspecified(opt_type))
+                }
+            }
+        })(buf)
     }
 
-    fn serialize_data<'a, E: Encoder<'a>>(&self, encoder: &mut E) -> std::io::Result<()> {
+    fn serialize_data<'a, E: Encoder<'a> + ?Sized>(&self, encoder: &mut E) -> std::io::Result<()> {
         use Opt::*;
         match self {
             Sec(opt) => serialize_basic_security(opt, encoder)?,
@@ -535,7 +835,7 @@ impl Opt {
         Ok(())
     }
 
-    pub fn serialize<'a, E: Encoder<'a>>(&self, encoder: &mut E) -> std::io::Result<()> {
+    pub fn serialize<'a, E: Encoder<'a> + ?Sized>(&self, encoder: &mut E) -> std::io::Result<()> {
         if let Opt::Raw(raw) = self {
             encoder.encode(&raw.opt_type.octet())?;
             if let Some(len) = raw.len {
@@ -634,9 +934,51 @@ impl Opt {
             Dps(opt) => Some(opt.len()),
             Ump(opt) => Some(opt.len()),
             Qs(_) => Some(6),
-            Raw(opt) => opt.len.map(|len| len as usize),
+            Raw(opt) => {
+                return opt.len;
+            }
         }
         .map(|len| if len > 253 { 255u8 } else { (len + 2) as u8 })
+    }
+
+    pub fn actual_length(&self) -> usize {
+        use Opt::*;
+        match self {
+            Eool => None,
+            Nop => None,
+            Sec(opt) => Some(1 + opt.authority.len()),
+            Lsrr(opt) => Some(1 + opt.routes.len() * 4),
+            Ts(opt) => Some(2 + opt.entries.len() * 4),
+            ESec(opt) => Some(1 + opt.sec_info.len()),
+            Cipso(opt) => Some(opt.len()),
+            Rr(opt) => Some(1 + opt.routes.len()),
+            Sid(_) => Some(2),
+            Ssrr(opt) => Some(1 + opt.routes.len()),
+            Zsu(opt) => Some(opt.len()),
+            Mtup(_) => Some(2),
+            Mtur(_) => Some(2),
+            Finn(opt) => Some(opt.len()),
+            Visa(opt) => Some(opt.len()),
+            Encode(opt) => Some(opt.len()),
+            Imitd(opt) => Some(opt.len()),
+            Eip(opt) => Some(opt.len()),
+            Tr(_) => Some(10),
+            AddExt(opt) => Some(opt.len()),
+            RtrAlt(_) => Some(2),
+            Sdb(opt) => Some(opt.len()),
+            Dps(opt) => Some(opt.len()),
+            Ump(opt) => Some(opt.len()),
+            Qs(_) => Some(6),
+            Raw(opt) => {
+                return if opt.data.is_empty() && opt.len.is_none() {
+                    1usize
+                } else {
+                    2 + opt.data.len()
+                };
+            }
+        }
+        .map(|len| len + 2)
+        .unwrap_or(1usize)
     }
 }
 
@@ -806,6 +1148,11 @@ impl From<IPProto> for u8 {
     }
 }
 
+dissector_table!(pub IPProtoDissectorTable, IPProto);
+dissector_table!(pub HeurDissectorTable);
+
+const PADDING: [u8; 3] = [0u8; 3];
+
 impl IPv4 {
     pub fn new() -> Self {
         Self {
@@ -824,6 +1171,7 @@ impl IPv4 {
             src_addr: Default::default(),
             dst_addr: Default::default(),
             opts: Vec::new(),
+            padding: Padding::Auto,
         }
     }
 
@@ -844,6 +1192,7 @@ impl IPv4 {
             src_addr,
             dst_addr,
             opts: Vec::new(),
+            padding: Padding::Auto,
         }
     }
 
@@ -958,6 +1307,43 @@ impl IPv4 {
     pub fn options_mut(&mut self) -> &mut Vec<Opt> {
         &mut self.opts
     }
+
+    fn opts_len(&self) -> usize {
+        let mut len = 0usize;
+        for opt in self.opts.iter() {
+            len += opt.actual_length();
+        }
+        len
+    }
+
+    fn auto_padding_len(&self) -> usize {
+        let reported_len = (u32::from(self.ihl) * 4) as usize;
+        let opts_len = self.opts_len();
+        if reported_len < 20 + opts_len {
+            0
+        } else {
+            reported_len - 20 - opts_len
+        }
+    }
+
+    pub fn padding(&self) -> &[u8] {
+        match &self.padding {
+            Padding::Auto => &PADDING[..self.auto_padding_len()],
+            Padding::Manual(padding) => &padding[..],
+        }
+    }
+
+    pub fn padding_mut(&mut self) -> &mut Vec<u8> {
+        let padding = match &mut self.padding {
+            Padding::Auto => vec![0u8; self.auto_padding_len()],
+            Padding::Manual(padding) => std::mem::take(padding),
+        };
+        self.padding = Padding::Manual(padding);
+        match &mut self.padding {
+            Padding::Manual(padding) => padding,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl PDU for IPv4 {
@@ -970,35 +1356,452 @@ impl PDU for IPv4 {
     }
 
     fn dissect<'a>(
-        buf: &'a [u8],
+        mut buf: &'a [u8],
         session: &Session,
         parent: Option<&mut TempPDU<'_>>,
     ) -> DResult<'a, Self> {
-        todo!()
+        let (rem_buf, mut ipv4) = flat_map(
+            tuple((
+                ubyte,
+                ubyte,
+                be_u16,
+                be_u16,
+                be_u16,
+                ubyte,
+                ubyte,
+                be_u16,
+                decode::<IPv4Address>,
+                decode::<IPv4Address>,
+            )),
+            move |(vi, de, totlen, ident, ff, ttl, proto, chksum, src_addr, dst_addr)| {
+                let (version, ihl): (uint::U4, uint::U4) = uint::unpack!(vi);
+                let (dscp, ecn): (uint::U6, uint::U2) = uint::unpack!(de);
+                let (flags, frag_offset): (uint::U3, uint::U13) = uint::unpack!(ff);
+                let proto = IPProto(proto);
+
+                move |mut buf: &'a [u8]| {
+                    let len: usize = (u32::from(ihl) * 4) as usize;
+                    if len < 20 {
+                        return Err(nom::Err::Error(DecodeError::Malformed));
+                    } else if buf.len() < len - 20 {
+                        return Err(nom::Err::Incomplete(nom::Needed::Size(
+                            std::num::NonZeroUsize::new(len - 20 - buf.len()).unwrap(),
+                        )));
+                    }
+
+                    let (opts, padding) = if len > 20 {
+                        let opt_len = len - 20;
+                        let opt_buf = &buf[..opt_len];
+                        buf = &buf[opt_len..];
+                        let mut done = false;
+                        tuple((
+                            fold_many0(
+                                move |tmp_buf: &'a [u8]| {
+                                    if done {
+                                        return Err(nom::Err::Error(DecodeError::Malformed));
+                                    }
+                                    let (tmp_buf, opt) = Opt::dissect(tmp_buf)?;
+                                    done = opt.option_type() == OptionType::Eool;
+                                    Ok((tmp_buf, opt))
+                                },
+                                Vec::new,
+                                |mut acc: Vec<_>, opt| {
+                                    acc.push(opt);
+                                    acc
+                                },
+                            ),
+                            map(rest, move |padding: &'a [u8]| {
+                                if padding.len() < 4 && len % 4 == 0 {
+                                    Padding::Auto
+                                } else {
+                                    Padding::Manual(Vec::from(padding))
+                                }
+                            }),
+                        ))(opt_buf)?
+                        .1
+                    } else {
+                        (Vec::new(), Padding::Auto)
+                    };
+
+                    Ok((
+                        buf,
+                        IPv4 {
+                            base: BasePDU::default(),
+                            version,
+                            ihl,
+                            dscp,
+                            ecn,
+                            totlen,
+                            ident,
+                            flags,
+                            frag_offset,
+                            ttl,
+                            proto,
+                            chksum,
+                            src_addr,
+                            dst_addr,
+                            opts,
+                            padding,
+                        },
+                    ))
+                }
+            },
+        )(buf)?;
+
+        if buf.len() < ipv4.totlen as usize {
+            return Err(nom::Err::Error(DecodeError::Malformed));
+        }
+        buf = &rem_buf[..(ipv4.totlen as usize - (buf.len() - rem_buf.len()))];
+        if !buf.is_empty() {
+            let proto = ipv4.proto;
+            let mut tmp = TempPDU::new_with_parent(parent, &mut ipv4);
+            let (tmp_buf, inner) =
+                session.table_dissect::<IPProtoDissectorTable>(&proto, buf, Some(&mut tmp))?;
+            let (tmp_buf, inner) = match inner {
+                Some(inner) => (tmp_buf, inner),
+                None => {
+                    session.table_dissect_or_raw::<HeurDissectorTable>(&(), buf, Some(&mut tmp))?
+                }
+            };
+            drop(tmp);
+            ipv4.set_inner_pdu(inner);
+            buf = tmp_buf;
+        }
+
+        Ok((buf, ipv4))
     }
 
     fn header_len(&self) -> usize {
-        // TODO: choose the larger value between IHL and actual length
-        //       with options
-        todo!()
+        20 + self.opts_len() + self.padding().len()
     }
 
     fn serialize_header<'a, W: Encoder<'a> + ?Sized>(
         &self,
         encoder: &mut W,
     ) -> std::io::Result<()> {
-        todo!()
-    }
+        let vi = uint::pack!(self.version, self.ihl);
+        let de = uint::pack!(self.dscp, self.ecn);
+        let ff = uint::pack!(self.flags, self.frag_offset);
 
-    fn serialize_trailer<'a, W: Encoder<'a> + ?Sized>(
-        &self,
-        encoder: &mut W,
-    ) -> std::io::Result<()> {
-        todo!()
+        encoder
+            .encode(&vi)?
+            .encode(&de)?
+            .encode_be(&self.totlen)?
+            .encode_be(&self.ident)?
+            .encode_be(&ff)?
+            .encode(&self.ttl)?
+            .encode(&self.proto.0)?
+            .encode_be(&self.chksum)?
+            .encode(&self.src_addr)?
+            .encode(&self.dst_addr)?;
+        for opt in self.opts.iter() {
+            opt.serialize(encoder)?;
+        }
+        encoder.encode(self.padding())?;
+        Ok(())
     }
 
     fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<D>) -> Result<(), D::Error> {
-        todo!()
+        let mut node = dumper.add_node(
+            "IPv4",
+            Some(&format!("{}->{}", self.src_addr, self.dst_addr)[..]),
+        )?;
+        node.add_field("Version", DumpValue::UInt(self.version.into()), None)?;
+        node.add_field("IHL", DumpValue::UInt(self.ihl.into()), None)?;
+        node.add_field("DSCP", DumpValue::UInt(self.dscp.into()), None)?;
+        node.add_field("ECN", DumpValue::UInt(self.ecn.into()), None)?;
+        node.add_field("Total Length", DumpValue::UInt(self.totlen.into()), None)?;
+        node.add_field("Identification", DumpValue::UInt(self.ident.into()), None)?;
+        {
+            let flags: u8 = self.flags.into();
+            let reserved = (flags & 0b100) > 0;
+            let dont_frag = (flags & 0b010) > 0;
+            let more_frags = (flags & 0b001) > 0;
+            let mut node = node.add_node(
+                "Flags",
+                Some(
+                    &format!(
+                        "{}{}{}",
+                        if reserved { 1 } else { 0 },
+                        if dont_frag { 1 } else { 0 },
+                        if more_frags { 1 } else { 0 }
+                    )[..],
+                ),
+            )?;
+            node.add_field("Don't Fragment", DumpValue::Bool(dont_frag), None)?;
+            node.add_field("More Fragments", DumpValue::Bool(more_frags), None)?;
+        }
+        node.add_field(
+            "Fragment Offset",
+            DumpValue::UInt(self.frag_offset.into()),
+            None,
+        )?;
+        node.add_field("Time to Live", DumpValue::UInt(self.ttl.into()), None)?;
+        node.add_field("Protocol", DumpValue::UInt(self.proto.0.into()), None)?;
+        node.add_field("Checksum", DumpValue::UInt(self.chksum.into()), None)?;
+        node.add_field(
+            "Source Address",
+            DumpValue::Bytes(&self.src_addr[..]),
+            Some(&format!("{}", self.src_addr)),
+        )?;
+        node.add_field(
+            "Destination Address",
+            DumpValue::Bytes(&self.dst_addr[..]),
+            Some(&format!("{}", self.dst_addr)),
+        )?;
+        if !self.opts.is_empty() {
+            let mut node = node.add_node("Options", None)?;
+            for opt in self.opts.iter() {
+                match opt {
+                    Opt::Eool => node.add_info("End of Options List", "")?,
+                    Opt::Nop => node.add_info("No Operation", "")?,
+                    Opt::Sec(sec) => {
+                        let mut node = node.add_node("Security", None)?;
+                        node.add_field(
+                            "Classification",
+                            DumpValue::UInt(u8::from(sec.classification).into()),
+                            match sec.classification {
+                                Classification::Unclassified => Some("UNCLASSIFIED"),
+                                Classification::Confidential => Some("CONFIDENTIAL"),
+                                Classification::Secret => Some("SECRET"),
+                                Classification::TopSecret => Some("TOP SECRET"),
+                                _ => None,
+                            },
+                        )?;
+                        node.add_field("Authority", DumpValue::Bytes(&sec.authority[..]), None)?;
+                    }
+                    Opt::Lsrr(rr) => {
+                        let mut node = node.add_node("Loose Source Route Record", None)?;
+                        node.add_field("Pointer", DumpValue::UInt(rr.pointer.into()), None)?;
+                        let mut list = node.add_list("Routes", None)?;
+                        for i in 0..rr.routes.len() {
+                            list.add_item(
+                                DumpValue::Bytes(&rr.routes[i][..]),
+                                Some(
+                                    &format!(
+                                        "{} {}",
+                                        if i == rr.pointer as usize { "->" } else { "  " },
+                                        rr.routes[i]
+                                    )[..],
+                                ),
+                            )?;
+                        }
+                    }
+                    Opt::Ts(ts) => {
+                        let mut node = node.add_node("Timestamp", None)?;
+                        node.add_field("Pointer", DumpValue::UInt(ts.pointer.into()), None)?;
+                        node.add_field("Overflow", DumpValue::UInt(ts.overflow.into()), None)?;
+                        node.add_field(
+                            "Flag",
+                            DumpValue::UInt(uint::U4::from(ts.flag).into()),
+                            match ts.flag {
+                                TimestampFlag::TsOnly => Some("Timestamp Only (0)"),
+                                TimestampFlag::AddrAndTs => Some("Address and Timestamp (1)"),
+                                TimestampFlag::PrespecifiedAddrs => {
+                                    Some("Prespecified Addresses (3)")
+                                }
+                                _ => Some("Unknown (2)"),
+                            },
+                        )?;
+                        if ts.entries.is_empty() {
+                            node.add_info("Entries", "Empty")?;
+                        } else {
+                            let mut list = node.add_list("Entries", None)?;
+                            for i in 0..ts.entries.len() {
+                                match ts.entries[i] {
+                                    TimestampEntry::Ts(t) => list.add_item(
+                                        DumpValue::Time(t),
+                                        Some(
+                                            &format!(
+                                                "{} {}",
+                                                if i == ts.pointer as usize { "->" } else { "  " },
+                                                DateTime::<Utc>::from(t)
+                                                    .format("%Y-%m-%d %H:%M:%S%.f")
+                                            )[..],
+                                        ),
+                                    )?,
+                                    TimestampEntry::Addr(addr) => list.add_item(
+                                        DumpValue::Bytes(&addr[..]),
+                                        Some(
+                                            &format!(
+                                                "{}, {}",
+                                                if i == ts.pointer as usize { "->" } else { "  " },
+                                                addr
+                                            )[..],
+                                        ),
+                                    )?,
+                                }
+                            }
+                        }
+                    }
+                    Opt::ESec(esec) => {
+                        let mut node = node.add_node("Extended Security", None)?;
+                        node.add_field("Format", DumpValue::UInt(esec.format.into()), None)?;
+                        node.add_field(
+                            "Security Info",
+                            DumpValue::Bytes(&esec.sec_info[..]),
+                            None,
+                        )?;
+                    }
+                    Opt::Cipso(cipso) => {
+                        node.add_field("Commercial Security", DumpValue::Bytes(&cipso[..]), None)?
+                    }
+                    Opt::Rr(rr) => {
+                        let mut node = node.add_node("Route Record", None)?;
+                        node.add_field("Pointer", DumpValue::UInt(rr.pointer.into()), None)?;
+                        let mut list = node.add_list("Routes", None)?;
+                        for i in 0..rr.routes.len() {
+                            list.add_item(
+                                DumpValue::Bytes(&rr.routes[i][..]),
+                                Some(
+                                    &format!(
+                                        "{} {}",
+                                        if i == rr.pointer as usize { "->" } else { "  " },
+                                        rr.routes[i]
+                                    )[..],
+                                ),
+                            )?;
+                        }
+                    }
+                    Opt::Sid(sid) => {
+                        node.add_field("Stream ID", DumpValue::UInt(sid.0.into()), None)?
+                    }
+                    Opt::Ssrr(rr) => {
+                        let mut node = node.add_node("Strict Source Route Record", None)?;
+                        node.add_field("Pointer", DumpValue::UInt(rr.pointer.into()), None)?;
+                        let mut list = node.add_list("Routes", None)?;
+                        for i in 0..rr.routes.len() {
+                            list.add_item(
+                                DumpValue::Bytes(&rr.routes[i][..]),
+                                Some(
+                                    &format!(
+                                        "{} {}",
+                                        if i == rr.pointer as usize { "->" } else { "  " },
+                                        rr.routes[i]
+                                    )[..],
+                                ),
+                            )?;
+                        }
+                    }
+                    Opt::Zsu(zsu) => node.add_field(
+                        "Experimental Measurement",
+                        DumpValue::Bytes(&zsu[..]),
+                        None,
+                    )?,
+                    Opt::Mtup(mtu) => {
+                        node.add_field("MTU Probe", DumpValue::UInt(mtu.0.into()), None)?
+                    }
+                    Opt::Mtur(mtu) => {
+                        node.add_field("MTU Reply", DumpValue::UInt(mtu.0.into()), None)?
+                    }
+                    Opt::Finn(finn) => node.add_field(
+                        "Experimental Flow Control",
+                        DumpValue::Bytes(&finn[..]),
+                        None,
+                    )?,
+                    Opt::Visa(visa) => node.add_field(
+                        "Experimental Access Control",
+                        DumpValue::Bytes(&visa[..]),
+                        None,
+                    )?,
+                    Opt::Encode(encode) => {
+                        node.add_field("Encode", DumpValue::Bytes(&encode[..]), None)?
+                    }
+                    Opt::Imitd(imitd) => node.add_field(
+                        "IMI Traffic Descriptor",
+                        DumpValue::Bytes(&imitd[..]),
+                        None,
+                    )?,
+                    Opt::Eip(eip) => node.add_field(
+                        "Extended Internet Protocol",
+                        DumpValue::Bytes(&eip[..]),
+                        None,
+                    )?,
+                    Opt::Tr(tr) => {
+                        let mut node = node.add_node("Traceroute", None)?;
+                        node.add_field("ID", DumpValue::UInt(tr.id.into()), None)?;
+                        node.add_field(
+                            "Outbound Hop Count",
+                            DumpValue::UInt(tr.out_hops.into()),
+                            None,
+                        )?;
+                        node.add_field(
+                            "Return Hop Count",
+                            DumpValue::UInt(tr.return_hops.into()),
+                            None,
+                        )?;
+                        node.add_field(
+                            "Originator IP Address",
+                            DumpValue::Bytes(&tr.orig_addr[..]),
+                            Some(&format!("{}", tr.orig_addr)[..]),
+                        )?;
+                    }
+                    Opt::AddExt(ext) => {
+                        node.add_field("Address Extension", DumpValue::Bytes(&ext[..]), None)?
+                    }
+                    Opt::RtrAlt(ra) => {
+                        node.add_field("Router Alert", DumpValue::UInt(ra.0.into()), None)?
+                    }
+                    Opt::Sdb(sdb) => node.add_field(
+                        "Selective Directed Broadcast",
+                        DumpValue::Bytes(&sdb[..]),
+                        None,
+                    )?,
+                    Opt::Dps(dps) => {
+                        node.add_field("Dynamic Packet State", DumpValue::Bytes(&dps[..]), None)?
+                    }
+                    Opt::Ump(ump) => node.add_field(
+                        "Upstream Multicast Packet",
+                        DumpValue::Bytes(&ump[..]),
+                        None,
+                    )?,
+                    Opt::Qs(qs) => {
+                        let mut node = node.add_node("Quick Start", None)?;
+                        node.add_field("Function", DumpValue::UInt(qs.func.into()), None)?;
+                        node.add_field("Rate Request", DumpValue::UInt(qs.rate_req.into()), None)?;
+                        node.add_field("Time to Live", DumpValue::UInt(qs.ttl.into()), None)?;
+                        node.add_field("Nonce", DumpValue::UInt(qs.nonce.into()), None)?;
+                    }
+                    Opt::Raw(opt) => {
+                        let mut node = node.add_node("Unknown Option", None)?;
+                        {
+                            let mut node = node.add_node(
+                                "Type",
+                                Some(&format!("{}", u8::from(opt.opt_type))[..]),
+                            )?;
+                            node.add_field("Copied", DumpValue::Bool(opt.opt_type.copied()), None)?;
+                            node.add_field(
+                                "Class",
+                                DumpValue::UInt(uint::U2::from(opt.opt_type.class()).into()),
+                                Some(match opt.opt_type.class() {
+                                    OptionClass::DebugMeas => "Debug and Measurement (0)",
+                                    OptionClass::Control => "Control (2)",
+                                    OptionClass::Reserved(val) if u8::from(val) == 1 => {
+                                        "Reserved (1)"
+                                    }
+                                    _ => "Reserved (3)",
+                                }),
+                            )?;
+                            node.add_field(
+                                "Number",
+                                DumpValue::UInt(opt.opt_type.number().into()),
+                                None,
+                            )?;
+                        }
+                        if opt.len.is_some() || !opt.data.is_empty() {
+                            node.add_field(
+                                "Length",
+                                DumpValue::UInt(opt.len.unwrap_or(0).into()),
+                                None,
+                            )?;
+                            node.add_field("Data", DumpValue::Bytes(&opt.data[..]), None)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn make_canonical(&mut self) {
@@ -1011,3 +1814,12 @@ impl Default for IPv4 {
         Self::new()
     }
 }
+
+use super::ethernet_ii::{Ethertype, EthertypeDissectorTable};
+register_dissector!(
+    ipv4,
+    EthertypeDissectorTable,
+    Ethertype::IPV4,
+    Priority(0),
+    IPv4::dissect
+);
