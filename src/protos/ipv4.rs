@@ -855,21 +855,19 @@ impl Opt {
     pub fn to_raw(&self) -> RawOption {
         if let Opt::Raw(raw) = self {
             raw.clone()
+        } else if let Some(len) = self.length() {
+            let mut data = Vec::new();
+            self.serialize_data(&mut data).unwrap();
+            RawOption {
+                opt_type: self.option_type(),
+                len: Some(len),
+                data,
+            }
         } else {
-            if let Some(len) = self.length() {
-                let mut data = Vec::new();
-                self.serialize_data(&mut data).unwrap();
-                RawOption {
-                    opt_type: self.option_type(),
-                    len: Some(len),
-                    data,
-                }
-            } else {
-                RawOption {
-                    opt_type: self.option_type(),
-                    len: None,
-                    data: Vec::new(),
-                }
+            RawOption {
+                opt_type: self.option_type(),
+                len: None,
+                data: Vec::new(),
             }
         }
     }
