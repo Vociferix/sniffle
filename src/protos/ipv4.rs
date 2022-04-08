@@ -1350,15 +1350,7 @@ impl IPv4 {
     }
 }
 
-impl PDU for IPv4 {
-    fn base_pdu(&self) -> &BasePDU {
-        &self.base
-    }
-
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
-        &mut self.base
-    }
-
+impl Dissect for IPv4 {
     fn dissect<'a>(
         mut buf: &'a [u8],
         session: &Session,
@@ -1476,6 +1468,16 @@ impl PDU for IPv4 {
         }
 
         Ok((buf, ipv4))
+    }
+}
+
+impl PDU for IPv4 {
+    fn base_pdu(&self) -> &BasePDU {
+        &self.base
+    }
+
+    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+        &mut self.base
     }
 
     fn header_len(&self) -> usize {

@@ -7,6 +7,14 @@ pub struct Priority(pub i32);
 pub use sniffle_ende::decode::DResult;
 pub use sniffle_ende::decode::DecodeError as DissectError;
 
+pub trait Dissect: PDU {
+    fn dissect<'a>(
+        buf: &'a [u8],
+        session: &Session,
+        parent: Option<TempPDU<'_>>,
+    ) -> DResult<'a, Self>;
+}
+
 pub trait Dissector {
     type Out: PDU;
 

@@ -1,4 +1,4 @@
-use super::{DResult, DissectError, Dump, NodeDumper, Session};
+use super::{Dump, NodeDumper};
 use sniffle_ende::encode::Encoder;
 use std::any::Any;
 
@@ -24,14 +24,6 @@ pub trait PDU: 'static + Any + Clone + std::fmt::Debug + Send + Sync {
     #[doc(hidden)]
     unsafe fn unsafe_pdu_type(&self) -> PDUType {
         self.type_id()
-    }
-
-    fn dissect<'a>(
-        _buf: &'a [u8],
-        _session: &Session,
-        _parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, Self> {
-        Err(sniffle_ende::nom::Err::Failure(DissectError::Malformed))
     }
 
     fn header_len(&self) -> usize;

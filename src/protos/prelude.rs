@@ -3,8 +3,8 @@
 pub use crate::{
     decode::{Decode, DecodeBE, DecodeLE},
     dissect::{
-        dissector_table, register_dissector, register_dissector_table, DResult, DissectError,
-        Priority, Session,
+        dissector_table, register_dissector, register_dissector_table, DResult, Dissect,
+        DissectError, Priority, Session,
     },
     dump::{Dump, DumpValue, ListDumper, NodeDumper},
     encode::Encoder,

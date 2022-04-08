@@ -1,5 +1,6 @@
-use super::{BasePDU, DResult, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
+use super::{BasePDU, DResult, Dissect, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
 use sniffle_ende::encode::Encoder;
+use sniffle_ende::nom::combinator::{map, rest};
 
 #[derive(Debug)]
 pub struct RawPDU {
@@ -33,6 +34,19 @@ impl Clone for RawPDU {
     }
 }
 
+impl Dissect for RawPDU {
+    fn dissect<'a>(
+        buf: &'a [u8],
+        _session: &Session,
+        _parent: Option<TempPDU<'_>>,
+    ) -> DResult<'a, Self> {
+        map(rest, |buf| Self {
+            base: BasePDU::default(),
+            data: Vec::from(buf),
+        })(buf)
+    }
+}
+
 impl PDU for RawPDU {
     fn base_pdu(&self) -> &BasePDU {
         &self.base
@@ -44,20 +58,6 @@ impl PDU for RawPDU {
 
     fn header_len(&self) -> usize {
         self.data.len()
-    }
-
-    fn dissect<'a>(
-        buf: &'a [u8],
-        _session: &Session,
-        _parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, Self> {
-        Ok((
-            &buf[buf.len()..],
-            Self {
-                base: BasePDU::default(),
-                data: Vec::from(buf),
-            },
-        ))
     }
 
     fn serialize_header<'a, W: Encoder<'a> + ?Sized>(

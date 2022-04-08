@@ -119,15 +119,7 @@ impl EthernetII {
 
 const PADDING: [u8; 46] = [0u8; 46];
 
-impl PDU for EthernetII {
-    fn base_pdu(&self) -> &BasePDU {
-        &self.base
-    }
-
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
-        &mut self.base
-    }
-
+impl Dissect for EthernetII {
     fn dissect<'a>(
         buf: &'a [u8],
         session: &Session,
@@ -196,6 +188,16 @@ impl PDU for EthernetII {
             }
         }
         Ok((buf, eth))
+    }
+}
+
+impl PDU for EthernetII {
+    fn base_pdu(&self) -> &BasePDU {
+        &self.base
+    }
+
+    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+        &mut self.base
     }
 
     fn header_len(&self) -> usize {

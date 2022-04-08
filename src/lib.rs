@@ -26,7 +26,7 @@ pub mod dissect {
     #[doc(inline)]
     pub use sniffle_core::{
         dissector_table, register_dissector, register_dissector_table, AnyDissector, DResult,
-        DissectError, Dissector, DissectorTable, Priority, Session,
+        Dissect, DissectError, Dissector, DissectorTable, Priority, Session,
     };
 }
 
