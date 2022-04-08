@@ -12,7 +12,7 @@ pub trait Dissector {
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self::Out>;
 }
 
@@ -35,15 +35,10 @@ pub trait DissectorTable: Default {
         param: &Self::Param,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Option<AnyPDU>> {
-        let mut parent = parent;
         for dissector in self.find(param).unwrap_or(&[]) {
-            let parent: Option<&mut TempPDU<'_>> = match &mut parent {
-                Some(parent) => Some(*parent),
-                None => None,
-            };
-            match Dissector::dissect(dissector, buffer, session, parent) {
+            match Dissector::dissect(dissector, buffer, session, parent.clone()) {
                 Ok((buf, pdu)) => {
                     return Ok((buf, Some(pdu)));
                 }
@@ -70,7 +65,7 @@ pub trait DissectorTable: Default {
         param: &Self::Param,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, AnyPDU> {
         let (buf, opt) = self.dissect(param, buffer, session, parent)?;
         match opt {
@@ -90,7 +85,7 @@ impl Dissector for AnyDissector {
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self::Out> {
         self.0.dissect(buffer, session, parent)
     }
@@ -99,7 +94,7 @@ impl Dissector for AnyDissector {
 impl<F, P> Dissector for F
 where
     P: PDU,
-    F: for<'a> Fn(&'a [u8], &Session, Option<&mut TempPDU<'_>>) -> DResult<'a, P>,
+    F: for<'a> Fn(&'a [u8], &Session, Option<TempPDU<'_>>) -> DResult<'a, P>,
 {
     type Out = P;
 
@@ -107,7 +102,7 @@ where
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self::Out> {
         self(buffer, session, parent)
     }
@@ -122,7 +117,7 @@ impl<D: Dissector> Dissector for DissectorAdapter<D> {
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self::Out> {
         self.0
             .dissect(buffer, session, parent)

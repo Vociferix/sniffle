@@ -131,7 +131,7 @@ impl PDU for EthernetII {
     fn dissect<'a>(
         buf: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
         let (buf, mut eth) = map(
             tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
@@ -145,14 +145,19 @@ impl PDU for EthernetII {
         )(buf)?;
         let before = buf.len();
         let ethertype = eth.ethertype();
-        let mut tmp = TempPDU::new_with_parent(parent, &mut eth);
-        let (buf, inner) =
-            session.table_dissect::<EthertypeDissectorTable>(&ethertype, buf, Some(&mut tmp))?;
+        let (buf, inner) = session.table_dissect::<EthertypeDissectorTable>(
+            &ethertype,
+            buf,
+            Some(TempPDU::new(&eth, &parent)),
+        )?;
         let (buf, inner) = match inner {
             Some(inner) => (buf, inner),
-            None => session.table_dissect_or_raw::<HeurDissectorTable>(&(), buf, Some(&mut tmp))?,
+            None => session.table_dissect_or_raw::<HeurDissectorTable>(
+                &(),
+                buf,
+                Some(TempPDU::new(&eth, &parent)),
+            )?,
         };
-        drop(tmp);
         eth.set_inner_pdu(inner);
         let inner_len = before - buf.len();
         let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };

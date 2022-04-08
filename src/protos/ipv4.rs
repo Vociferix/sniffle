@@ -1356,7 +1356,7 @@ impl PDU for IPv4 {
     fn dissect<'a>(
         mut buf: &'a [u8],
         session: &Session,
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
         let (rem_buf, mut ipv4) = flat_map(
             tuple((
@@ -1452,16 +1452,19 @@ impl PDU for IPv4 {
         buf = &rem_buf[..(ipv4.totlen as usize - (buf.len() - rem_buf.len()))];
         if !buf.is_empty() {
             let proto = ipv4.proto;
-            let mut tmp = TempPDU::new_with_parent(parent, &mut ipv4);
-            let (tmp_buf, inner) =
-                session.table_dissect::<IPProtoDissectorTable>(&proto, buf, Some(&mut tmp))?;
+            let (tmp_buf, inner) = session.table_dissect::<IPProtoDissectorTable>(
+                &proto,
+                buf,
+                Some(TempPDU::new(&ipv4, &parent)),
+            )?;
             let (tmp_buf, inner) = match inner {
                 Some(inner) => (tmp_buf, inner),
-                None => {
-                    session.table_dissect_or_raw::<HeurDissectorTable>(&(), buf, Some(&mut tmp))?
-                }
+                None => session.table_dissect_or_raw::<HeurDissectorTable>(
+                    &(),
+                    buf,
+                    Some(TempPDU::new(&ipv4, &parent)),
+                )?,
             };
-            drop(tmp);
             ipv4.set_inner_pdu(inner);
             buf = tmp_buf;
         }

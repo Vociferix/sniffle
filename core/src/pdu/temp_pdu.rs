@@ -1,67 +1,98 @@
-use super::{fake_any_pdu, AnyPDU, DynPDU, PDUExt, PDU};
+use super::{AnyPDU, DynPDU, PDUExt, PDU};
+use std::marker::PhantomData;
 
 pub struct TempPDU<'a> {
     pdu: Option<AnyPDU>,
-    _marker: std::marker::PhantomData<&'a dyn DynPDU>,
+    parent: Option<&'a TempPDU<'a>>,
+    _marker: PhantomData<&'a (dyn DynPDU + Send + Sync + 'static)>,
 }
 
 impl<'a> TempPDU<'a> {
-    pub fn new<P: PDU>(pdu: &'a mut P) -> Self {
+    pub fn new<'b, 'c, P: PDU>(pdu: &'a P, parent: &'b Option<TempPDU<'c>>) -> Self
+    where
+        'b: 'a,
+        'c: 'a,
+    {
+        let pdu: &'a (dyn DynPDU + Send + Sync + 'static) = pdu;
+        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
         Self {
-            pdu: Some(unsafe { fake_any_pdu(pdu) }),
-            _marker: std::marker::PhantomData,
+            pdu: Some(unsafe {
+                AnyPDU {
+                    pdu: Box::from_raw(std::mem::transmute(pdu)),
+                }
+            }),
+            parent: parent.as_ref(),
+            _marker: PhantomData,
         }
     }
 
-    pub fn new_with_parent<P: PDU>(parent: Option<&mut TempPDU<'_>>, pdu: &'a mut P) -> Self {
-        match parent {
-            Some(parent) => parent.push_inner(pdu),
-            None => Self::new(pdu),
+    pub fn append<'b, 'c, P: PDU>(&'b self, pdu: &'c P) -> TempPDU<'c>
+    where
+        'a: 'c,
+        'b: 'c,
+    {
+        let pdu: &'c (dyn DynPDU + Send + Sync + 'static) = pdu;
+        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
+        TempPDU {
+            pdu: Some(unsafe {
+                AnyPDU {
+                    pdu: Box::from_raw(std::mem::transmute(pdu)),
+                }
+            }),
+            parent: Some(self),
+            _marker: PhantomData,
         }
     }
 
-    fn pdu_mut(&mut self) -> &mut AnyPDU {
-        self.pdu
-            .as_mut()
-            .expect("internal sniffle error: TempPDU should never be null")
+    pub fn parent(&self) -> Option<&'a TempPDU<'a>> {
+        self.parent
     }
 
-    pub fn push_inner<'b, P: PDU>(&mut self, pdu: &'b mut P) -> TempPDU<'b> {
-        self.pop_inner();
-        pdu.base_pdu_mut().parent = self.pdu.as_mut().map(|pdu| unsafe { fake_any_pdu(pdu) });
-        let _ = std::mem::replace(
-            &mut self.pdu_mut().base_pdu_mut().inner,
-            Some(unsafe { fake_any_pdu(pdu) }),
-        );
-        TempPDU::new(pdu)
+    pub fn pdu(&self) -> &AnyPDU {
+        self.pdu.as_ref().unwrap()
     }
 
-    pub fn pop_inner(&mut self) {
-        if let Some(mut pdu) = std::mem::replace(&mut self.pdu_mut().base_pdu_mut().inner, None) {
-            if let Some(parent) = std::mem::replace(&mut pdu.base_pdu_mut().parent, None) {
-                let _ = Box::into_raw(parent.pdu);
+    pub fn find_pdu<P: PDU>(&self) -> Option<&P> {
+        match self.pdu.as_ref().unwrap().downcast_ref::<P>() {
+            Some(pdu) => Some(pdu),
+            None => match self.parent {
+                Some(parent) => parent.find_pdu::<P>(),
+                None => None,
+            },
+        }
+    }
+
+    pub fn find_temp_pdu<P: PDU>(&self) -> Option<&TempPDU<'a>> {
+        if self.pdu.as_ref().unwrap().is::<P>() {
+            Some(self)
+        } else {
+            match self.parent {
+                Some(parent) => parent.find_temp_pdu::<P>(),
+                None => None,
             }
-            let _ = Box::into_raw(pdu.pdu);
         }
     }
 }
 
-impl<'a> std::ops::Deref for TempPDU<'a> {
-    type Target = AnyPDU;
-
-    fn deref(&self) -> &Self::Target {
-        self.pdu
-            .as_ref()
-            .expect("internal sniffle error: TempPDU should never be null")
+impl<'a> Clone for TempPDU<'a> {
+    fn clone(&self) -> Self {
+        let pdu: &(dyn DynPDU + Send + Sync + 'static) = &*self.pdu.as_ref().unwrap().pdu;
+        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
+        Self {
+            pdu: Some(unsafe {
+                AnyPDU {
+                    pdu: Box::from_raw(std::mem::transmute(pdu)),
+                }
+            }),
+            parent: self.parent,
+            _marker: PhantomData,
+        }
     }
 }
 
 impl<'a> Drop for TempPDU<'a> {
     fn drop(&mut self) {
-        if let Some(pdu) = self.pdu_mut().take_inner_pdu() {
-            let _ = Box::into_raw(pdu.pdu);
-        }
-        if let Some(pdu) = std::mem::replace(&mut self.pdu, None) {
+        if let Some(pdu) = self.pdu.take() {
             let _ = Box::into_raw(pdu.pdu);
         }
     }

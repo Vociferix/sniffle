@@ -117,7 +117,7 @@ impl Session {
         &self,
         param: &T::Param,
         buffer: &'a [u8],
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Option<AnyPDU>> {
         self.get::<T>()
             .map(|table| table.dissect(param, buffer, self, parent))
@@ -128,7 +128,7 @@ impl Session {
         &self,
         param: &T::Param,
         buffer: &'a [u8],
-        parent: Option<&mut TempPDU<'_>>,
+        parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, AnyPDU> {
         self.get::<T>()
             .map(|table| table.dissect_or_raw(param, buffer, self, parent))

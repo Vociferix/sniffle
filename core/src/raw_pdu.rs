@@ -49,7 +49,7 @@ impl PDU for RawPDU {
     fn dissect<'a>(
         buf: &'a [u8],
         _session: &Session,
-        _parent: Option<&mut TempPDU<'_>>,
+        _parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
         Ok((
             &buf[buf.len()..],

@@ -33,7 +33,7 @@ pub trait PDU: 'static + Any + Clone + std::fmt::Debug + Send + Sync {
     fn dissect<'a>(
         _buf: &'a [u8],
         _session: &Session,
-        _parent: Option<&mut TempPDU<'_>>,
+        _parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
         Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported))
     }
