@@ -1,5 +1,7 @@
 use super::{AnyPDU, RawPDU, Session, TempPDU, PDU};
-use sniffle_ende::nom;
+use sniffle_ende::decode::Decode;
+use sniffle_ende::nom::{self, combinator::map, Parser};
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Priority(pub i32);
@@ -13,6 +15,20 @@ pub trait Dissect: PDU {
         session: &Session,
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self>;
+
+    fn dissector<'a>(session: &'a Session, parent: Option<TempPDU<'a>>) -> DissectParser<'a, Self> {
+        DissectParser {
+            session,
+            parent,
+            _marker: PhantomData,
+        }
+    }
+}
+
+pub struct DissectParser<'a, D: Dissect> {
+    session: &'a Session,
+    parent: Option<TempPDU<'a>>,
+    _marker: PhantomData<fn(D) -> D>,
 }
 
 pub trait Dissector {
@@ -28,6 +44,13 @@ pub trait Dissector {
 
 pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + Send + Sync + 'static>);
 
+pub struct DissectorTableParser<'a, T: DissectorTable> {
+    table: Option<&'a T>,
+    param: &'a T::Param,
+    session: &'a Session,
+    parent: Option<TempPDU<'a>>,
+}
+
 pub trait DissectorTable: Default {
     type Param;
 
@@ -40,25 +63,28 @@ pub trait DissectorTable: Default {
 
     fn find(&self, param: &Self::Param) -> Option<&[AnyDissector]>;
 
+    fn dissector<'a>(
+        &'a self,
+        param: &'a Self::Param,
+        session: &'a Session,
+        parent: Option<TempPDU<'a>>,
+    ) -> DissectorTableParser<'a, Self> {
+        DissectorTableParser {
+            table: Some(self),
+            param,
+            session,
+            parent,
+        }
+    }
+
     fn dissect<'a>(
         &self,
         param: &Self::Param,
         buffer: &'a [u8],
         session: &Session,
         parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, Option<AnyPDU>> {
-        for dissector in self.find(param).unwrap_or(&[]) {
-            match Dissector::dissect(dissector, buffer, session, parent.clone()) {
-                Ok((buf, pdu)) => {
-                    return Ok((buf, Some(pdu)));
-                }
-                Err(nom::Err::Failure(e)) => {
-                    return Err(nom::Err::Failure(e));
-                }
-                _ => {}
-            }
-        }
-        Ok((buffer, None))
+    ) -> DResult<'a, AnyPDU> {
+        self.dissector(param, session, parent).parse(buffer)
     }
 
     fn dissect_or_raw<'a>(
@@ -68,13 +94,50 @@ pub trait DissectorTable: Default {
         session: &Session,
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, AnyPDU> {
-        let (buf, opt) = self.dissect(param, buffer, session, parent)?;
-        match opt {
-            Some(pdu) => Ok((buf, pdu)),
-            None => Ok((
-                &buffer[buffer.len()..],
-                AnyPDU::new(RawPDU::new(Vec::from(buffer))),
-            )),
+        self.dissector(param, session, parent)
+            .or(map(RawPDU::decode, AnyPDU::new))
+            .parse(buffer)
+    }
+}
+
+impl<'a, 'b, D: Dissect> Parser<&'a [u8], D, DissectError<'a>> for DissectParser<'b, D> {
+    fn parse(&mut self, input: &'a [u8]) -> DResult<'a, D> {
+        D::dissect(input, self.session, self.parent.clone())
+    }
+}
+
+impl<'a, 'b, T: DissectorTable> Parser<&'a [u8], AnyPDU, DissectError<'a>>
+    for DissectorTableParser<'b, T>
+{
+    fn parse(&mut self, input: &'a [u8]) -> DResult<'a, AnyPDU> {
+        if let Some(table) = self.table {
+            for dissector in table.find(self.param).unwrap_or(&[]) {
+                match Dissector::dissect(dissector, input, self.session, self.parent.clone()) {
+                    Ok((buf, pdu)) => {
+                        return Ok((buf, pdu));
+                    }
+                    Err(nom::Err::Failure(e)) => {
+                        return Err(nom::Err::Failure(e));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(nom::Err::Error(DissectError::Malformed))
+    }
+}
+
+impl<'a, T: DissectorTable> DissectorTableParser<'a, T> {
+    pub fn null_parser(
+        param: &'a T::Param,
+        session: &'a Session,
+        parent: Option<TempPDU<'a>>,
+    ) -> Self {
+        Self {
+            table: None,
+            param,
+            session,
+            parent,
         }
     }
 }

@@ -147,7 +147,7 @@ impl<S: SniffRaw> Sniff for Sniffer<S> {
                     info.snaplen = snaplen;
                 });
                 match session.table_dissect::<LinkTypeTable>(&datalink, data, None) {
-                    Ok((_rem, Some(pdu))) => {
+                    Ok((_rem, pdu)) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))
                     }
                     _ => Ok(Some(Packet::new(

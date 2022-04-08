@@ -1,10 +1,12 @@
 use super::{
-    AnyPDU, BasePDU, DResult, Device, Dissector, DissectorTable, Dump, NodeDumper, PDUExt,
-    Priority, RawPDU, TempPDU, PDU,
+    AnyPDU, BasePDU, DResult, Device, Dissector, DissectorTable, DissectorTableParser, Dump,
+    NodeDumper, PDUExt, Priority, RawPDU, TempPDU, PDU,
 };
 use lazy_static::*;
 use parking_lot::{Mutex, RwLock};
+use sniffle_ende::decode::Decode;
 use sniffle_ende::encode::Encoder;
+use sniffle_ende::nom::{combinator::map, Parser};
 use std::{
     any::{Any, TypeId},
     collections::{HashMap, VecDeque},
@@ -112,15 +114,24 @@ impl Session {
             .expect("Requested dissector table is not loaded");
     }
 
+    pub fn table_dissector<'a, T: DissectorTable + Send + Sync + 'static>(
+        &'a self,
+        param: &'a T::Param,
+        parent: Option<TempPDU<'a>>,
+    ) -> DissectorTableParser<'a, T> {
+        match self.get::<T>() {
+            Some(table) => table.dissector(param, self, parent),
+            None => DissectorTableParser::null_parser(param, self, parent),
+        }
+    }
+
     pub fn table_dissect<'a, T: DissectorTable + Send + Sync + 'static>(
         &self,
         param: &T::Param,
         buffer: &'a [u8],
         parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, Option<AnyPDU>> {
-        self.get::<T>()
-            .map(|table| table.dissect(param, buffer, self, parent))
-            .unwrap_or(Ok((buffer, None)))
+    ) -> DResult<'a, AnyPDU> {
+        self.table_dissector::<T>(param, parent).parse(buffer)
     }
 
     pub fn table_dissect_or_raw<'a, T: DissectorTable + Send + Sync + 'static>(
@@ -129,14 +140,9 @@ impl Session {
         buffer: &'a [u8],
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, AnyPDU> {
-        self.get::<T>()
-            .map(|table| table.dissect_or_raw(param, buffer, self, parent))
-            .unwrap_or_else(|| {
-                Ok((
-                    &buffer[buffer.len()..],
-                    AnyPDU::new(RawPDU::new(Vec::from(buffer))),
-                ))
-            })
+        self.table_dissector::<T>(param, parent)
+            .or(map(RawPDU::decode, AnyPDU::new))
+            .parse(buffer)
     }
 
     pub fn enqueue_virtual_packet<P: PDU + Send + Sync + 'static>(&self, packet: P) {

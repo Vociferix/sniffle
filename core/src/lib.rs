@@ -34,7 +34,8 @@ pub use device_injector::DeviceInjector;
 pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, DeviceTSType};
 
 pub use dissection::{
-    AnyDissector, DResult, Dissect, DissectError, Dissector, DissectorTable, Priority,
+    AnyDissector, DResult, Dissect, DissectError, DissectParser, Dissector, DissectorTable,
+    DissectorTableParser, Priority,
 };
 
 pub use dump::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};

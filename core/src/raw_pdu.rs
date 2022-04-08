@@ -1,4 +1,5 @@
 use super::{BasePDU, DResult, Dissect, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
+use sniffle_ende::decode::Decode;
 use sniffle_ende::encode::Encoder;
 use sniffle_ende::nom::combinator::{map, rest};
 
@@ -34,16 +35,22 @@ impl Clone for RawPDU {
     }
 }
 
+impl Decode for RawPDU {
+    fn decode(buf: &[u8]) -> DResult<'_, Self> {
+        map(rest, |buf| Self {
+            base: BasePDU::default(),
+            data: Vec::from(buf),
+        })(buf)
+    }
+}
+
 impl Dissect for RawPDU {
     fn dissect<'a>(
         buf: &'a [u8],
         _session: &Session,
         _parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
-        map(rest, |buf| Self {
-            base: BasePDU::default(),
-            data: Vec::from(buf),
-        })(buf)
+        Self::decode(buf)
     }
 }
 

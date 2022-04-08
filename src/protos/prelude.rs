@@ -8,8 +8,9 @@ pub use crate::{
     },
     dump::{Dump, DumpValue, ListDumper, NodeDumper},
     encode::Encoder,
-    nom,
-    pdu::{BasePDU, PDUExt, TempPDU, PDU},
+    nom::{self, Parser},
+    pdu::{AnyPDU, BasePDU, PDUExt, TempPDU, PDU},
+    protos::RawPDU,
     sniff::{register_link_layer_pdu, LinkType, LinkTypeTable},
     uint::{self, FromMasked, IntoMasked},
 };

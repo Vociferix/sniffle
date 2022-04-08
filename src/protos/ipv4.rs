@@ -1450,19 +1450,15 @@ impl Dissect for IPv4 {
         buf = &rem_buf[..(ipv4.totlen as usize - (buf.len() - rem_buf.len()))];
         if !buf.is_empty() {
             let proto = ipv4.proto;
-            let (tmp_buf, inner) = session.table_dissect::<IPProtoDissectorTable>(
-                &proto,
-                buf,
-                Some(TempPDU::new(&ipv4, &parent)),
-            )?;
-            let (tmp_buf, inner) = match inner {
-                Some(inner) => (tmp_buf, inner),
-                None => session.table_dissect_or_raw::<HeurDissectorTable>(
-                    &(),
-                    buf,
+            let (tmp_buf, inner) = session
+                .table_dissector::<IPProtoDissectorTable>(
+                    &proto,
                     Some(TempPDU::new(&ipv4, &parent)),
-                )?,
-            };
+                )
+                .or(session
+                    .table_dissector::<HeurDissectorTable>(&(), Some(TempPDU::new(&ipv4, &parent))))
+                .or(map(RawPDU::decode, AnyPDU::new))
+                .parse(buf)?;
             ipv4.set_inner_pdu(inner);
             buf = tmp_buf;
         }

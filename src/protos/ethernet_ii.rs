@@ -137,19 +137,15 @@ impl Dissect for EthernetII {
         )(buf)?;
         let before = buf.len();
         let ethertype = eth.ethertype();
-        let (buf, inner) = session.table_dissect::<EthertypeDissectorTable>(
-            &ethertype,
-            buf,
-            Some(TempPDU::new(&eth, &parent)),
-        )?;
-        let (buf, inner) = match inner {
-            Some(inner) => (buf, inner),
-            None => session.table_dissect_or_raw::<HeurDissectorTable>(
-                &(),
-                buf,
+        let (buf, inner) = session
+            .table_dissector::<EthertypeDissectorTable>(
+                &ethertype,
                 Some(TempPDU::new(&eth, &parent)),
-            )?,
-        };
+            )
+            .or(session
+                .table_dissector::<HeurDissectorTable>(&(), Some(TempPDU::new(&eth, &parent))))
+            .or(map(RawPDU::decode, AnyPDU::new))
+            .parse(buf)?;
         eth.set_inner_pdu(inner);
         let inner_len = before - buf.len();
         let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };
