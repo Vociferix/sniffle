@@ -1,9 +1,5 @@
-use super::Session;
-use super::{Dump, NodeDumper};
-use sniffle_ende::{
-    decode::{DResult, DecodeError},
-    encode::Encoder,
-};
+use super::{DResult, DissectError, Dump, NodeDumper, Session};
+use sniffle_ende::encode::Encoder;
 use std::any::Any;
 
 mod any_pdu;
@@ -35,7 +31,7 @@ pub trait PDU: 'static + Any + Clone + std::fmt::Debug + Send + Sync {
         _session: &Session,
         _parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
-        Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported))
+        Err(sniffle_ende::nom::Err::Failure(DissectError::Malformed))
     }
 
     fn header_len(&self) -> usize;

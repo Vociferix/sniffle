@@ -1,5 +1,5 @@
-use super::{BasePDU, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
-use sniffle_ende::{decode::DResult, encode::Encoder};
+use super::{BasePDU, DResult, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
+use sniffle_ende::encode::Encoder;
 
 #[derive(Debug)]
 pub struct RawPDU {

@@ -1,9 +1,11 @@
 use super::{AnyPDU, RawPDU, Session, TempPDU, PDU};
-use sniffle_ende::decode::{DResult, DecodeError};
 use sniffle_ende::nom;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Priority(pub i32);
+
+pub use sniffle_ende::decode::DResult;
+pub use sniffle_ende::decode::DecodeError as DissectError;
 
 pub trait Dissector {
     type Out: PDU;
@@ -42,19 +44,10 @@ pub trait DissectorTable: Default {
                 Ok((buf, pdu)) => {
                     return Ok((buf, Some(pdu)));
                 }
-                Err(e) => match e {
-                    nom::Err::Incomplete(_) => {}
-                    nom::Err::Failure(e) => {
-                        return Err(nom::Err::Failure(e));
-                    }
-                    nom::Err::Error(e) => match e {
-                        DecodeError::Malformed => {}
-                        DecodeError::NotSupported => {
-                            return Err(nom::Err::Failure(DecodeError::NotSupported));
-                        }
-                        _ => {}
-                    },
-                },
+                Err(nom::Err::Failure(e)) => {
+                    return Err(nom::Err::Failure(e));
+                }
+                _ => {}
             }
         }
         Ok((buffer, None))

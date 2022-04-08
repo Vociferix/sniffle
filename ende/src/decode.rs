@@ -1,5 +1,5 @@
 use super::*;
-use nom::combinator::map;
+use nom::number::streaming as num;
 use nom::{error::ParseError, IResult};
 use std::mem::MaybeUninit;
 
@@ -7,7 +7,6 @@ use std::mem::MaybeUninit;
 #[non_exhaustive]
 pub enum DecodeError<'a> {
     Nom(nom::error::Error<&'a [u8]>),
-    NotSupported,
     Malformed,
 }
 
@@ -189,15 +188,7 @@ pub unsafe fn cast<T>(buf: &[u8]) -> DResult<'_, T> {
 
 impl Decode for u8 {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        if buf.is_empty() {
-            unsafe {
-                Err(nom::Err::Incomplete(nom::Needed::Size(
-                    std::num::NonZeroUsize::new_unchecked(1),
-                )))
-            }
-        } else {
-            Ok((&buf[1..], buf[0]))
-        }
+        num::u8(buf)
     }
 
     fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -207,7 +198,7 @@ impl Decode for u8 {
 
 impl Decode for i8 {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(u8::decode, |val| i8::from_ne_bytes([val]))(buf)
+        num::i8(buf)
     }
 
     fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -216,12 +207,10 @@ impl Decode for i8 {
 }
 
 macro_rules! make_decode {
-    ($t:ty) => {
+    ($t:ty, $be_func:ident, $le_func:ident) => {
         impl DecodeBE for $t {
             fn decode_be(buf: &[u8]) -> DResult<'_, Self> {
-                map(<[u8; std::mem::size_of::<Self>()]>::decode, |bytes| {
-                    Self::from_be_bytes(bytes)
-                })(buf)
+                num::$be_func(buf)
             }
 
             fn decode_many_be<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -243,9 +232,7 @@ macro_rules! make_decode {
 
         impl DecodeLE for $t {
             fn decode_le(buf: &[u8]) -> DResult<'_, Self> {
-                map(<[u8; std::mem::size_of::<Self>()]>::decode, |bytes| {
-                    Self::from_le_bytes(bytes)
-                })(buf)
+                num::$le_func(buf)
             }
 
             fn decode_many_le<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -271,13 +258,13 @@ unsafe fn transmute<T, U>(x: T) -> U {
     std::ptr::read(std::mem::transmute::<_, *const U>(std::ptr::addr_of!(x)))
 }
 
-make_decode!(u16);
-make_decode!(u32);
-make_decode!(u64);
-make_decode!(u128);
-make_decode!(i16);
-make_decode!(i32);
-make_decode!(i64);
-make_decode!(i128);
-make_decode!(f32);
-make_decode!(f64);
+make_decode!(u16, be_u16, le_u16);
+make_decode!(u32, be_u32, le_u32);
+make_decode!(u64, be_u64, le_u64);
+make_decode!(u128, be_u128, le_u128);
+make_decode!(i16, be_i16, le_i16);
+make_decode!(i32, be_i32, le_i32);
+make_decode!(i64, be_i64, le_i64);
+make_decode!(i128, be_i128, le_i128);
+make_decode!(f32, be_f32, le_f32);
+make_decode!(f64, be_f64, le_f64);

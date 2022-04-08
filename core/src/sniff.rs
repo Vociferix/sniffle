@@ -1,5 +1,4 @@
 use super::{AnyPDU, Device, LinkType, LinkTypeTable, Packet, RawPDU, Session};
-use sniffle_ende::decode::DecodeError;
 use std::time::SystemTime;
 use thiserror::Error;
 
@@ -150,12 +149,6 @@ impl<S: SniffRaw> Sniff for Sniffer<S> {
                 match session.table_dissect::<LinkTypeTable>(&datalink, data, None) {
                     Ok((_rem, Some(pdu))) => {
                         Ok(Some(Packet::new(ts, pdu, Some(len), Some(snaplen), device)))
-                    }
-                    Err(sniffle_ende::nom::Err::Error(DecodeError::NotSupported)) => {
-                        panic!("Attempt to dissect PDU that doesn't support dissection")
-                    }
-                    Err(sniffle_ende::nom::Err::Failure(DecodeError::NotSupported)) => {
-                        panic!("Attempt to dissect PDU that doesn't support dissection")
                     }
                     _ => Ok(Some(Packet::new(
                         ts,

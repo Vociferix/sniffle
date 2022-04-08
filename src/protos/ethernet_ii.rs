@@ -134,7 +134,7 @@ impl PDU for EthernetII {
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
         let (buf, mut eth) = map(
-            tuple((decode::<MACAddress>, decode::<MACAddress>, decode_be::<u16>)),
+            tuple((MACAddress::decode, MACAddress::decode, u16::decode_be)),
             |hdr| Self {
                 base: BasePDU::default(),
                 dst_addr: hdr.0,

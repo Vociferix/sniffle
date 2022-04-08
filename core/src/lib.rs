@@ -33,7 +33,7 @@ pub use device_injector::DeviceInjector;
 #[cfg(feature = "pcaprs")]
 pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, DeviceTSType};
 
-pub use dissection::{AnyDissector, Dissector, DissectorTable, Priority};
+pub use dissection::{AnyDissector, DResult, DissectError, Dissector, DissectorTable, Priority};
 
 pub use dump::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};
 

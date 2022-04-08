@@ -4,8 +4,6 @@ use chrono::{offset::Utc, DateTime};
 use nom::{
     combinator::{all_consuming, flat_map, map, rest},
     multi::{fold_many0, length_value, many0},
-    number::complete::u8 as ubyte,
-    number::complete::{be_u16, be_u32},
     sequence::tuple,
     Parser,
 };
@@ -490,14 +488,14 @@ fn dissect_body<F: for<'a> FnMut(&'a [u8]) -> DResult<'a, Opt>>(
     opt_type: OptionType,
     f: F,
 ) -> DResult<'_, Opt> {
-    length_value(ubyte, all_consuming(f))
+    length_value(u8::decode, all_consuming(f))
         .or(move |buf| dissect_raw(buf, opt_type))
         .parse(buf)
 }
 
 fn dissect_sec(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Sec, |buf| {
-        ubyte
+        u8::decode
             .map(Classification::from)
             .and(rest.map(Vec::from))
             .map(|(classification, authority)| {
@@ -512,8 +510,8 @@ fn dissect_sec(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_lsrr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Lsrr, |buf| {
-        ubyte
-            .and(many0(decode::<IPv4Address>))
+        u8::decode
+            .and(many0(IPv4Address::decode))
             .map(|(pointer, routes)| Opt::Lsrr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -521,12 +519,12 @@ fn dissect_lsrr(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_ts(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Ts, |buf| {
-        flat_map(tuple((ubyte, ubyte)), |(pointer, of)| {
+        flat_map(tuple((u8::decode, u8::decode)), |(pointer, of)| {
             let (overflow, flag): (uint::U4, uint::U4) = uint::unpack!(of);
             let flag = TimestampFlag::from(flag);
             all_consuming(move |buf| match flag {
                 TimestampFlag::TsOnly | TimestampFlag::Unknown(_) => fold_many0(
-                    be_u32.map(|ts| {
+                    u32::decode_be.map(|ts| {
                         SystemTime::UNIX_EPOCH
                             .checked_add(Duration::from_millis(ts as u64))
                             .unwrap()
@@ -539,7 +537,7 @@ fn dissect_ts(buf: &[u8]) -> DResult<'_, Opt> {
                 )(buf),
                 TimestampFlag::AddrAndTs | TimestampFlag::PrespecifiedAddrs => {
                     fold_many0(
-                        (decode::<IPv4Address>).and(be_u32.map(|ts| {
+                        (IPv4Address::decode).and(u32::decode_be.map(|ts| {
                             SystemTime::UNIX_EPOCH
                                 .checked_add(Duration::from_millis(ts as u64))
                                 .unwrap()
@@ -568,7 +566,7 @@ fn dissect_ts(buf: &[u8]) -> DResult<'_, Opt> {
 fn dissect_esec(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::ESec, |buf| {
         map(
-            tuple((ubyte, map(rest, Vec::from))),
+            tuple((u8::decode, map(rest, Vec::from))),
             |(format, sec_info)| Opt::ESec(ExtendedSecurity { format, sec_info }),
         )(buf)
     })
@@ -582,8 +580,8 @@ fn dissect_cipso(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_rr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Rr, |buf| {
-        ubyte
-            .and(many0(decode::<IPv4Address>))
+        u8::decode
+            .and(many0(IPv4Address::decode))
             .map(|(pointer, routes)| Opt::Rr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -591,14 +589,14 @@ fn dissect_rr(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_sid(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Sid, |buf| {
-        map(be_u16, |sid| Opt::Sid(StreamId(sid)))(buf)
+        map(u16::decode_be, |sid| Opt::Sid(StreamId(sid)))(buf)
     })
 }
 
 fn dissect_ssrr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Ssrr, |buf| {
-        ubyte
-            .and(many0(decode::<IPv4Address>))
+        u8::decode
+            .and(many0(IPv4Address::decode))
             .map(|(pointer, routes)| Opt::Ssrr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -612,13 +610,13 @@ fn dissect_zsu(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_mtup(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Mtup, |buf| {
-        map(be_u16, |sid| Opt::Mtup(MTU(sid)))(buf)
+        map(u16::decode_be, |sid| Opt::Mtup(MTU(sid)))(buf)
     })
 }
 
 fn dissect_mtur(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Mtur, |buf| {
-        map(be_u16, |sid| Opt::Mtur(MTU(sid)))(buf)
+        map(u16::decode_be, |sid| Opt::Mtur(MTU(sid)))(buf)
     })
 }
 
@@ -655,7 +653,12 @@ fn dissect_eip(buf: &[u8]) -> DResult<'_, Opt> {
 fn dissect_tr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Tr, |buf| {
         map(
-            tuple((be_u16, be_u16, be_u16, decode::<IPv4Address>)),
+            tuple((
+                u16::decode_be,
+                u16::decode_be,
+                u16::decode_be,
+                IPv4Address::decode,
+            )),
             |(id, out_hops, return_hops, orig_addr)| {
                 Opt::Tr(Traceroute {
                     id,
@@ -676,7 +679,7 @@ fn dissect_addext(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_rtralt(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::RtrAlt, |buf| {
-        map(be_u16, |ra| Opt::RtrAlt(RouterAlert(ra)))(buf)
+        map(u16::decode_be, |ra| Opt::RtrAlt(RouterAlert(ra)))(buf)
     })
 }
 
@@ -700,17 +703,20 @@ fn dissect_ump(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_qs(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Qs, |buf| {
-        map(tuple((ubyte, ubyte, be_u32)), |(frr, ttl, nr)| {
-            let (func, rate_req): (uint::U4, uint::U4) = uint::unpack!(frr);
-            let (nonce, reserved): (uint::U30, uint::U2) = uint::unpack!(nr);
-            Opt::Qs(QuickStart {
-                func,
-                rate_req,
-                ttl,
-                nonce,
-                reserved,
-            })
-        })(buf)
+        map(
+            tuple((u8::decode, u8::decode, u32::decode_be)),
+            |(frr, ttl, nr)| {
+                let (func, rate_req): (uint::U4, uint::U4) = uint::unpack!(frr);
+                let (nonce, reserved): (uint::U30, uint::U2) = uint::unpack!(nr);
+                Opt::Qs(QuickStart {
+                    func,
+                    rate_req,
+                    ttl,
+                    nonce,
+                    reserved,
+                })
+            },
+        )(buf)
     })
 }
 
@@ -725,7 +731,7 @@ fn dissect_raw(buf: &[u8], opt_type: OptionType) -> DResult<'_, Opt> {
             }),
         ))
     } else {
-        ubyte
+        u8::decode
             .and(rest)
             .map(move |(len, data)| {
                 Opt::Raw(RawOption {
@@ -740,7 +746,7 @@ fn dissect_raw(buf: &[u8], opt_type: OptionType) -> DResult<'_, Opt> {
 
 impl Opt {
     pub fn dissect(buf: &[u8]) -> DResult<'_, Self> {
-        flat_map(map(ubyte, OptionType::from), |opt_type| {
+        flat_map(map(u8::decode, OptionType::from), |opt_type| {
             move |buf| match opt_type {
                 OptionType::Eool => Ok((buf, Opt::Eool)),
                 OptionType::Nop => Ok((buf, Opt::Nop)),
@@ -1360,16 +1366,16 @@ impl PDU for IPv4 {
     ) -> DResult<'a, Self> {
         let (rem_buf, mut ipv4) = flat_map(
             tuple((
-                ubyte,
-                ubyte,
-                be_u16,
-                be_u16,
-                be_u16,
-                ubyte,
-                ubyte,
-                be_u16,
-                decode::<IPv4Address>,
-                decode::<IPv4Address>,
+                u8::decode,
+                u8::decode,
+                u16::decode_be,
+                u16::decode_be,
+                u16::decode_be,
+                u8::decode,
+                u8::decode,
+                u16::decode_be,
+                IPv4Address::decode,
+                IPv4Address::decode,
             )),
             move |(vi, de, totlen, ident, ff, ttl, proto, chksum, src_addr, dst_addr)| {
                 let (version, ihl): (uint::U4, uint::U4) = uint::unpack!(vi);
@@ -1380,7 +1386,7 @@ impl PDU for IPv4 {
                 move |mut buf: &'a [u8]| {
                     let len: usize = (u32::from(ihl) * 4) as usize;
                     if len < 20 {
-                        return Err(nom::Err::Error(DecodeError::Malformed));
+                        return Err(nom::Err::Error(DissectError::Malformed));
                     } else if buf.len() < len - 20 {
                         return Err(nom::Err::Incomplete(nom::Needed::Size(
                             std::num::NonZeroUsize::new(len - 20 - buf.len()).unwrap(),
@@ -1396,7 +1402,7 @@ impl PDU for IPv4 {
                             fold_many0(
                                 move |tmp_buf: &'a [u8]| {
                                     if done {
-                                        return Err(nom::Err::Error(DecodeError::Malformed));
+                                        return Err(nom::Err::Error(DissectError::Malformed));
                                     }
                                     let (tmp_buf, opt) = Opt::dissect(tmp_buf)?;
                                     done = opt.option_type() == OptionType::Eool;
@@ -1447,7 +1453,7 @@ impl PDU for IPv4 {
         )(buf)?;
 
         if buf.len() < ipv4.totlen as usize {
-            return Err(nom::Err::Error(DecodeError::Malformed));
+            return Err(nom::Err::Error(DissectError::Malformed));
         }
         buf = &rem_buf[..(ipv4.totlen as usize - (buf.len() - rem_buf.len()))];
         if !buf.is_empty() {

@@ -1,10 +1,9 @@
 use super::{
-    AnyPDU, BasePDU, Device, Dissector, DissectorTable, Dump, NodeDumper, PDUExt, Priority, RawPDU,
-    TempPDU, PDU,
+    AnyPDU, BasePDU, DResult, Device, Dissector, DissectorTable, Dump, NodeDumper, PDUExt,
+    Priority, RawPDU, TempPDU, PDU,
 };
 use lazy_static::*;
 use parking_lot::{Mutex, RwLock};
-use sniffle_ende::decode::DResult;
 use sniffle_ende::encode::Encoder;
 use std::{
     any::{Any, TypeId},
