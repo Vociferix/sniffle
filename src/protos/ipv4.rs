@@ -2,7 +2,7 @@ use super::prelude::*;
 use crate::address::IPv4Address;
 use chrono::{offset::Utc, DateTime};
 use nom::{
-    combinator::{all_consuming, flat_map, map, rest},
+    combinator::{all_consuming, consumed, flat_map, map, rest},
     multi::{fold_many0, length_value, many0},
     sequence::tuple,
     Parser,
@@ -1352,118 +1352,141 @@ impl IPv4 {
 
 impl Dissect for IPv4 {
     fn dissect<'a>(
-        mut buf: &'a [u8],
+        buf: &'a [u8],
         session: &Session,
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
-        let (rem_buf, mut ipv4) = flat_map(
+        map(
             tuple((
-                u8::decode,
-                u8::decode,
-                u16::decode_be,
-                u16::decode_be,
-                u16::decode_be,
-                u8::decode,
-                u8::decode,
-                u16::decode_be,
-                IPv4Address::decode,
-                IPv4Address::decode,
+                consumed(flat_map(
+                    tuple((
+                        u8::decode,
+                        u8::decode,
+                        u16::decode_be,
+                        u16::decode_be,
+                        u16::decode_be,
+                        u8::decode,
+                        u8::decode,
+                        u16::decode_be,
+                        IPv4Address::decode,
+                        IPv4Address::decode,
+                    )),
+                    move |(vi, de, totlen, ident, ff, ttl, proto, chksum, src_addr, dst_addr)| {
+                        let (version, ihl): (uint::U4, uint::U4) = uint::unpack!(vi);
+                        let (dscp, ecn): (uint::U6, uint::U2) = uint::unpack!(de);
+                        let (flags, frag_offset): (uint::U3, uint::U13) = uint::unpack!(ff);
+                        let proto = IPProto(proto);
+
+                        move |mut buf: &'a [u8]| {
+                            let len: usize = (u32::from(ihl) * 4) as usize;
+                            if len < 20 {
+                                return Err(nom::Err::Error(DissectError::Malformed));
+                            } else if buf.len() < len - 20 {
+                                return Err(nom::Err::Incomplete(nom::Needed::Size(
+                                    std::num::NonZeroUsize::new(len - 20 - buf.len()).unwrap(),
+                                )));
+                            }
+
+                            let (opts, padding) = if len > 20 {
+                                let opt_len = len - 20;
+                                let opt_buf = &buf[..opt_len];
+                                buf = &buf[opt_len..];
+                                let mut done = false;
+                                tuple((
+                                    fold_many0(
+                                        move |tmp_buf: &'a [u8]| {
+                                            if done {
+                                                return Err(nom::Err::Error(
+                                                    DissectError::Malformed,
+                                                ));
+                                            }
+                                            let (tmp_buf, opt) = Opt::dissect(tmp_buf)?;
+                                            done = opt.option_type() == OptionType::Eool;
+                                            Ok((tmp_buf, opt))
+                                        },
+                                        Vec::new,
+                                        |mut acc: Vec<_>, opt| {
+                                            acc.push(opt);
+                                            acc
+                                        },
+                                    ),
+                                    map(rest, move |padding: &'a [u8]| {
+                                        if padding.len() < 4 && len % 4 == 0 {
+                                            Padding::Auto
+                                        } else {
+                                            Padding::Manual(Vec::from(padding))
+                                        }
+                                    }),
+                                ))(opt_buf)?
+                                .1
+                            } else {
+                                (Vec::new(), Padding::Auto)
+                            };
+
+                            Ok((
+                                buf,
+                                IPv4 {
+                                    base: BasePDU::default(),
+                                    version,
+                                    ihl,
+                                    dscp,
+                                    ecn,
+                                    totlen,
+                                    ident,
+                                    flags,
+                                    frag_offset,
+                                    ttl,
+                                    proto,
+                                    chksum,
+                                    src_addr,
+                                    dst_addr,
+                                    opts,
+                                    padding,
+                                },
+                            ))
+                        }
+                    },
+                )),
+                rest,
             )),
-            move |(vi, de, totlen, ident, ff, ttl, proto, chksum, src_addr, dst_addr)| {
-                let (version, ihl): (uint::U4, uint::U4) = uint::unpack!(vi);
-                let (dscp, ecn): (uint::U6, uint::U2) = uint::unpack!(de);
-                let (flags, frag_offset): (uint::U3, uint::U13) = uint::unpack!(ff);
-                let proto = IPProto(proto);
-
-                move |mut buf: &'a [u8]| {
-                    let len: usize = (u32::from(ihl) * 4) as usize;
-                    if len < 20 {
-                        return Err(nom::Err::Error(DissectError::Malformed));
-                    } else if buf.len() < len - 20 {
-                        return Err(nom::Err::Incomplete(nom::Needed::Size(
-                            std::num::NonZeroUsize::new(len - 20 - buf.len()).unwrap(),
-                        )));
+            |((hdr_data, mut ipv4), buf): ((&'a [u8], _), &'a [u8])| {
+                let (payload, rem) = if buf.len() + hdr_data.len() <= ipv4.totlen as usize {
+                    (buf, &buf[buf.len()..])
+                } else {
+                    let payload_len = ipv4.totlen as usize - hdr_data.len();
+                    (&buf[..payload_len], &buf[payload_len..])
+                };
+                if !payload.is_empty() {
+                    let (rem, mut inner) = session
+                        .table_dissector::<IPProtoDissectorTable>(
+                            &ipv4.proto,
+                            Some(TempPDU::new(&ipv4, &parent)),
+                        )
+                        .or(session.table_dissector::<HeurDissectorTable>(
+                            &(),
+                            Some(TempPDU::new(&ipv4, &parent)),
+                        ))
+                        .or(map(RawPDU::decode, AnyPDU::new))
+                        .parse(payload)?;
+                    if !rem.is_empty() {
+                        get_inner_most(&mut inner)
+                            .set_inner_pdu(AnyPDU::new(RawPDU::new(Vec::from(rem))));
                     }
-
-                    let (opts, padding) = if len > 20 {
-                        let opt_len = len - 20;
-                        let opt_buf = &buf[..opt_len];
-                        buf = &buf[opt_len..];
-                        let mut done = false;
-                        tuple((
-                            fold_many0(
-                                move |tmp_buf: &'a [u8]| {
-                                    if done {
-                                        return Err(nom::Err::Error(DissectError::Malformed));
-                                    }
-                                    let (tmp_buf, opt) = Opt::dissect(tmp_buf)?;
-                                    done = opt.option_type() == OptionType::Eool;
-                                    Ok((tmp_buf, opt))
-                                },
-                                Vec::new,
-                                |mut acc: Vec<_>, opt| {
-                                    acc.push(opt);
-                                    acc
-                                },
-                            ),
-                            map(rest, move |padding: &'a [u8]| {
-                                if padding.len() < 4 && len % 4 == 0 {
-                                    Padding::Auto
-                                } else {
-                                    Padding::Manual(Vec::from(padding))
-                                }
-                            }),
-                        ))(opt_buf)?
-                        .1
-                    } else {
-                        (Vec::new(), Padding::Auto)
-                    };
-
-                    Ok((
-                        buf,
-                        IPv4 {
-                            base: BasePDU::default(),
-                            version,
-                            ihl,
-                            dscp,
-                            ecn,
-                            totlen,
-                            ident,
-                            flags,
-                            frag_offset,
-                            ttl,
-                            proto,
-                            chksum,
-                            src_addr,
-                            dst_addr,
-                            opts,
-                            padding,
-                        },
-                    ))
+                    ipv4.set_inner_pdu(inner);
                 }
+                Ok((rem, ipv4))
             },
-        )(buf)?;
+        )(buf)?
+        .1
+    }
+}
 
-        if buf.len() < ipv4.totlen as usize {
-            return Err(nom::Err::Error(DissectError::Malformed));
-        }
-        buf = &rem_buf[..(ipv4.totlen as usize - (buf.len() - rem_buf.len()))];
-        if !buf.is_empty() {
-            let proto = ipv4.proto;
-            let (tmp_buf, inner) = session
-                .table_dissector::<IPProtoDissectorTable>(
-                    &proto,
-                    Some(TempPDU::new(&ipv4, &parent)),
-                )
-                .or(session
-                    .table_dissector::<HeurDissectorTable>(&(), Some(TempPDU::new(&ipv4, &parent))))
-                .or(map(RawPDU::decode, AnyPDU::new))
-                .parse(buf)?;
-            ipv4.set_inner_pdu(inner);
-            buf = tmp_buf;
-        }
-
-        Ok((buf, ipv4))
+fn get_inner_most(pdu: &mut AnyPDU) -> &mut AnyPDU {
+    let has_inner = pdu.inner_pdu().is_some();
+    if !has_inner {
+        pdu
+    } else {
+        get_inner_most(pdu.inner_pdu_mut().unwrap())
     }
 }
 

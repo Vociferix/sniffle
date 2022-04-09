@@ -1,7 +1,10 @@
 use crate::address::MACAddress;
 use crate::protos::prelude::*;
 use crate::utils::CountingEncoder;
-use nom::{combinator::map, sequence::tuple};
+use nom::{
+    combinator::{flat_map, map, rest},
+    sequence::tuple,
+};
 
 #[derive(Debug, Clone)]
 pub struct EthernetII {
@@ -125,65 +128,54 @@ impl Dissect for EthernetII {
         session: &Session,
         parent: Option<TempPDU<'_>>,
     ) -> DResult<'a, Self> {
-        let (buf, mut eth) = map(
-            tuple((MACAddress::decode, MACAddress::decode, u16::decode_be)),
-            |hdr| Self {
-                base: BasePDU::default(),
-                dst_addr: hdr.0,
-                src_addr: hdr.1,
-                ethertype: Ethertype(hdr.2),
-                trailer: Trailer::Auto,
+        flat_map(
+            tuple((<[MACAddress; 2]>::decode, map(u16::decode_be, Ethertype))),
+            |([dst_addr, src_addr], ethertype)| {
+                let parent = parent.clone();
+                move |buf: &'a [u8]| {
+                    let mut eth = Self {
+                        base: BasePDU::default(),
+                        dst_addr,
+                        src_addr,
+                        ethertype,
+                        trailer: Trailer::Auto,
+                    };
+                    let before = buf.len();
+                    let (buf, (inner, trailer)) = session
+                        .table_dissector::<EthertypeDissectorTable>(
+                            &eth.ethertype,
+                            Some(TempPDU::new(&eth, &parent)),
+                        )
+                        .or(session.table_dissector::<HeurDissectorTable>(
+                            &(),
+                            Some(TempPDU::new(&eth, &parent)),
+                        ))
+                        .or(map(RawPDU::decode, AnyPDU::new))
+                        .and(map(rest, |trailer: &'a [u8]| {
+                            let inner_len = before - trailer.len();
+                            let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };
+                            let mut zeros = 0usize;
+                            for byte in buf {
+                                if *byte != 0 {
+                                    break;
+                                }
+                                zeros += 1;
+                            }
+                            if zeros != trailer.len() {
+                                Trailer::Manual(Vec::from(trailer))
+                            } else if trailer_len != trailer.len() {
+                                Trailer::Zeros(zeros)
+                            } else {
+                                Trailer::Auto
+                            }
+                        }))
+                        .parse(buf)?;
+                    eth.trailer = trailer;
+                    eth.set_inner_pdu(inner);
+                    Ok((buf, eth))
+                }
             },
-        )(buf)?;
-        let before = buf.len();
-        let ethertype = eth.ethertype();
-        let (buf, inner) = session
-            .table_dissector::<EthertypeDissectorTable>(
-                &ethertype,
-                Some(TempPDU::new(&eth, &parent)),
-            )
-            .or(session
-                .table_dissector::<HeurDissectorTable>(&(), Some(TempPDU::new(&eth, &parent))))
-            .or(map(RawPDU::decode, AnyPDU::new))
-            .parse(buf)?;
-        eth.set_inner_pdu(inner);
-        let inner_len = before - buf.len();
-        let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };
-        let mut zeros = 0usize;
-        if trailer_len == buf.len() {
-            for byte in buf {
-                if *byte != 0 {
-                    break;
-                }
-                zeros += 1;
-            }
-            if zeros == buf.len() {
-                eth.trailer = Trailer::Auto;
-            } else {
-                let mut trailer = vec![0u8; zeros];
-                for byte in &buf[zeros..] {
-                    trailer.push(*byte);
-                }
-                eth.trailer = Trailer::Manual(trailer);
-            }
-        } else {
-            for byte in buf {
-                if *byte != 0 {
-                    break;
-                }
-                zeros += 1;
-            }
-            if zeros == buf.len() {
-                eth.trailer = Trailer::Zeros(zeros);
-            } else {
-                let mut trailer = vec![0u8; zeros];
-                for byte in &buf[zeros..] {
-                    trailer.push(*byte);
-                }
-                eth.trailer = Trailer::Manual(trailer);
-            }
-        }
-        Ok((buf, eth))
+        )(buf)
     }
 }
 
