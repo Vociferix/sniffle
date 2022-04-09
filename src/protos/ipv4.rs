@@ -1,5 +1,6 @@
 use super::prelude::*;
 use crate::address::IPv4Address;
+use checksum::U16OnesComplement;
 use chrono::{offset::Utc, DateTime};
 use nom::{
     combinator::{all_consuming, consumed, flat_map, map, rest},
@@ -1280,12 +1281,25 @@ impl IPv4 {
         &mut self.proto
     }
 
+    pub fn update_proto(&mut self) -> IPProto {
+        // TODO
+        self.proto
+    }
+
     pub fn checksum(&self) -> u16 {
         self.chksum
     }
 
     pub fn checksum_mut(&mut self) -> &mut u16 {
         &mut self.chksum
+    }
+
+    pub fn update_checksum(&mut self) -> u16 {
+        let mut acc = U16OnesComplement::new();
+        self.chksum = 0;
+        let _ = self.serialize_header(&mut acc);
+        self.chksum = acc.checksum();
+        self.chksum
     }
 
     pub fn src_address(&self) -> IPv4Address {
@@ -1833,7 +1847,20 @@ impl PDU for IPv4 {
     }
 
     fn make_canonical(&mut self) {
-        todo!()
+        self.padding = Padding::Auto;
+        self.version = 4u8.into_masked();
+        let header_len = self.header_len();
+        let inner_len = self.inner_pdu().map(|pdu| pdu.total_len()).unwrap_or(0);
+        self.ihl = match (header_len as u64 / 4).try_into() {
+            Ok(val) => val,
+            _ => 0xFu8.into_masked(),
+        };
+        self.totlen = match (header_len + inner_len).try_into() {
+            Ok(val) => val,
+            _ => 0xFFFFu16,
+        };
+        self.update_proto();
+        self.update_checksum();
     }
 }
 

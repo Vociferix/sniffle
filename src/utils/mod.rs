@@ -1,3 +1,4 @@
+pub mod checksum;
 mod counting_encoder;
 mod interval_set;
 

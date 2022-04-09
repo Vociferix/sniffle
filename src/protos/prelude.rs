@@ -13,4 +13,5 @@ pub use crate::{
     protos::RawPDU,
     sniff::{register_link_layer_pdu, LinkType, LinkTypeTable},
     uint::{self, FromMasked, IntoMasked},
+    utils::{self, checksum},
 };
