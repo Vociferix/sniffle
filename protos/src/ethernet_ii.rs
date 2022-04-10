@@ -74,6 +74,14 @@ impl EthernetII {
         &mut self.ethertype
     }
 
+    pub fn update_ethertype(&mut self) {
+        let ethertype = self
+            .inner_pdu()
+            .map(|inner| Ethertype::from_pdu(inner).unwrap_or(self.ethertype))
+            .unwrap_or(self.ethertype);
+        self.ethertype = ethertype;
+    }
+
     fn auto_trailer_len(&self) -> usize {
         let inner_len = self.inner_pdu().map(|inner| inner.total_len()).unwrap_or(0);
         if inner_len < 46 {
@@ -102,6 +110,10 @@ impl EthernetII {
             Trailer::Manual(trailer) => trailer,
             _ => unreachable!(),
         }
+    }
+
+    pub fn update_trailer(&mut self) {
+        self.trailer = Trailer::Auto;
     }
 }
 
@@ -262,12 +274,8 @@ impl PDU for EthernetII {
     }
 
     fn make_canonical(&mut self) {
-        let ethertype = self
-            .inner_pdu()
-            .map(|inner| Ethertype::from_pdu(inner).unwrap_or(self.ethertype))
-            .unwrap_or(self.ethertype);
-        self.ethertype = ethertype;
-        self.trailer = Trailer::Auto;
+        self.update_ethertype();
+        self.update_trailer();
     }
 }
 

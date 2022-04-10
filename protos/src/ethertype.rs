@@ -351,6 +351,7 @@ impl Iterator for EthertypeIter {
     }
 }
 
+#[doc(hidden)]
 pub fn _register_ethertype_pdu<P: PDU>(ethertype: Ethertype) {
     if ETHERTYPE_PDUS
         .write()

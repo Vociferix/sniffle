@@ -1,5 +1,14 @@
+use super::prelude::*;
+use lazy_static::*;
+use parking_lot::RwLock;
+use std::collections::HashMap;
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct IPProto(pub u8);
+
+lazy_static! {
+    static ref IP_PROTO_PDUS: RwLock<HashMap<PDUType, IPProto>> = RwLock::new(HashMap::new());
+}
 
 macro_rules! ip_proto {
     ($name:ident = $val:literal) => {
@@ -153,6 +162,14 @@ impl IPProto {
     ip_proto!(ROHC = 142);
     ip_proto!(ETHERNET = 143);
     ip_proto!(RESERVED = 255);
+
+    pub fn of<P: PDU>() -> Option<Self> {
+        IP_PROTO_PDUS.read().get(&PDUType::of::<P>()).copied()
+    }
+
+    pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
+        IP_PROTO_PDUS.read().get(&pdu.pdu_type()).copied()
+    }
 }
 
 impl From<u8> for IPProto {
@@ -165,4 +182,28 @@ impl From<IPProto> for u8 {
     fn from(proto: IPProto) -> Self {
         proto.0
     }
+}
+
+#[doc(hidden)]
+pub fn _register_ip_proto_pdu<P: PDU>(proto: IPProto) {
+    if IP_PROTO_PDUS
+        .write()
+        .insert(PDUType::of::<P>(), proto)
+        .is_some()
+    {
+        panic!("A PDU can only be registered for one IP protocol identifier");
+    }
+}
+
+#[macro_export]
+macro_rules! register_ip_proto_pdu {
+    ($pdu:ty, $proto:expr) => {
+        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_ip_proto_pdu_, $pdu {
+            #[$crate::ctor::ctor]
+            #[allow(non_snake_case)]
+            fn reg_name() {
+                $crate::ip_proto::_register_ip_proto_pdu::<$pdu>($proto);
+            }
+        });
+    };
 }

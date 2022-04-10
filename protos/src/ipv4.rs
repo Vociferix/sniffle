@@ -1049,6 +1049,13 @@ impl IPv4 {
         &mut self.ihl
     }
 
+    pub fn update_ihl(&mut self) {
+        self.ihl = match (self.header_len() as u64 / 4).try_into() {
+            Ok(val) => val,
+            _ => 0xFu8.into_masked(),
+        };
+    }
+
     pub fn dscp(&self) -> uint::U6 {
         self.dscp
     }
@@ -1071,6 +1078,14 @@ impl IPv4 {
 
     pub fn totlen_mut(&mut self) -> &mut u16 {
         &mut self.totlen
+    }
+
+    pub fn update_totlen(&mut self) {
+        let inner_len = self.inner_pdu().map(|pdu| pdu.total_len()).unwrap_or(0);
+        self.totlen = match (self.header_len() + inner_len).try_into() {
+            Ok(val) => val,
+            _ => 0xFFFFu16,
+        };
     }
 
     pub fn identifier(&self) -> u16 {
@@ -1113,9 +1128,12 @@ impl IPv4 {
         &mut self.proto
     }
 
-    pub fn update_proto(&mut self) -> IPProto {
-        // TODO
-        self.proto
+    pub fn update_proto(&mut self) {
+        let proto = self
+            .inner_pdu()
+            .map(|inner| IPProto::from_pdu(inner).unwrap_or(self.proto))
+            .unwrap_or(self.proto);
+        self.proto = proto;
     }
 
     pub fn checksum(&self) -> u16 {
@@ -1126,12 +1144,11 @@ impl IPv4 {
         &mut self.chksum
     }
 
-    pub fn update_checksum(&mut self) -> u16 {
+    pub fn update_checksum(&mut self) {
         let mut acc = U16OnesComplement::new();
         self.chksum = 0;
         let _ = self.serialize_header(&mut acc);
         self.chksum = acc.checksum();
-        self.chksum
     }
 
     pub fn src_address(&self) -> IPv4Address {
@@ -1193,6 +1210,10 @@ impl IPv4 {
             Padding::Manual(padding) => padding,
             _ => unreachable!(),
         }
+    }
+
+    pub fn update_padding(&mut self) {
+        self.padding = Padding::Auto;
     }
 }
 
@@ -1679,7 +1700,7 @@ impl PDU for IPv4 {
     }
 
     fn make_canonical(&mut self) {
-        self.padding = Padding::Auto;
+        self.update_padding();
         self.version = 4u8.into_masked();
         let header_len = self.header_len();
         let inner_len = self.inner_pdu().map(|pdu| pdu.total_len()).unwrap_or(0);

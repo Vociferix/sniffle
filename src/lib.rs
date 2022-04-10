@@ -114,11 +114,22 @@ pub mod protos {
         #[doc(hidden)]
         pub use xprotos::ethertype::_register_ethertype_pdu;
 
+        #[doc(inline)]
         pub use xprotos::register_ethertype_pdu;
     }
 
-    #[doc(inline)]
-    pub use xprotos::ip_proto;
+    pub mod ip_proto {
+        use super::xprotos;
+
+        #[doc(inline)]
+        pub use xprotos::ip_proto::IPProto;
+
+        #[doc(hidden)]
+        pub use xprotos::ip_proto::_register_ip_proto_pdu;
+
+        #[doc(inline)]
+        pub use xprotos::register_ip_proto_pdu;
+    }
 
     #[doc(inline)]
     pub use xprotos::ethernet_ii;
