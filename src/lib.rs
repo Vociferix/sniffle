@@ -100,13 +100,22 @@ pub mod utils {
 }
 
 pub mod protos {
-    use sniffle_protos as xprotos;
+    pub(self) use sniffle_protos as xprotos;
 
     #[doc(inline)]
     pub use xprotos::{RawPDU, Virtual};
 
-    #[doc(inline)]
-    pub use xprotos::ethertype;
+    pub mod ethertype {
+        use super::xprotos;
+
+        #[doc(inline)]
+        pub use xprotos::ethertype::{Ethertype, EthertypeIter, EthertypeSet};
+
+        #[doc(hidden)]
+        pub use xprotos::ethertype::_register_ethertype_pdu;
+
+        pub use xprotos::register_ethertype_pdu;
+    }
 
     #[doc(inline)]
     pub use xprotos::ip_proto;

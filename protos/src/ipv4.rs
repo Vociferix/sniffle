@@ -1711,3 +1711,4 @@ register_dissector!(
     Priority(0),
     IPv4::dissect
 );
+crate::register_ethertype_pdu!(IPv4, Ethertype::IPV4);

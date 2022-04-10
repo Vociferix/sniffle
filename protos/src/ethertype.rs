@@ -1,3 +1,8 @@
+use super::prelude::*;
+use lazy_static::*;
+use parking_lot::RwLock;
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Ethertype(pub u16);
 
@@ -12,6 +17,10 @@ pub struct EthertypeIter {
     iter: std::slice::Iter<'static, EthertypeRange>,
     val: u16,
     end: u16,
+}
+
+lazy_static! {
+    static ref ETHERTYPE_PDUS: RwLock<HashMap<PDUType, Ethertype>> = RwLock::new(HashMap::new());
 }
 
 macro_rules! count {
@@ -281,6 +290,14 @@ impl Ethertype {
     ethertype!(LOWPAN_ENCAPSULATION = 0xa0ed);
     ethertype!(BBN_VITAL_LANBRIDGE_CACHE = 0xff00);
     ethertype!(ISC_BUNKER_RAMO = [0xff00, 0xff0f]);
+
+    pub fn of<P: PDU>() -> Option<Self> {
+        ETHERTYPE_PDUS.read().get(&PDUType::of::<P>()).copied()
+    }
+
+    pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
+        ETHERTYPE_PDUS.read().get(&pdu.pdu_type()).copied()
+    }
 }
 
 impl<const N: usize> EthertypeSet<N> {
@@ -332,4 +349,27 @@ impl Iterator for EthertypeIter {
         }
         ret
     }
+}
+
+pub fn _register_ethertype_pdu<P: PDU>(ethertype: Ethertype) {
+    if ETHERTYPE_PDUS
+        .write()
+        .insert(PDUType::of::<P>(), ethertype)
+        .is_some()
+    {
+        panic!("A PDU can only be registered for one ethertype");
+    }
+}
+
+#[macro_export]
+macro_rules! register_ethertype_pdu {
+    ($pdu:ty, $ethertype:expr) => {
+        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_ethertype_pdu_, $pdu {
+            #[$crate::ctor::ctor]
+            #[allow(non_snake_case)]
+            fn reg_name() {
+                $crate::ethertype::_register_ethertype_pdu::<$pdu>($ethertype);
+            }
+        });
+    };
 }

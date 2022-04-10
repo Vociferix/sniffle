@@ -261,16 +261,11 @@ impl PDU for EthernetII {
         )
     }
 
-    // We will fill in the match later when more protocols are implemented,
-    // so suppress this lint for now.
-    #[allow(clippy::match_single_binding)]
     fn make_canonical(&mut self) {
-        let ethertype = match self.inner_pdu() {
-            Some(inner) => match inner.pdu_type() {
-                _ => self.ethertype(),
-            },
-            None => self.ethertype(),
-        };
+        let ethertype = self
+            .inner_pdu()
+            .map(|inner| Ethertype::from_pdu(inner).unwrap_or(self.ethertype))
+            .unwrap_or(self.ethertype);
         self.ethertype = ethertype;
         self.trailer = Trailer::Auto;
     }

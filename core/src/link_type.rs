@@ -100,7 +100,7 @@ pub fn _register_link_layer_pdu<P: PDU>(link_type: LinkType) {
         .insert(PDUType::of::<P>(), link_type)
         .is_some()
     {
-        panic!("A PDU can only registered for one link type");
+        panic!("A PDU can only be registered for one link type");
     }
 }
 
