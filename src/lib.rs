@@ -1,11 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-#[doc(hidden)]
-pub use ::concat_idents;
-
-#[doc(hidden)]
-pub use ctor;
-
 pub use nom;
 
 #[doc(hidden)]
@@ -101,5 +95,25 @@ pub mod prelude {
     pub use crate::device::{DeviceInjector, DeviceSniffer, DeviceSnifferConfig};
 }
 
-pub mod protos;
-pub mod utils;
+pub mod utils {
+    pub use sniffle_utils::*;
+}
+
+pub mod protos {
+    use sniffle_protos as xprotos;
+
+    #[doc(inline)]
+    pub use xprotos::{RawPDU, Virtual};
+
+    #[doc(inline)]
+    pub use xprotos::ethertype;
+
+    #[doc(inline)]
+    pub use xprotos::ip_proto;
+
+    #[doc(inline)]
+    pub use xprotos::ethernet_ii;
+
+    #[doc(inline)]
+    pub use xprotos::ipv4;
+}

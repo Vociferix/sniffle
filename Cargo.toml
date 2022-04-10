@@ -12,9 +12,9 @@ sniffle-core = { path = "core", default-features = false }
 sniffle-ende = { path = "ende" }
 sniffle-uint = { path = "uint" }
 sniffle-capfile = { path = "capfile", default-features = false }
+sniffle-utils = { path = "utils" }
+sniffle-protos = { path = "protos" }
 nom = "7"
-concat-idents = "1.1"
-ctor = "0.1"
 chrono = "0.4"
 
 [features]
@@ -31,4 +31,6 @@ members = [
    "uint",
    "core",
    "capfile",
+   "utils",
+   "protos",
 ]
