@@ -1,5 +1,6 @@
 use super::{dissector_table, register_dissector_table, PDUExt, PDUType, PDU};
 use lazy_static::*;
+use parking_lot::RwLock;
 #[cfg(feature = "pcaprs")]
 pub use pcaprs::ParseLinkTypeError;
 use std::collections::HashMap;
@@ -7,7 +8,6 @@ use std::collections::HashMap;
 use std::fmt;
 #[cfg(feature = "pcaprs")]
 use std::str::FromStr;
-use std::sync::RwLock;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct LinkType(pub u16);
@@ -55,15 +55,11 @@ impl LinkType {
     }
 
     pub fn of<P: PDU>() -> Option<Self> {
-        LINK_TYPE_PDUS
-            .read()
-            .unwrap()
-            .get(&PDUType::of::<P>())
-            .copied()
+        LINK_TYPE_PDUS.read().get(&PDUType::of::<P>()).copied()
     }
 
     pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
-        LINK_TYPE_PDUS.read().unwrap().get(&pdu.pdu_type()).copied()
+        LINK_TYPE_PDUS.read().get(&pdu.pdu_type()).copied()
     }
 
     link_types::for_each_link_type!(link_type);
@@ -101,7 +97,6 @@ register_dissector_table!(LinkTypeTable);
 pub fn _register_link_layer_pdu<P: PDU>(link_type: LinkType) {
     if LINK_TYPE_PDUS
         .write()
-        .unwrap()
         .insert(PDUType::of::<P>(), link_type)
         .is_some()
     {
