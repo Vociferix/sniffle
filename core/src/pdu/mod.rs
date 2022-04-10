@@ -194,10 +194,10 @@ pub trait PDUExt: PDU {
     }
 
     fn make_all_canonical(&mut self) {
-        self.make_canonical();
         if let Some(inner) = self.inner_pdu_mut() {
             inner.make_all_canonical();
         }
+        self.make_canonical();
     }
 }
 
