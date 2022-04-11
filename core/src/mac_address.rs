@@ -6,10 +6,10 @@ use sniffle_ende::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
-pub struct MACAddress([u8; 8]);
+pub struct MacAddress([u8; 8]);
 
-impl MACAddress {
-    const BROADCAST: MACAddress = MACAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+impl MacAddress {
+    const BROADCAST: MacAddress = MacAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
 
     pub const fn new(bytes: [u8; 6]) -> Self {
         Self([
@@ -18,14 +18,14 @@ impl MACAddress {
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
-        MACAddress((!(!0u64 >> prefix_len)).to_be_bytes())
+        MacAddress((!(!0u64 >> prefix_len)).to_be_bytes())
     }
 
-    pub fn next(&self) -> MACAddress {
+    pub fn next(&self) -> MacAddress {
         Self((u64::from_be_bytes(self.0).wrapping_add(0x10000)).to_be_bytes())
     }
 
-    pub fn prev(&self) -> MACAddress {
+    pub fn prev(&self) -> MacAddress {
         Self((u64::from_be_bytes(self.0).wrapping_sub(0x10000)).to_be_bytes())
     }
 
@@ -34,33 +34,33 @@ impl MACAddress {
     }
 }
 
-impl From<[u8; 6]> for MACAddress {
+impl From<[u8; 6]> for MacAddress {
     fn from(addr: [u8; 6]) -> Self {
         Self::new(addr)
     }
 }
 
-impl From<MACAddress> for [u8; 6] {
-    fn from(addr: MACAddress) -> Self {
+impl From<MacAddress> for [u8; 6] {
+    fn from(addr: MacAddress) -> Self {
         [
             addr.0[0], addr.0[1], addr.0[2], addr.0[3], addr.0[4], addr.0[5],
         ]
     }
 }
 
-impl Decode for MACAddress {
+impl Decode for MacAddress {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 6]>::decode, Self::from)(buf)
     }
 }
 
-impl Encode for MACAddress {
+impl Encode for MacAddress {
     fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
 }
 
-impl std::ops::Deref for MACAddress {
+impl std::ops::Deref for MacAddress {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -68,7 +68,7 @@ impl std::ops::Deref for MACAddress {
     }
 }
 
-impl std::ops::DerefMut for MACAddress {
+impl std::ops::DerefMut for MacAddress {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0[..6]
     }
@@ -85,7 +85,7 @@ impl From<std::num::ParseIntError> for MACParseError {
     }
 }
 
-impl std::str::FromStr for MACAddress {
+impl std::str::FromStr for MacAddress {
     type Err = MACParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -108,7 +108,7 @@ impl std::str::FromStr for MACAddress {
     }
 }
 
-impl std::fmt::Display for MACAddress {
+impl std::fmt::Display for MacAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -118,7 +118,7 @@ impl std::fmt::Display for MACAddress {
     }
 }
 
-impl std::ops::BitAnd for MACAddress {
+impl std::ops::BitAnd for MacAddress {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -126,13 +126,13 @@ impl std::ops::BitAnd for MACAddress {
     }
 }
 
-impl std::ops::BitAndAssign for MACAddress {
+impl std::ops::BitAndAssign for MacAddress {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
-impl std::ops::BitOr for MACAddress {
+impl std::ops::BitOr for MacAddress {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -140,13 +140,13 @@ impl std::ops::BitOr for MACAddress {
     }
 }
 
-impl std::ops::BitOrAssign for MACAddress {
+impl std::ops::BitOrAssign for MacAddress {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
-impl std::ops::Not for MACAddress {
+impl std::ops::Not for MacAddress {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -154,13 +154,13 @@ impl std::ops::Not for MACAddress {
     }
 }
 
-impl PartialOrd for MACAddress {
+impl PartialOrd for MacAddress {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         u64::from_be_bytes(self.0).partial_cmp(&u64::from_be_bytes(other.0))
     }
 }
 
-impl Ord for MACAddress {
+impl Ord for MacAddress {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u64::from_be_bytes(self.0).cmp(&u64::from_be_bytes(other.0))
     }

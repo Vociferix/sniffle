@@ -19,7 +19,7 @@ impl OfflineFilter {
         snaplen: u32,
         filter: &str,
         optimize: bool,
-        mask: IPv4Address,
+        mask: Ipv4Address,
     ) -> Result<Self> {
         let mut prog = bpf_program::default();
         let prog_ptr = (&mut prog) as *mut bpf_program;

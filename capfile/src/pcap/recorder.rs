@@ -1,6 +1,6 @@
 use super::writer::*;
 use super::*;
-use sniffle_core::{LinkType, Packet, Transmit, TransmitError, PDU};
+use sniffle_core::{LinkType, Packet, Pdu, Transmit, TransmitError};
 use std::time::{Duration, SystemTime};
 
 enum State<F: std::io::Write> {
@@ -26,36 +26,36 @@ pub type FileRecorder = Recorder<std::io::BufWriter<std::fs::File>>;
 
 impl<F: std::io::Write> Recorder<F> {
     pub fn new(file: F) -> Self {
-        Self::new_with_tsprec(file, TSPrecision::Micro)
+        Self::new_with_tsprec(file, TsPrecision::Micro)
     }
 
     pub fn new_nano(file: F) -> Self {
-        Self::new_with_tsprec(file, TSPrecision::Nano)
+        Self::new_with_tsprec(file, TsPrecision::Nano)
     }
 
-    pub fn new_with_tsprec(file: F, tsprec: TSPrecision) -> Self {
+    pub fn new_with_tsprec(file: F, tsprec: TsPrecision) -> Self {
         Self {
             state: State::Init {
                 file,
                 nano: match tsprec {
-                    TSPrecision::Micro => false,
-                    TSPrecision::Nano => true,
+                    TsPrecision::Micro => false,
+                    TsPrecision::Nano => true,
                 },
             },
         }
     }
 
     pub fn create<P: AsRef<std::path::Path>>(path: P) -> Result<FileRecorder, TransmitError> {
-        FileRecorder::create_with_tsprec(path, TSPrecision::Micro)
+        FileRecorder::create_with_tsprec(path, TsPrecision::Micro)
     }
 
     pub fn create_nano<P: AsRef<std::path::Path>>(path: P) -> Result<FileRecorder, TransmitError> {
-        FileRecorder::create_with_tsprec(path, TSPrecision::Nano)
+        FileRecorder::create_with_tsprec(path, TsPrecision::Nano)
     }
 
     pub fn create_with_tsprec<P: AsRef<std::path::Path>>(
         path: P,
-        tsprec: TSPrecision,
+        tsprec: TsPrecision,
     ) -> Result<FileRecorder, TransmitError> {
         Ok(FileRecorder::new_with_tsprec(
             std::io::BufWriter::new(std::fs::File::create(path)?),

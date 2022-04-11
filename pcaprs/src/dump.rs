@@ -13,7 +13,7 @@ impl DumpFile {
         filepath: P,
         datalink: LinkType,
         snaplen: u32,
-        precision: TSPrecision,
+        precision: TsPrecision,
     ) -> Result<Self> {
         let pcap = Pcap::open_dead(datalink, snaplen, Some(precision))?;
         unsafe {
@@ -32,12 +32,12 @@ impl DumpFile {
                 ))))
             } else {
                 match precision {
-                    TSPrecision::Micro => Ok(DumpFile {
+                    TsPrecision::Micro => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
                         nano: false,
                     }),
-                    TSPrecision::Nano => Ok(DumpFile {
+                    TsPrecision::Nano => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
                         nano: true,
@@ -52,7 +52,7 @@ impl DumpFile {
         filepath: P,
         datalink: LinkType,
         snaplen: u32,
-        precision: TSPrecision,
+        precision: TsPrecision,
     ) -> Result<Self> {
         let pcap = Pcap::open_dead(datalink, snaplen, Some(precision))?;
         unsafe {
@@ -71,12 +71,12 @@ impl DumpFile {
                 ))))
             } else {
                 match precision {
-                    TSPrecision::Micro => Ok(DumpFile {
+                    TsPrecision::Micro => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
                         nano: false,
                     }),
-                    TSPrecision::Nano => Ok(DumpFile {
+                    TsPrecision::Nano => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
                         nano: true,

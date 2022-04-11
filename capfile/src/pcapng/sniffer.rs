@@ -1,6 +1,6 @@
 use super::reader::*;
 use sniffle_core::{
-    Device, DeviceBuilder, DeviceIPv4, DeviceIPv6, LinkType, RawPacket, Session, SniffError,
+    Device, DeviceBuilder, DeviceIpv4, DeviceIpv6, LinkType, RawPacket, Session, SniffError,
     SniffRaw,
 };
 use std::io::{BufRead, Seek};
@@ -128,27 +128,27 @@ impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
                                     opt.string(&mut desc)?;
                                     bldr.description(desc);
                                 }
-                                IdbOption::IPv4(mut opt) => {
-                                    bldr.add_ipv4(DeviceIPv4::new(
+                                IdbOption::Ipv4(mut opt) => {
+                                    bldr.add_ipv4(DeviceIpv4::new(
                                         opt.address()?,
                                         Some(opt.netmask()?),
                                         None,
                                         None,
                                     ));
                                 }
-                                IdbOption::IPv6(mut opt) => {
-                                    bldr.add_ipv6(DeviceIPv6::new(
+                                IdbOption::Ipv6(mut opt) => {
+                                    bldr.add_ipv6(DeviceIpv6::new(
                                         opt.address()?,
                                         Some(opt.prefix_length()? as u32),
                                     ));
                                 }
-                                IdbOption::MAC(mut opt) => {
+                                IdbOption::Mac(mut opt) => {
                                     bldr.add_mac(opt.address()?);
                                 }
-                                IdbOption::TSResol(mut opt) => {
+                                IdbOption::TsResol(mut opt) => {
                                     tsresol = opt.value()?;
                                 }
-                                IdbOption::TSOffset(mut opt) => {
+                                IdbOption::TsOffset(mut opt) => {
                                     tsoffset = opt.value()?;
                                 }
                                 _ => {}

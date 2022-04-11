@@ -1,6 +1,6 @@
 use super::writer::*;
 use super::*;
-use sniffle_core::{Device, LinkType, Packet, Transmit, TransmitError, PDU};
+use sniffle_core::{Device, LinkType, Packet, Pdu, Transmit, TransmitError};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
@@ -84,7 +84,7 @@ impl<F: std::io::Write + std::io::Seek> Recorder<F> {
                     *addr.address(),
                     addr.netmask()
                         .copied()
-                        .unwrap_or_else(|| IPv4Address::from([0xFF, 0xFF, 0xFF, 0xFF])),
+                        .unwrap_or_else(|| Ipv4Address::from([0xFF, 0xFF, 0xFF, 0xFF])),
                 )?;
             }
             for addr in dev.ipv6_addresses() {

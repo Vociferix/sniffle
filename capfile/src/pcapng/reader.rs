@@ -63,34 +63,34 @@ pub struct I64Opt<'a, F: BufRead + Seek> {
     value: Option<i64>,
 }
 
-pub struct IPv4Opt<'a, F: BufRead + Seek> {
+pub struct Ipv4Opt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<IPv4Address>,
+    addr: Option<Ipv4Address>,
 }
 
-pub struct IPv6Opt<'a, F: BufRead + Seek> {
+pub struct Ipv6Opt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<IPv6Address>,
+    addr: Option<Ipv6Address>,
 }
 
-pub struct IPv4IfaceOpt<'a, F: BufRead + Seek> {
+pub struct Ipv4IfaceOpt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<(IPv4Address, IPv4Address)>,
+    addr: Option<(Ipv4Address, Ipv4Address)>,
 }
 
-pub struct IPv6IfaceOpt<'a, F: BufRead + Seek> {
+pub struct Ipv6IfaceOpt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<(IPv6Address, u8)>,
+    addr: Option<(Ipv6Address, u8)>,
 }
 
-pub struct MACOpt<'a, F: BufRead + Seek> {
+pub struct MacOpt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<MACAddress>,
+    addr: Option<MacAddress>,
 }
 
-pub struct EUIOpt<'a, F: BufRead + Seek> {
+pub struct EuiOpt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<EUIAddress>,
+    addr: Option<EuiAddress>,
 }
 
 pub struct TimestampOpt<'a, F: BufRead + Seek> {
@@ -130,10 +130,10 @@ pub struct PacketFlagsOpt<'a, F: BufRead + Seek> {
 
 pub enum HashOpt<'a, F: BufRead + Seek> {
     TwosComplement(TwosComplementOpt<'a, F>),
-    XOR(XOROpt<'a, F>),
-    CRC32(CRC32Opt<'a, F>),
-    MD5(MD5Opt<'a, F>),
-    SHA1(SHA1Opt<'a, F>),
+    Xor(XorOpt<'a, F>),
+    Crc32(Crc32Opt<'a, F>),
+    Md5(Md5Opt<'a, F>),
+    Sha1(Sha1Opt<'a, F>),
     Toeplitz(ToeplitzOpt<'a, F>),
     Unknown(RawHashOpt<'a, F>),
 }
@@ -144,23 +144,23 @@ pub struct TwosComplementOpt<'a, F: BufRead + Seek> {
     len: u16,
 }
 
-pub struct XOROpt<'a, F: BufRead + Seek> {
+pub struct XorOpt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct CRC32Opt<'a, F: BufRead + Seek> {
+pub struct Crc32Opt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
     crc: Option<[u8; 4]>,
 }
 
-pub struct MD5Opt<'a, F: BufRead + Seek> {
+pub struct Md5Opt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
     hash: Option<[u8; 16]>,
 }
 
-pub struct SHA1Opt<'a, F: BufRead + Seek> {
+pub struct Sha1Opt<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
     hash: Option<[u8; 20]>,
 }
@@ -179,8 +179,8 @@ pub struct RawHashOpt<'a, F: BufRead + Seek> {
 
 pub enum VerdictOpt<'a, F: BufRead + Seek> {
     Hardware(HardwareVerdictOpt<'a, F>),
-    LinuxEBPFTC(LinuxVerdictOpt<'a, F>),
-    LinuxEBPFXDP(LinuxVerdictOpt<'a, F>),
+    LinuxEbpftc(LinuxVerdictOpt<'a, F>),
+    LinuxEbpfxdp(LinuxVerdictOpt<'a, F>),
     Unknown(RawVerdictOpt<'a, F>),
 }
 
@@ -218,7 +218,7 @@ struct Shb {
 pub enum ShbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Hardware(StringOpt<'a, F>),
-    OS(StringOpt<'a, F>),
+    Os(StringOpt<'a, F>),
     UserApplication(StringOpt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
@@ -239,20 +239,20 @@ pub enum IdbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
     Name(StringOpt<'a, F>),
     Description(StringOpt<'a, F>),
-    IPv4(IPv4IfaceOpt<'a, F>),
-    IPv6(IPv6IfaceOpt<'a, F>),
-    MAC(MACOpt<'a, F>),
-    EUI(EUIOpt<'a, F>),
+    Ipv4(Ipv4IfaceOpt<'a, F>),
+    Ipv6(Ipv6IfaceOpt<'a, F>),
+    Mac(MacOpt<'a, F>),
+    Eui(EuiOpt<'a, F>),
     Speed(U64Opt<'a, F>),
-    TSResol(U8Opt<'a, F>),
+    TsResol(U8Opt<'a, F>),
     TimeZone(I32Opt<'a, F>),
     Filter(FilterOpt<'a, F>),
-    OS(StringOpt<'a, F>),
-    FCSLen(U8Opt<'a, F>),
-    TSOffset(I64Opt<'a, F>),
+    Os(StringOpt<'a, F>),
+    FcsLen(U8Opt<'a, F>),
+    TsOffset(I64Opt<'a, F>),
     Hardware(StringOpt<'a, F>),
-    TXSpeed(U64Opt<'a, F>),
-    RXSpeed(U64Opt<'a, F>),
+    TxSpeed(U64Opt<'a, F>),
+    RxSpeed(U64Opt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
 
@@ -301,30 +301,30 @@ pub struct NameResolutionBlock<'a, F: BufRead + Seek> {
 }
 
 pub enum NameRecord<'a, F: BufRead + Seek> {
-    IPv4(IPv4NameRecord<'a, F>),
-    IPv6(IPv6NameRecord<'a, F>),
+    Ipv4(Ipv4NameRecord<'a, F>),
+    Ipv6(Ipv6NameRecord<'a, F>),
     Other(RawOpt<'a, F>),
 }
 
-pub struct IPv4NameRecord<'a, F: BufRead + Seek> {
+pub struct Ipv4NameRecord<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<IPv4Address>,
+    addr: Option<Ipv4Address>,
     next: u64,
     names_end: u64,
 }
 
-pub struct IPv6NameRecord<'a, F: BufRead + Seek> {
+pub struct Ipv6NameRecord<'a, F: BufRead + Seek> {
     reader: &'a mut Reader<F>,
-    addr: Option<IPv6Address>,
+    addr: Option<Ipv6Address>,
     next: u64,
     names_end: u64,
 }
 
 pub enum NrbOption<'a, F: BufRead + Seek> {
     Comment(StringOpt<'a, F>),
-    DNSName(StringOpt<'a, F>),
-    DNSIPv4Addr(IPv4Opt<'a, F>),
-    DNSIPv6Addr(IPv6Opt<'a, F>),
+    DnsName(StringOpt<'a, F>),
+    DnsIpv4Addr(Ipv4Opt<'a, F>),
+    DnsIpv6Addr(Ipv6Opt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
 
@@ -347,7 +347,7 @@ pub enum IsbOption<'a, F: BufRead + Seek> {
     IfRecv(U64Opt<'a, F>),
     IfDrop(U64Opt<'a, F>),
     FilterAccept(U64Opt<'a, F>),
-    OSDrop(U64Opt<'a, F>),
+    OsDrop(U64Opt<'a, F>),
     UserDeliv(U64Opt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
@@ -681,7 +681,7 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
             offset,
             len,
         }),
-        SHB_OS => ShbOption::OS(StringOpt {
+        SHB_OS => ShbOption::Os(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -746,7 +746,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::IPv4(IPv4IfaceOpt {
+            IdbOption::Ipv4(Ipv4IfaceOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -755,7 +755,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 17 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::IPv6(IPv6IfaceOpt {
+            IdbOption::Ipv6(Ipv6IfaceOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -764,7 +764,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 6 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::MAC(MACOpt {
+            IdbOption::Mac(MacOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -773,7 +773,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::EUI(EUIOpt {
+            IdbOption::Eui(EuiOpt {
                 reader: self.reader,
                 addr: None,
             })
@@ -791,7 +791,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 1 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::TSResol(U8Opt {
+            IdbOption::TsResol(U8Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -829,7 +829,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
                 })),
             }
         },
-        IF_OS => IdbOption::OS(StringOpt {
+        IF_OS => IdbOption::Os(StringOpt {
             reader: self.reader,
             offset,
             len,
@@ -838,7 +838,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 1 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::FCSLen(U8Opt {
+            IdbOption::FcsLen(U8Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -847,7 +847,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::TSOffset(I64Opt {
+            IdbOption::TsOffset(I64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -861,7 +861,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::TXSpeed(U64Opt {
+            IdbOption::TxSpeed(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -870,7 +870,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IdbOption::RXSpeed(U64Opt {
+            IdbOption::RxSpeed(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -968,11 +968,11 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
                     offset: offset + 1,
                     len: len - 1,
                 }),
-                1 => VerdictOpt::LinuxEBPFTC(LinuxVerdictOpt {
+                1 => VerdictOpt::LinuxEbpftc(LinuxVerdictOpt {
                     reader: self.reader,
                     verdict: None,
                 }),
-                2 => VerdictOpt::LinuxEBPFTC(LinuxVerdictOpt {
+                2 => VerdictOpt::LinuxEbpftc(LinuxVerdictOpt {
                     reader: self.reader,
                     verdict: None,
                 }),
@@ -993,20 +993,20 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
                     offset: offset + 1,
                     len: len - 1,
                 }),
-                1 => HashOpt::XOR(XOROpt {
+                1 => HashOpt::Xor(XorOpt {
                     reader: self.reader,
                     offset: offset + 1,
                     len: len - 1,
                 }),
-                2 => HashOpt::CRC32(CRC32Opt {
+                2 => HashOpt::Crc32(Crc32Opt {
                     reader: self.reader,
                     crc: None,
                 }),
-                3 => HashOpt::MD5(MD5Opt {
+                3 => HashOpt::Md5(Md5Opt {
                     reader: self.reader,
                     hash: None,
                 }),
-                4 => HashOpt::SHA1(SHA1Opt {
+                4 => HashOpt::Sha1(Sha1Opt {
                     reader: self.reader,
                     hash: None,
                 }),
@@ -1112,13 +1112,13 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
                 self.next_rec = u64::MAX;
                 return Ok(None);
             }
-            NRB_RECORD_IPV4 => NameRecord::IPv4(IPv4NameRecord {
+            NRB_RECORD_IPV4 => NameRecord::Ipv4(Ipv4NameRecord {
                 reader: self.reader,
                 addr: None,
                 next: offset + 4,
                 names_end: offset + (len as u64),
             }),
-            NRB_RECORD_IPV6 => NameRecord::IPv6(IPv6NameRecord {
+            NRB_RECORD_IPV6 => NameRecord::Ipv6(Ipv6NameRecord {
                 reader: self.reader,
                 addr: None,
                 next: offset + 16,
@@ -1134,16 +1134,16 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
     }
 
     impl_next_opt!((&mut self, offset, len) -> NrbOption<'_, F> {
-        NS_DNSNAME => NrbOption::DNSName(StringOpt {
+        NS_DNSNAME => NrbOption::DnsName(StringOpt {
             reader: self.reader,
             offset,
             len,
         }),
-        NS_DNSIP4ADDR => NrbOption::DNSIPv4Addr(IPv4Opt {
+        NS_DNSIP4ADDR => NrbOption::DnsIpv4Addr(Ipv4Opt {
             reader: self.reader,
             addr: None,
         }),
-        NS_DNSIP6ADDR => NrbOption::DNSIPv6Addr(IPv6Opt {
+        NS_DNSIP6ADDR => NrbOption::DnsIpv6Addr(Ipv6Opt {
             reader: self.reader,
             addr: None,
         }),
@@ -1232,7 +1232,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
             if len != 8 {
                 return Err(SniffError::MalformedCapture);
             }
-            IsbOption::OSDrop(U64Opt {
+            IsbOption::OsDrop(U64Opt {
                 reader: self.reader,
                 value: None,
             })
@@ -1432,13 +1432,13 @@ impl<'a, F: BufRead + Seek> I64Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv4Opt<'a, F> {
-    pub fn address(&mut self) -> Result<IPv4Address, SniffError> {
+impl<'a, F: BufRead + Seek> Ipv4Opt<'a, F> {
+    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 4];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = IPv4Address::from(addr);
+            let addr = Ipv4Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
@@ -1447,13 +1447,13 @@ impl<'a, F: BufRead + Seek> IPv4Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv6Opt<'a, F> {
-    pub fn address(&mut self) -> Result<IPv6Address, SniffError> {
+impl<'a, F: BufRead + Seek> Ipv6Opt<'a, F> {
+    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 16];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = IPv6Address::from(addr);
+            let addr = Ipv6Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
@@ -1462,37 +1462,37 @@ impl<'a, F: BufRead + Seek> IPv6Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv4IfaceOpt<'a, F> {
-    fn data(&mut self) -> Result<&mut (IPv4Address, IPv4Address), SniffError> {
+impl<'a, F: BufRead + Seek> Ipv4IfaceOpt<'a, F> {
+    fn data(&mut self) -> Result<&mut (Ipv4Address, Ipv4Address), SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 8];
             self.reader.read_buf(&mut addr[..])?;
             self.addr = Some((
-                IPv4Address::new([addr[0], addr[1], addr[2], addr[3]]),
-                IPv4Address::new([addr[4], addr[5], addr[6], addr[7]]),
+                Ipv4Address::new([addr[0], addr[1], addr[2], addr[3]]),
+                Ipv4Address::new([addr[4], addr[5], addr[6], addr[7]]),
             ));
         }
         Ok(guarantee(self.addr.as_mut()))
     }
 
-    pub fn address(&mut self) -> Result<IPv4Address, SniffError> {
+    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
         Ok(self.data()?.0)
     }
 
-    pub fn netmask(&mut self) -> Result<IPv4Address, SniffError> {
+    pub fn netmask(&mut self) -> Result<Ipv4Address, SniffError> {
         Ok(self.data()?.1)
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv6IfaceOpt<'a, F> {
-    fn data(&mut self) -> Result<&mut (IPv6Address, u8), SniffError> {
+impl<'a, F: BufRead + Seek> Ipv6IfaceOpt<'a, F> {
+    fn data(&mut self) -> Result<&mut (Ipv6Address, u8), SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 17];
             self.reader.read_buf(&mut addr[..])?;
             self.addr = Some((
-                IPv6Address::new([
+                Ipv6Address::new([
                     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
                     addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15],
                 ]),
@@ -1502,7 +1502,7 @@ impl<'a, F: BufRead + Seek> IPv6IfaceOpt<'a, F> {
         Ok(guarantee(self.addr.as_mut()))
     }
 
-    pub fn address(&mut self) -> Result<IPv6Address, SniffError> {
+    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
         Ok(self.data()?.0)
     }
 
@@ -1511,13 +1511,13 @@ impl<'a, F: BufRead + Seek> IPv6IfaceOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> MACOpt<'a, F> {
-    pub fn address(&mut self) -> Result<MACAddress, SniffError> {
+impl<'a, F: BufRead + Seek> MacOpt<'a, F> {
+    pub fn address(&mut self) -> Result<MacAddress, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 6];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = MACAddress::from(addr);
+            let addr = MacAddress::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
@@ -1526,13 +1526,13 @@ impl<'a, F: BufRead + Seek> MACOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> EUIOpt<'a, F> {
-    pub fn address(&mut self) -> Result<EUIAddress, SniffError> {
+impl<'a, F: BufRead + Seek> EuiOpt<'a, F> {
+    pub fn address(&mut self) -> Result<EuiAddress, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 8];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = EUIAddress::from(addr);
+            let addr = EuiAddress::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
@@ -1671,7 +1671,7 @@ impl<'a, F: BufRead + Seek> TwosComplementOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> XOROpt<'a, F> {
+impl<'a, F: BufRead + Seek> XorOpt<'a, F> {
     pub fn hash(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
         buf.resize(self.len as usize, 0);
         self.reader.read_buf_at(&mut buf[..], self.offset)?;
@@ -1679,7 +1679,7 @@ impl<'a, F: BufRead + Seek> XOROpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> CRC32Opt<'a, F> {
+impl<'a, F: BufRead + Seek> Crc32Opt<'a, F> {
     pub fn hash(&mut self) -> Result<[u8; 4], SniffError> {
         let ready = self.crc.is_some();
         if !ready {
@@ -1693,7 +1693,7 @@ impl<'a, F: BufRead + Seek> CRC32Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> MD5Opt<'a, F> {
+impl<'a, F: BufRead + Seek> Md5Opt<'a, F> {
     pub fn hash(&mut self) -> Result<[u8; 16], SniffError> {
         let ready = self.hash.is_some();
         if !ready {
@@ -1707,7 +1707,7 @@ impl<'a, F: BufRead + Seek> MD5Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> SHA1Opt<'a, F> {
+impl<'a, F: BufRead + Seek> Sha1Opt<'a, F> {
     pub fn hash(&mut self) -> Result<[u8; 20], SniffError> {
         let ready = self.hash.is_some();
         if !ready {
@@ -1780,13 +1780,13 @@ impl<'a, F: BufRead + Seek> RawVerdictOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv4NameRecord<'a, F> {
-    pub fn address(&mut self) -> Result<IPv4Address, SniffError> {
+impl<'a, F: BufRead + Seek> Ipv4NameRecord<'a, F> {
+    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 4];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = IPv4Address::from(addr);
+            let addr = Ipv4Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
@@ -1811,13 +1811,13 @@ impl<'a, F: BufRead + Seek> IPv4NameRecord<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> IPv6NameRecord<'a, F> {
-    pub fn address(&mut self) -> Result<IPv6Address, SniffError> {
+impl<'a, F: BufRead + Seek> Ipv6NameRecord<'a, F> {
+    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 16];
             self.reader.read_buf(&mut addr[..])?;
-            let addr = IPv6Address::from(addr);
+            let addr = Ipv6Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {

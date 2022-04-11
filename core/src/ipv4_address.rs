@@ -6,20 +6,20 @@ use sniffle_ende::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
-pub struct IPv4Address([u8; 4]);
+pub struct Ipv4Address([u8; 4]);
 
-pub struct IPv4Network {
-    base: IPv4Address,
-    mask: IPv4Address,
+pub struct Ipv4Network {
+    base: Ipv4Address,
+    mask: Ipv4Address,
 }
 
-pub struct IPv4NetworkIter {
+pub struct Ipv4NetworkIter {
     curr: Option<u32>,
     last: u32,
 }
 
-impl Iterator for IPv4NetworkIter {
-    type Item = IPv4Address;
+impl Iterator for Ipv4NetworkIter {
+    type Item = Ipv4Address;
 
     fn next(&mut self) -> Option<Self::Item> {
         let tmp = self.curr;
@@ -30,81 +30,81 @@ impl Iterator for IPv4NetworkIter {
                 } else {
                     self.curr = Some(addr + 1);
                 }
-                Some(IPv4Address(addr.to_be_bytes()))
+                Some(Ipv4Address(addr.to_be_bytes()))
             }
             None => None,
         }
     }
 }
 
-impl IPv4Network {
-    pub const fn new(base: IPv4Address, mask: IPv4Address) -> Self {
+impl Ipv4Network {
+    pub const fn new(base: Ipv4Address, mask: Ipv4Address) -> Self {
         Self { base, mask }
     }
 
-    pub const fn from_prefix_len(base: IPv4Address, prefix_len: u32) -> Self {
+    pub const fn from_prefix_len(base: Ipv4Address, prefix_len: u32) -> Self {
         Self {
             base,
-            mask: IPv4Address::from_prefix_len(prefix_len),
+            mask: Ipv4Address::from_prefix_len(prefix_len),
         }
     }
 
-    pub const fn base_address(&self) -> &IPv4Address {
+    pub const fn base_address(&self) -> &Ipv4Address {
         &self.base
     }
 
-    pub const fn network_mask(&self) -> &IPv4Address {
+    pub const fn network_mask(&self) -> &Ipv4Address {
         &self.mask
     }
 
-    pub fn contains(&self, addr: &IPv4Address) -> bool {
+    pub fn contains(&self, addr: &Ipv4Address) -> bool {
         (*addr & self.mask) == self.base
     }
 
-    pub fn first(&self) -> IPv4Address {
+    pub fn first(&self) -> Ipv4Address {
         self.base
     }
 
-    pub fn last(&self) -> IPv4Address {
+    pub fn last(&self) -> Ipv4Address {
         self.base | self.mask
     }
 
-    pub fn iter(&self) -> IPv4NetworkIter {
-        IPv4NetworkIter {
+    pub fn iter(&self) -> Ipv4NetworkIter {
+        Ipv4NetworkIter {
             curr: Some(u32::from_be_bytes(self.first().0)),
             last: u32::from_be_bytes(self.last().0),
         }
     }
 }
 
-impl IntoIterator for IPv4Network {
-    type Item = IPv4Address;
-    type IntoIter = IPv4NetworkIter;
+impl IntoIterator for Ipv4Network {
+    type Item = Ipv4Address;
+    type IntoIter = Ipv4NetworkIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl IPv4Address {
-    const PRIVATE_NETS: [IPv4Network; 3] = [
-        IPv4Network::from_prefix_len(IPv4Address::new([10, 0, 0, 0]), 8),
-        IPv4Network::from_prefix_len(IPv4Address::new([172, 16, 0, 0]), 12),
-        IPv4Network::from_prefix_len(IPv4Address::new([192, 168, 0, 0]), 16),
+impl Ipv4Address {
+    const PRIVATE_NETS: [Ipv4Network; 3] = [
+        Ipv4Network::from_prefix_len(Ipv4Address::new([10, 0, 0, 0]), 8),
+        Ipv4Network::from_prefix_len(Ipv4Address::new([172, 16, 0, 0]), 12),
+        Ipv4Network::from_prefix_len(Ipv4Address::new([192, 168, 0, 0]), 16),
     ];
 
-    const LOOPBACK_NET: IPv4Network =
-        IPv4Network::from_prefix_len(IPv4Address::new([127, 0, 0, 0]), 8);
+    const LOOPBACK_NET: Ipv4Network =
+        Ipv4Network::from_prefix_len(Ipv4Address::new([127, 0, 0, 0]), 8);
 
-    const MULTICAST_NET: IPv4Network =
-        IPv4Network::from_prefix_len(IPv4Address::new([224, 0, 0, 0]), 4);
+    const MULTICAST_NET: Ipv4Network =
+        Ipv4Network::from_prefix_len(Ipv4Address::new([224, 0, 0, 0]), 4);
 
     pub const fn new(bytes: [u8; 4]) -> Self {
         Self(bytes)
     }
 
-    pub const fn from_prefix_len(prefix_len: u32) -> IPv4Address {
-        IPv4Address((!(!0u32 >> prefix_len)).to_be_bytes())
+    pub const fn from_prefix_len(prefix_len: u32) -> Ipv4Address {
+        Ipv4Address((!(!0u32 >> prefix_len)).to_be_bytes())
     }
 
     pub fn is_private(&self) -> bool {
@@ -128,52 +128,52 @@ impl IPv4Address {
         !self.is_multicast()
     }
 
-    pub fn next(&self) -> IPv4Address {
-        IPv4Address::from(u32::from(*self).wrapping_add(1))
+    pub fn next(&self) -> Ipv4Address {
+        Ipv4Address::from(u32::from(*self).wrapping_add(1))
     }
 
-    pub fn prev(&self) -> IPv4Address {
-        IPv4Address::from(u32::from(*self).wrapping_sub(1))
+    pub fn prev(&self) -> Ipv4Address {
+        Ipv4Address::from(u32::from(*self).wrapping_sub(1))
     }
 }
 
-impl From<[u8; 4]> for IPv4Address {
+impl From<[u8; 4]> for Ipv4Address {
     fn from(addr: [u8; 4]) -> Self {
         Self(addr)
     }
 }
 
-impl From<IPv4Address> for [u8; 4] {
-    fn from(addr: IPv4Address) -> Self {
+impl From<Ipv4Address> for [u8; 4] {
+    fn from(addr: Ipv4Address) -> Self {
         addr.0
     }
 }
 
-impl From<u32> for IPv4Address {
+impl From<u32> for Ipv4Address {
     fn from(addr: u32) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<IPv4Address> for u32 {
-    fn from(addr: IPv4Address) -> Self {
+impl From<Ipv4Address> for u32 {
+    fn from(addr: Ipv4Address) -> Self {
         u32::from_ne_bytes(addr.0)
     }
 }
 
-impl From<i32> for IPv4Address {
+impl From<i32> for Ipv4Address {
     fn from(addr: i32) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<IPv4Address> for i32 {
-    fn from(addr: IPv4Address) -> i32 {
+impl From<Ipv4Address> for i32 {
+    fn from(addr: Ipv4Address) -> i32 {
         i32::from_ne_bytes(addr.0)
     }
 }
 
-impl Decode for IPv4Address {
+impl Decode for Ipv4Address {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 4]>::decode, Self::from)(buf)
     }
@@ -183,7 +183,7 @@ impl Decode for IPv4Address {
     }
 }
 
-impl Encode for IPv4Address {
+impl Encode for Ipv4Address {
     fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
@@ -203,7 +203,7 @@ impl Encode for IPv4Address {
     }
 }
 
-impl std::ops::Deref for IPv4Address {
+impl std::ops::Deref for Ipv4Address {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -211,48 +211,48 @@ impl std::ops::Deref for IPv4Address {
     }
 }
 
-impl std::ops::DerefMut for IPv4Address {
+impl std::ops::DerefMut for Ipv4Address {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0[..]
     }
 }
 
-pub enum IPv4ParseError {
+pub enum Ipv4ParseError {
     ParseInt(std::num::ParseIntError),
     BadLength,
 }
 
-impl From<std::num::ParseIntError> for IPv4ParseError {
+impl From<std::num::ParseIntError> for Ipv4ParseError {
     fn from(e: std::num::ParseIntError) -> Self {
-        IPv4ParseError::ParseInt(e)
+        Ipv4ParseError::ParseInt(e)
     }
 }
 
-impl std::str::FromStr for IPv4Address {
-    type Err = IPv4ParseError;
+impl std::str::FromStr for Ipv4Address {
+    type Err = Ipv4ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut addr = [0u8; 4];
         let mut iter = s.split('.');
-        addr[0] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
-        addr[1] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
-        addr[2] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
-        addr[3] = iter.next().ok_or(IPv4ParseError::BadLength)?.parse()?;
+        addr[0] = iter.next().ok_or(Ipv4ParseError::BadLength)?.parse()?;
+        addr[1] = iter.next().ok_or(Ipv4ParseError::BadLength)?.parse()?;
+        addr[2] = iter.next().ok_or(Ipv4ParseError::BadLength)?.parse()?;
+        addr[3] = iter.next().ok_or(Ipv4ParseError::BadLength)?.parse()?;
         iter.next()
             .ok_or(())
             .err()
-            .ok_or(IPv4ParseError::BadLength)?;
+            .ok_or(Ipv4ParseError::BadLength)?;
         Ok(Self(addr))
     }
 }
 
-impl std::fmt::Display for IPv4Address {
+impl std::fmt::Display for Ipv4Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
     }
 }
 
-impl std::ops::BitAnd for IPv4Address {
+impl std::ops::BitAnd for Ipv4Address {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -260,13 +260,13 @@ impl std::ops::BitAnd for IPv4Address {
     }
 }
 
-impl std::ops::BitAndAssign for IPv4Address {
+impl std::ops::BitAndAssign for Ipv4Address {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
-impl std::ops::BitOr for IPv4Address {
+impl std::ops::BitOr for Ipv4Address {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -274,13 +274,13 @@ impl std::ops::BitOr for IPv4Address {
     }
 }
 
-impl std::ops::BitOrAssign for IPv4Address {
+impl std::ops::BitOrAssign for Ipv4Address {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
-impl std::ops::Not for IPv4Address {
+impl std::ops::Not for Ipv4Address {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -288,13 +288,13 @@ impl std::ops::Not for IPv4Address {
     }
 }
 
-impl PartialOrd for IPv4Address {
+impl PartialOrd for Ipv4Address {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         u32::from_be_bytes(self.0).partial_cmp(&u32::from_be_bytes(other.0))
     }
 }
 
-impl Ord for IPv4Address {
+impl Ord for Ipv4Address {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u32::from_be_bytes(self.0).cmp(&u32::from_be_bytes(other.0))
     }

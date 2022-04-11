@@ -42,7 +42,7 @@ pub trait Decode: Sized {
     }
 }
 
-pub trait DecodeBE: Sized {
+pub trait DecodeBe: Sized {
     fn decode_be(buf: &[u8]) -> DResult<'_, Self>;
 
     fn decode_many_be<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -72,7 +72,7 @@ pub trait DecodeBE: Sized {
     }
 }
 
-pub trait DecodeLE: Sized {
+pub trait DecodeLe: Sized {
     fn decode_le(buf: &[u8]) -> DResult<'_, Self>;
 
     fn decode_many_le<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
@@ -106,11 +106,11 @@ pub fn decode<D: Decode>(buf: &[u8]) -> DResult<'_, D> {
     D::decode(buf)
 }
 
-pub fn decode_be<D: DecodeBE>(buf: &[u8]) -> DResult<'_, D> {
+pub fn decode_be<D: DecodeBe>(buf: &[u8]) -> DResult<'_, D> {
     D::decode_be(buf)
 }
 
-pub fn decode_le<D: DecodeLE>(buf: &[u8]) -> DResult<'_, D> {
+pub fn decode_le<D: DecodeLe>(buf: &[u8]) -> DResult<'_, D> {
     D::decode_le(buf)
 }
 
@@ -136,13 +136,13 @@ impl<D: Decode, const LEN: usize> Decode for [D; LEN] {
     }
 }
 
-impl<D: DecodeBE, const LEN: usize> DecodeBE for [D; LEN] {
+impl<D: DecodeBe, const LEN: usize> DecodeBe for [D; LEN] {
     fn decode_be(buf: &[u8]) -> DResult<'_, Self> {
         D::decode_many_be(buf)
     }
 }
 
-impl<D: DecodeLE, const LEN: usize> DecodeLE for [D; LEN] {
+impl<D: DecodeLe, const LEN: usize> DecodeLe for [D; LEN] {
     fn decode_le(buf: &[u8]) -> DResult<'_, Self> {
         D::decode_many_le(buf)
     }
@@ -208,7 +208,7 @@ impl Decode for i8 {
 
 macro_rules! make_decode {
     ($t:ty, $be_func:ident, $le_func:ident) => {
-        impl DecodeBE for $t {
+        impl DecodeBe for $t {
             fn decode_be(buf: &[u8]) -> DResult<'_, Self> {
                 num::$be_func(buf)
             }
@@ -230,7 +230,7 @@ macro_rules! make_decode {
             }
         }
 
-        impl DecodeLE for $t {
+        impl DecodeLe for $t {
             fn decode_le(buf: &[u8]) -> DResult<'_, Self> {
                 num::$le_func(buf)
             }

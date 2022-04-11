@@ -731,8 +731,8 @@ impl<'a, F: Write + Seek> IdbOptionWriter<'a, F> {
 
     pub fn write_ipv4_address(
         &mut self,
-        addr: IPv4Address,
-        mask: IPv4Address,
+        addr: Ipv4Address,
+        mask: Ipv4Address,
     ) -> Result<(), TransmitError> {
         let mut opt = self.write_raw_option(IF_IPV4ADDR)?;
         let buf: [u8; 4] = addr.into();
@@ -744,7 +744,7 @@ impl<'a, F: Write + Seek> IdbOptionWriter<'a, F> {
 
     pub fn write_ipv6_address(
         &mut self,
-        addr: IPv6Address,
+        addr: Ipv6Address,
         prefix_len: u8,
     ) -> Result<(), TransmitError> {
         let buf: [u8; 16] = addr.into();
@@ -754,14 +754,14 @@ impl<'a, F: Write + Seek> IdbOptionWriter<'a, F> {
         opt.finish()
     }
 
-    pub fn write_mac_address(&mut self, addr: MACAddress) -> Result<(), TransmitError> {
+    pub fn write_mac_address(&mut self, addr: MacAddress) -> Result<(), TransmitError> {
         let buf: [u8; 6] = addr.into();
         let mut opt = self.write_raw_option(IF_MACADDR)?;
         opt.write_all(&buf[..])?;
         opt.finish()
     }
 
-    pub fn write_eui_address(&mut self, addr: EUIAddress) -> Result<(), TransmitError> {
+    pub fn write_eui_address(&mut self, addr: EuiAddress) -> Result<(), TransmitError> {
         let buf: [u8; 8] = addr.into();
         let mut opt = self.write_raw_option(IF_EUIADDR)?;
         opt.write_all(&buf[..])?;
@@ -1220,7 +1220,7 @@ impl<'a, F: Write + Seek> NrbRecordWriter<'a, F> {
 
     pub fn write_ipv4_record(
         &mut self,
-        addr: IPv4Address,
+        addr: Ipv4Address,
     ) -> Result<NrbNameWriter<'_, 'a, F>, TransmitError> {
         let block = guarantee(self.block.as_mut());
         block.write_u16(NRB_RECORD_IPV4)?;
@@ -1232,7 +1232,7 @@ impl<'a, F: Write + Seek> NrbRecordWriter<'a, F> {
 
     pub fn write_ipv6_record(
         &mut self,
-        addr: IPv6Address,
+        addr: Ipv6Address,
     ) -> Result<NrbNameWriter<'_, 'a, F>, TransmitError> {
         let block = guarantee(self.block.as_mut());
         block.write_u16(NRB_RECORD_IPV4)?;
@@ -1326,13 +1326,13 @@ impl<'a, F: Write + Seek> NrbOptionWriter<'a, F> {
         opt.finish()
     }
 
-    pub fn write_dns_ipv4_address(&mut self, addr: IPv4Address) -> Result<(), TransmitError> {
+    pub fn write_dns_ipv4_address(&mut self, addr: Ipv4Address) -> Result<(), TransmitError> {
         let mut opt = self.write_raw_option(NS_DNSIP4ADDR)?;
         opt.write_all(&addr[..])?;
         opt.finish()
     }
 
-    pub fn write_dns_ipv6_address(&mut self, addr: IPv6Address) -> Result<(), TransmitError> {
+    pub fn write_dns_ipv6_address(&mut self, addr: Ipv6Address) -> Result<(), TransmitError> {
         let mut opt = self.write_raw_option(NS_DNSIP6ADDR)?;
         opt.write_all(&addr[..])?;
         opt.finish()

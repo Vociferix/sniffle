@@ -6,21 +6,21 @@ use sniffle_ende::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
-pub struct IPv6Address([u8; 16]);
+pub struct Ipv6Address([u8; 16]);
 
-pub struct IPv6Network {
-    base: IPv6Address,
-    mask: IPv6Address,
+pub struct Ipv6Network {
+    base: Ipv6Address,
+    mask: Ipv6Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct IPv6NetworkIter {
+pub struct Ipv6NetworkIter {
     curr: Option<u128>,
     last: u128,
 }
 
-impl Iterator for IPv6NetworkIter {
-    type Item = IPv6Address;
+impl Iterator for Ipv6NetworkIter {
+    type Item = Ipv6Address;
 
     fn next(&mut self) -> Option<Self::Item> {
         let tmp = self.curr;
@@ -32,75 +32,75 @@ impl Iterator for IPv6NetworkIter {
                 } else {
                     self.curr = Some(addr + 1);
                 }
-                Some(IPv6Address(addr.to_be_bytes()))
+                Some(Ipv6Address(addr.to_be_bytes()))
             }
             None => None,
         }
     }
 }
 
-impl IPv6Network {
-    pub const fn new(base: IPv6Address, mask: IPv6Address) -> Self {
+impl Ipv6Network {
+    pub const fn new(base: Ipv6Address, mask: Ipv6Address) -> Self {
         Self { base, mask }
     }
 
-    pub const fn from_prefix_len(base: IPv6Address, prefix_len: u32) -> Self {
+    pub const fn from_prefix_len(base: Ipv6Address, prefix_len: u32) -> Self {
         Self {
             base,
-            mask: IPv6Address::from_prefix_len(prefix_len),
+            mask: Ipv6Address::from_prefix_len(prefix_len),
         }
     }
 
-    pub const fn base_address(&self) -> &IPv6Address {
+    pub const fn base_address(&self) -> &Ipv6Address {
         &self.base
     }
 
-    pub const fn network_mask(&self) -> &IPv6Address {
+    pub const fn network_mask(&self) -> &Ipv6Address {
         &self.mask
     }
 
-    pub fn contains(&self, addr: &IPv6Address) -> bool {
+    pub fn contains(&self, addr: &Ipv6Address) -> bool {
         (*addr & self.mask) == self.base
     }
 
-    pub fn first(&self) -> IPv6Address {
+    pub fn first(&self) -> Ipv6Address {
         self.base
     }
 
-    pub fn last(&self) -> IPv6Address {
+    pub fn last(&self) -> Ipv6Address {
         self.base | self.mask
     }
 
-    pub fn iter(&self) -> IPv6NetworkIter {
-        IPv6NetworkIter {
+    pub fn iter(&self) -> Ipv6NetworkIter {
+        Ipv6NetworkIter {
             curr: Some(u128::from_be_bytes(self.first().0)),
             last: u128::from_be_bytes(self.last().0),
         }
     }
 }
 
-impl IntoIterator for IPv6Network {
-    type Item = IPv6Address;
-    type IntoIter = IPv6NetworkIter;
+impl IntoIterator for Ipv6Network {
+    type Item = Ipv6Address;
+    type IntoIter = Ipv6NetworkIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl IPv6Address {
-    const UNSPECIFIED: IPv6Address = IPv6Address([0u8; 16]);
+impl Ipv6Address {
+    const UNSPECIFIED: Ipv6Address = Ipv6Address([0u8; 16]);
 
-    const LOOPBACK: IPv6Address =
-        IPv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    const LOOPBACK: Ipv6Address =
+        Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
-    const LOCAL_UNICAST_NET: IPv6Network = IPv6Network::from_prefix_len(
-        IPv6Address::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    const LOCAL_UNICAST_NET: Ipv6Network = Ipv6Network::from_prefix_len(
+        Ipv6Address::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         10,
     );
 
-    const MULTICAST_NET: IPv6Network = IPv6Network::from_prefix_len(
-        IPv6Address::new([0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    const MULTICAST_NET: Ipv6Network = Ipv6Network::from_prefix_len(
+        Ipv6Address::new([0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         8,
     );
 
@@ -109,15 +109,15 @@ impl IPv6Address {
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
-        IPv6Address((!(!0u128 >> prefix_len)).to_be_bytes())
+        Ipv6Address((!(!0u128 >> prefix_len)).to_be_bytes())
     }
 
-    pub fn next(&self) -> IPv6Address {
-        IPv6Address::from(u128::from_be_bytes(self.0).wrapping_add(1).to_be_bytes())
+    pub fn next(&self) -> Ipv6Address {
+        Ipv6Address::from(u128::from_be_bytes(self.0).wrapping_add(1).to_be_bytes())
     }
 
-    pub fn prev(&self) -> IPv6Address {
-        IPv6Address::from(u128::from_be_bytes(self.0).wrapping_sub(1).to_be_bytes())
+    pub fn prev(&self) -> Ipv6Address {
+        Ipv6Address::from(u128::from_be_bytes(self.0).wrapping_sub(1).to_be_bytes())
     }
 
     pub fn is_unspecified(&self) -> bool {
@@ -137,43 +137,43 @@ impl IPv6Address {
     }
 }
 
-impl From<[u8; 16]> for IPv6Address {
+impl From<[u8; 16]> for Ipv6Address {
     fn from(addr: [u8; 16]) -> Self {
         Self(addr)
     }
 }
 
-impl From<IPv6Address> for [u8; 16] {
-    fn from(addr: IPv6Address) -> Self {
+impl From<Ipv6Address> for [u8; 16] {
+    fn from(addr: Ipv6Address) -> Self {
         addr.0
     }
 }
 
-impl From<u128> for IPv6Address {
+impl From<u128> for Ipv6Address {
     fn from(addr: u128) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<IPv6Address> for u128 {
-    fn from(addr: IPv6Address) -> Self {
+impl From<Ipv6Address> for u128 {
+    fn from(addr: Ipv6Address) -> Self {
         Self::from_ne_bytes(addr.0)
     }
 }
 
-impl From<i128> for IPv6Address {
+impl From<i128> for Ipv6Address {
     fn from(addr: i128) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<IPv6Address> for i128 {
-    fn from(addr: IPv6Address) -> Self {
+impl From<Ipv6Address> for i128 {
+    fn from(addr: Ipv6Address) -> Self {
         Self::from_ne_bytes(addr.0)
     }
 }
 
-impl Decode for IPv6Address {
+impl Decode for Ipv6Address {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 16]>::decode, Self::from)(buf)
     }
@@ -183,7 +183,7 @@ impl Decode for IPv6Address {
     }
 }
 
-impl Encode for IPv6Address {
+impl Encode for Ipv6Address {
     fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
@@ -203,7 +203,7 @@ impl Encode for IPv6Address {
     }
 }
 
-impl std::ops::Deref for IPv6Address {
+impl std::ops::Deref for Ipv6Address {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -211,26 +211,26 @@ impl std::ops::Deref for IPv6Address {
     }
 }
 
-impl std::ops::DerefMut for IPv6Address {
+impl std::ops::DerefMut for Ipv6Address {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0[..]
     }
 }
 
-pub enum IPv6ParseError {
+pub enum Ipv6ParseError {
     ParseInt(std::num::ParseIntError),
     BadLength,
     Invalid,
 }
 
-impl From<std::num::ParseIntError> for IPv6ParseError {
+impl From<std::num::ParseIntError> for Ipv6ParseError {
     fn from(e: std::num::ParseIntError) -> Self {
         Self::ParseInt(e)
     }
 }
 
-impl std::str::FromStr for IPv6Address {
-    type Err = IPv6ParseError;
+impl std::str::FromStr for Ipv6Address {
+    type Err = Ipv6ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut addr = [0u8; 16];
@@ -238,7 +238,7 @@ impl std::str::FromStr for IPv6Address {
         let mut idx: usize = 0;
         for word in iter.by_ref() {
             if idx >= 16 {
-                return Err(IPv6ParseError::BadLength);
+                return Err(Ipv6ParseError::BadLength);
             }
 
             if word.is_empty() {
@@ -257,11 +257,11 @@ impl std::str::FromStr for IPv6Address {
         idx = 15;
         for word in iter.by_ref() {
             if idx < end {
-                return Err(IPv6ParseError::BadLength);
+                return Err(Ipv6ParseError::BadLength);
             }
 
             if word.is_empty() {
-                return Err(IPv6ParseError::Invalid);
+                return Err(Ipv6ParseError::Invalid);
             }
 
             let w = u16::from_str_radix(word, 16)?.to_be_bytes();
@@ -275,7 +275,7 @@ impl std::str::FromStr for IPv6Address {
     }
 }
 
-impl std::fmt::Display for IPv6Address {
+impl std::fmt::Display for Ipv6Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let disp = [
             u16::from_be_bytes([self.0[0], self.0[1]]),
@@ -339,7 +339,7 @@ impl std::fmt::Display for IPv6Address {
     }
 }
 
-impl std::ops::BitAnd for IPv6Address {
+impl std::ops::BitAnd for Ipv6Address {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -347,13 +347,13 @@ impl std::ops::BitAnd for IPv6Address {
     }
 }
 
-impl std::ops::BitAndAssign for IPv6Address {
+impl std::ops::BitAndAssign for Ipv6Address {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
-impl std::ops::BitOr for IPv6Address {
+impl std::ops::BitOr for Ipv6Address {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -361,13 +361,13 @@ impl std::ops::BitOr for IPv6Address {
     }
 }
 
-impl std::ops::BitOrAssign for IPv6Address {
+impl std::ops::BitOrAssign for Ipv6Address {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
-impl std::ops::Not for IPv6Address {
+impl std::ops::Not for Ipv6Address {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -375,13 +375,13 @@ impl std::ops::Not for IPv6Address {
     }
 }
 
-impl PartialOrd for IPv6Address {
+impl PartialOrd for Ipv6Address {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         u128::from_be_bytes(self.0).partial_cmp(&u128::from_be_bytes(other.0))
     }
 }
 
-impl Ord for IPv6Address {
+impl Ord for Ipv6Address {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u128::from_be_bytes(self.0).cmp(&u128::from_be_bytes(other.0))
     }

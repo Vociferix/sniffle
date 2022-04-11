@@ -77,10 +77,10 @@ impl<F: std::io::BufRead> SniffRaw for Sniffer<F> {
         Ok(Some(RawPacket::new(
             LinkType(self.reader.header().network as u16),
             match self.reader.timestamp_precision() {
-                TSPrecision::Nano => SystemTime::UNIX_EPOCH
+                TsPrecision::Nano => SystemTime::UNIX_EPOCH
                     .checked_add(Duration::new(hdr.ts_sec as u64, hdr.ts_frac))
                     .unwrap_or(SystemTime::UNIX_EPOCH),
-                TSPrecision::Micro => SystemTime::UNIX_EPOCH
+                TsPrecision::Micro => SystemTime::UNIX_EPOCH
                     .checked_add(Duration::new(hdr.ts_sec as u64, hdr.ts_frac * 1000))
                     .unwrap_or(SystemTime::UNIX_EPOCH),
             },

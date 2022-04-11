@@ -1,4 +1,4 @@
-use super::{dissector_table, register_dissector_table, PDUExt, PDUType, PDU};
+use super::{dissector_table, register_dissector_table, Pdu, PduExt, PduType};
 use lazy_static::*;
 use parking_lot::RwLock;
 #[cfg(feature = "pcaprs")]
@@ -13,7 +13,7 @@ use std::str::FromStr;
 pub struct LinkType(pub u16);
 
 lazy_static! {
-    static ref LINK_TYPE_PDUS: RwLock<HashMap<PDUType, LinkType>> = RwLock::new(HashMap::new());
+    static ref LINK_TYPE_PDUS: RwLock<HashMap<PduType, LinkType>> = RwLock::new(HashMap::new());
 }
 
 macro_rules! link_type {
@@ -54,11 +54,11 @@ impl LinkType {
         pcaprs::LinkType(self.0).description_or_dlt()
     }
 
-    pub fn of<P: PDU>() -> Option<Self> {
-        LINK_TYPE_PDUS.read().get(&PDUType::of::<P>()).copied()
+    pub fn of<P: Pdu>() -> Option<Self> {
+        LINK_TYPE_PDUS.read().get(&PduType::of::<P>()).copied()
     }
 
-    pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
+    pub fn from_pdu<P: Pdu>(pdu: &P) -> Option<Self> {
         LINK_TYPE_PDUS.read().get(&pdu.pdu_type()).copied()
     }
 
@@ -94,13 +94,13 @@ impl From<LinkType> for link_types::LinkType {
 dissector_table!(pub LinkTypeTable, LinkType);
 register_dissector_table!(LinkTypeTable);
 
-pub fn _register_link_layer_pdu<P: PDU>(link_type: LinkType) {
+pub fn _register_link_layer_pdu<P: Pdu>(link_type: LinkType) {
     if LINK_TYPE_PDUS
         .write()
-        .insert(PDUType::of::<P>(), link_type)
+        .insert(PduType::of::<P>(), link_type)
         .is_some()
     {
-        panic!("A PDU can only be registered for one link type");
+        panic!("A Pdu can only be registered for one link type");
     }
 }
 

@@ -11,8 +11,8 @@ pub use sniffle_core::Packet;
 pub mod address {
     #[doc(inline)]
     pub use sniffle_core::{
-        EUIAddress, EUIParseError, IPv4Address, IPv4NetworkIter, IPv6Address, IPv6NetworkIter,
-        MACAddress,
+        EuiAddress, EuiParseError, Ipv4Address, Ipv4NetworkIter, Ipv6Address, Ipv6NetworkIter,
+        MacAddress,
     };
 }
 
@@ -33,6 +33,7 @@ pub mod sniff {
     #[doc(inline)]
     pub use sniffle_core::{
         register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, SniffError, SniffIter,
+        Sniffer,
     };
 }
 
@@ -44,8 +45,8 @@ pub mod transmit {
 pub mod device {
     #[doc(inline)]
     pub use sniffle_core::{
-        ConnectionStatus, Device, DeviceBuilder, DeviceIPv4, DeviceIPv6, DeviceTSPrecision,
-        DeviceTSType,
+        ConnectionStatus, Device, DeviceBuilder, DeviceIpv4, DeviceIpv6, DeviceTsPrecision,
+        DeviceTsType,
     };
 
     #[cfg(feature = "libpcap")]
@@ -55,7 +56,7 @@ pub mod device {
 
 pub mod pdu {
     #[doc(inline)]
-    pub use sniffle_core::{AnyPDU, BasePDU, PDUExt, PDUType, RawPDU, TempPDU, PDU};
+    pub use sniffle_core::{AnyPdu, BasePdu, Pdu, PduExt, PduType, RawPdu, TempPdu};
 }
 
 pub mod encode {
@@ -83,11 +84,11 @@ pub mod capfile {
 /// Re-exports commonly used sniffle types, functions, and macros.
 pub mod prelude {
     pub use crate::{
-        address::EUIAddress, address::EUIParseError, address::IPv4Address, address::IPv6Address,
-        address::MACAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
+        address::EuiAddress, address::EuiParseError, address::Ipv4Address, address::Ipv6Address,
+        address::MacAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
         device::ConnectionStatus, device::Device, dissect::register_dissector, dissect::Priority,
-        dissect::Session, dump::Dump, dump::LogDumper, pdu::AnyPDU, pdu::PDUExt, pdu::PDU, protos,
-        protos::RawPDU, sniff::Sniff, sniff::SniffError, transmit::Transmit,
+        dissect::Session, dump::Dump, dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos,
+        protos::RawPdu, sniff::Sniff, sniff::SniffError, transmit::Transmit,
         transmit::TransmitError, Packet,
     };
 
@@ -103,7 +104,7 @@ pub mod protos {
     pub(self) use sniffle_protos as xprotos;
 
     #[doc(inline)]
-    pub use xprotos::{RawPDU, Virtual};
+    pub use xprotos::{RawPdu, Virtual};
 
     pub mod ethertype {
         use super::xprotos;
@@ -122,7 +123,7 @@ pub mod protos {
         use super::xprotos;
 
         #[doc(inline)]
-        pub use xprotos::ip_proto::IPProto;
+        pub use xprotos::ip_proto::IpProto;
 
         #[doc(hidden)]
         pub use xprotos::ip_proto::_register_ip_proto_pdu;

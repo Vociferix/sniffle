@@ -1,4 +1,4 @@
-use super::{Device, Packet, Transmit, TransmitError, PDU};
+use super::{Device, Packet, Pdu, Transmit, TransmitError};
 
 pub struct DeviceInjector {
     dev: std::rc::Rc<Device>,
@@ -33,7 +33,7 @@ impl DeviceInjector {
         Ok(())
     }
 
-    pub fn inject_pdu<P: PDU>(&mut self, pdu: &P) -> Result<(), TransmitError> {
+    pub fn inject_pdu<P: Pdu>(&mut self, pdu: &P) -> Result<(), TransmitError> {
         let mut data = std::mem::take(&mut self.buf);
         data.clear();
         pdu.serialize(&mut data)?;

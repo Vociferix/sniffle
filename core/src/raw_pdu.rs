@@ -1,18 +1,18 @@
-use super::{BasePDU, DResult, Dissect, Dump, DumpValue, NodeDumper, Session, TempPDU, PDU};
+use super::{BasePdu, DResult, Dissect, Dump, DumpValue, NodeDumper, Pdu, Session, TempPdu};
 use sniffle_ende::decode::Decode;
 use sniffle_ende::encode::Encoder;
 use sniffle_ende::nom::combinator::{map, rest};
 
 #[derive(Debug)]
-pub struct RawPDU {
-    base: BasePDU,
+pub struct RawPdu {
+    base: BasePdu,
     data: Vec<u8>,
 }
 
-impl RawPDU {
+impl RawPdu {
     pub fn new(data: Vec<u8>) -> Self {
         Self {
-            base: BasePDU::default(),
+            base: BasePdu::default(),
             data,
         }
     }
@@ -26,40 +26,40 @@ impl RawPDU {
     }
 }
 
-impl Clone for RawPDU {
+impl Clone for RawPdu {
     fn clone(&self) -> Self {
         Self {
-            base: BasePDU::default(),
+            base: BasePdu::default(),
             data: self.data.clone(),
         }
     }
 }
 
-impl Decode for RawPDU {
+impl Decode for RawPdu {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(rest, |buf| Self {
-            base: BasePDU::default(),
+            base: BasePdu::default(),
             data: Vec::from(buf),
         })(buf)
     }
 }
 
-impl Dissect for RawPDU {
+impl Dissect for RawPdu {
     fn dissect<'a>(
         buf: &'a [u8],
         _session: &Session,
-        _parent: Option<TempPDU<'_>>,
+        _parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self> {
         Self::decode(buf)
     }
 }
 
-impl PDU for RawPDU {
-    fn base_pdu(&self) -> &BasePDU {
+impl Pdu for RawPdu {
+    fn base_pdu(&self) -> &BasePdu {
         &self.base
     }
 
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn base_pdu_mut(&mut self) -> &mut BasePdu {
         &mut self.base
     }
 

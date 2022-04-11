@@ -1,23 +1,23 @@
-use super::{AnyPDU, DynPDU, PDUExt, PDU};
+use super::{AnyPdu, DynPdu, Pdu, PduExt};
 use std::marker::PhantomData;
 
-pub struct TempPDU<'a> {
-    pdu: Option<AnyPDU>,
-    parent: Option<&'a TempPDU<'a>>,
-    _marker: PhantomData<&'a (dyn DynPDU + Send + Sync + 'static)>,
+pub struct TempPdu<'a> {
+    pdu: Option<AnyPdu>,
+    parent: Option<&'a TempPdu<'a>>,
+    _marker: PhantomData<&'a (dyn DynPdu + Send + Sync + 'static)>,
 }
 
-impl<'a> TempPDU<'a> {
-    pub fn new<'b, 'c, P: PDU>(pdu: &'a P, parent: &'b Option<TempPDU<'c>>) -> Self
+impl<'a> TempPdu<'a> {
+    pub fn new<'b, 'c, P: Pdu>(pdu: &'a P, parent: &'b Option<TempPdu<'c>>) -> Self
     where
         'b: 'a,
         'c: 'a,
     {
-        let pdu: &'a (dyn DynPDU + Send + Sync + 'static) = pdu;
-        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
+        let pdu: &'a (dyn DynPdu + Send + Sync + 'static) = pdu;
+        let pdu: *const (dyn DynPdu + Send + Sync + 'static) = pdu;
         Self {
             pdu: Some(unsafe {
-                AnyPDU {
+                AnyPdu {
                     pdu: Box::from_raw(std::mem::transmute(pdu)),
                 }
             }),
@@ -26,16 +26,16 @@ impl<'a> TempPDU<'a> {
         }
     }
 
-    pub fn append<'b, 'c, P: PDU>(&'b self, pdu: &'c P) -> TempPDU<'c>
+    pub fn append<'b, 'c, P: Pdu>(&'b self, pdu: &'c P) -> TempPdu<'c>
     where
         'a: 'c,
         'b: 'c,
     {
-        let pdu: &'c (dyn DynPDU + Send + Sync + 'static) = pdu;
-        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
-        TempPDU {
+        let pdu: &'c (dyn DynPdu + Send + Sync + 'static) = pdu;
+        let pdu: *const (dyn DynPdu + Send + Sync + 'static) = pdu;
+        TempPdu {
             pdu: Some(unsafe {
-                AnyPDU {
+                AnyPdu {
                     pdu: Box::from_raw(std::mem::transmute(pdu)),
                 }
             }),
@@ -44,15 +44,15 @@ impl<'a> TempPDU<'a> {
         }
     }
 
-    pub fn parent(&self) -> Option<&'a TempPDU<'a>> {
+    pub fn parent(&self) -> Option<&'a TempPdu<'a>> {
         self.parent
     }
 
-    pub fn pdu(&self) -> &AnyPDU {
+    pub fn pdu(&self) -> &AnyPdu {
         self.pdu.as_ref().unwrap()
     }
 
-    pub fn find_pdu<P: PDU>(&self) -> Option<&P> {
+    pub fn find_pdu<P: Pdu>(&self) -> Option<&P> {
         match self.pdu.as_ref().unwrap().downcast_ref::<P>() {
             Some(pdu) => Some(pdu),
             None => match self.parent {
@@ -62,7 +62,7 @@ impl<'a> TempPDU<'a> {
         }
     }
 
-    pub fn find_temp_pdu<P: PDU>(&self) -> Option<&TempPDU<'a>> {
+    pub fn find_temp_pdu<P: Pdu>(&self) -> Option<&TempPdu<'a>> {
         if self.pdu.as_ref().unwrap().is::<P>() {
             Some(self)
         } else {
@@ -74,13 +74,13 @@ impl<'a> TempPDU<'a> {
     }
 }
 
-impl<'a> Clone for TempPDU<'a> {
+impl<'a> Clone for TempPdu<'a> {
     fn clone(&self) -> Self {
-        let pdu: &(dyn DynPDU + Send + Sync + 'static) = &*self.pdu.as_ref().unwrap().pdu;
-        let pdu: *const (dyn DynPDU + Send + Sync + 'static) = pdu;
+        let pdu: &(dyn DynPdu + Send + Sync + 'static) = &*self.pdu.as_ref().unwrap().pdu;
+        let pdu: *const (dyn DynPdu + Send + Sync + 'static) = pdu;
         Self {
             pdu: Some(unsafe {
-                AnyPDU {
+                AnyPdu {
                     pdu: Box::from_raw(std::mem::transmute(pdu)),
                 }
             }),
@@ -90,7 +90,7 @@ impl<'a> Clone for TempPDU<'a> {
     }
 }
 
-impl<'a> Drop for TempPDU<'a> {
+impl<'a> Drop for TempPdu<'a> {
     fn drop(&mut self) {
         if let Some(pdu) = self.pdu.take() {
             let _ = Box::into_raw(pdu.pdu);

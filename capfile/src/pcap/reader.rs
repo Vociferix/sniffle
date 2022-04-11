@@ -72,11 +72,11 @@ impl<F: std::io::BufRead> Reader<F> {
         !self.be
     }
 
-    pub fn timestamp_precision(&self) -> TSPrecision {
+    pub fn timestamp_precision(&self) -> TsPrecision {
         if self.nano {
-            TSPrecision::Nano
+            TsPrecision::Nano
         } else {
-            TSPrecision::Micro
+            TsPrecision::Micro
         }
     }
 

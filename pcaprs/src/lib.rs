@@ -37,18 +37,18 @@ pub enum PcapError {
     NotActivated,
     Activated,
     NoSuchDevice(String),
-    RFMonNotSupported,
+    RfMonNotSupported,
     PermDenied(String),
     IfaceNotUp,
     #[cfg(feature = "npcap")]
-    CantSetTSType,
+    CantSetTsType,
     #[cfg(feature = "npcap")]
     PromiscPermDenied,
     #[cfg(feature = "npcap")]
-    TSPrecisionNotSupported,
+    TsPrecisionNotSupported,
     PromiscNotSupported(String),
     #[cfg(feature = "npcap")]
-    TSTypeNotSupported,
+    TsTypeNotSupported,
     IO(std::io::Error),
 }
 
@@ -62,7 +62,7 @@ pub enum Direction {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum TSPrecision {
+pub enum TsPrecision {
     Micro,
     Nano,
 }
@@ -94,7 +94,7 @@ impl fmt::Display for PcapError {
                 )
             },
             Self::NoSuchDevice(ref msg) => write!(f, "{}", msg),
-            Self::RFMonNotSupported => unsafe {
+            Self::RfMonNotSupported => unsafe {
                 write!(
                     f,
                     "{}",
@@ -110,7 +110,7 @@ impl fmt::Display for PcapError {
                 )
             },
             #[cfg(feature = "npcap")]
-            Self::CantSetTSType => unsafe {
+            Self::CantSetTsType => unsafe {
                 write!(
                     f,
                     "{}",
@@ -128,7 +128,7 @@ impl fmt::Display for PcapError {
                 )
             },
             #[cfg(feature = "npcap")]
-            Self::TSPrecisionNotSupported => unsafe {
+            Self::TsPrecisionNotSupported => unsafe {
                 write!(
                     f,
                     "{}",
@@ -138,7 +138,7 @@ impl fmt::Display for PcapError {
             },
             Self::PromiscNotSupported(ref msg) => write!(f, "{}", msg),
             #[cfg(feature = "npcap")]
-            Self::TSTypeNotSupported => unsafe {
+            Self::TsTypeNotSupported => unsafe {
                 write!(
                     f,
                     "{}",

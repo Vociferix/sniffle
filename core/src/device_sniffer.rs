@@ -1,8 +1,8 @@
 use super::{Device, LinkType, RawPacket, Session, SniffError, SniffRaw, Sniffer};
 use pcaprs::Capture;
 
-pub type DeviceTSType = pcaprs::TSType;
-pub type DeviceTSPrecision = pcaprs::TSPrecision;
+pub type DeviceTsType = pcaprs::TsType;
+pub type DeviceTsPrecision = pcaprs::TsPrecision;
 
 pub struct DeviceSniffer {
     pcap: pcaprs::Pcap,
@@ -124,7 +124,7 @@ impl DeviceSnifferConfig {
         config
     }
 
-    pub fn timestamp_type(self, ts_type: DeviceTSType) -> Self {
+    pub fn timestamp_type(self, ts_type: DeviceTsType) -> Self {
         let mut config = self;
         let _ = config.config.timestamp_type(ts_type);
         config
@@ -142,7 +142,7 @@ impl DeviceSnifferConfig {
         config
     }
 
-    pub fn timestamp_precision(self, prec: DeviceTSPrecision) -> Self {
+    pub fn timestamp_precision(self, prec: DeviceTsPrecision) -> Self {
         let mut config = self;
         let _ = config.config.timestamp_precision(prec);
         config

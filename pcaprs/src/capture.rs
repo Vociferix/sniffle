@@ -57,21 +57,21 @@ pub trait Capture: Sized + AsEventHandle {
     }
 
     #[cfg(feature = "npcap")]
-    fn timestamp_precision(&self) -> TSPrecision {
+    fn timestamp_precision(&self) -> TsPrecision {
         unsafe {
             if pcap_get_tstamp_precision(self.pcap().raw_handle())
                 == PCAP_TSTAMP_PRECISION_MICRO as i32
             {
-                TSPrecision::Micro
+                TsPrecision::Micro
             } else {
-                TSPrecision::Nano
+                TsPrecision::Nano
             }
         }
     }
 
     #[cfg(not(feature = "npcap"))]
-    fn timestamp_precision(&self) -> TSPrecision {
-        TSPrecision::Micro
+    fn timestamp_precision(&self) -> TsPrecision {
+        TsPrecision::Micro
     }
 
     fn set_direction(&mut self, direction: Direction) -> Result<()> {
@@ -170,11 +170,11 @@ pub trait Capture: Sized + AsEventHandle {
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
             let ts = match self.timestamp_precision() {
-                TSPrecision::Micro => {
+                TsPrecision::Micro => {
                     std::time::UNIX_EPOCH
                         + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
                 }
-                TSPrecision::Nano => {
+                TsPrecision::Nano => {
                     std::time::UNIX_EPOCH
                         + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
                 }
@@ -221,11 +221,11 @@ pub trait Capture: Sized + AsEventHandle {
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
             let ts = match self.timestamp_precision() {
-                TSPrecision::Micro => {
+                TsPrecision::Micro => {
                     std::time::UNIX_EPOCH
                         + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
                 }
-                TSPrecision::Nano => {
+                TsPrecision::Nano => {
                     std::time::UNIX_EPOCH
                         + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
                 }

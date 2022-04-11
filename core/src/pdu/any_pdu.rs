@@ -1,19 +1,19 @@
 use super::{
     super::{Dump, NodeDumper},
-    BasePDU, PDUExt, PDUType, PDU,
+    BasePdu, Pdu, PduExt, PduType,
 };
 use sniffle_ende::encode::{DynEncoder, Encoder};
 use std::any::Any;
 use std::convert::AsRef;
 
-pub struct AnyPDU {
-    pub(super) pdu: Box<dyn DynPDU + Send + Sync + 'static>,
+pub struct AnyPdu {
+    pub(super) pdu: Box<dyn DynPdu + Send + Sync + 'static>,
 }
 
-pub trait DynPDU: std::fmt::Debug {
-    fn dyn_base_pdu(&self) -> &BasePDU;
-    fn dyn_base_pdu_mut(&mut self) -> &mut BasePDU;
-    fn dyn_pdu_type(&self) -> PDUType;
+pub trait DynPdu: std::fmt::Debug {
+    fn dyn_base_pdu(&self) -> &BasePdu;
+    fn dyn_base_pdu_mut(&mut self) -> &mut BasePdu;
+    fn dyn_pdu_type(&self) -> PduType;
     fn dyn_header_len(&self) -> usize;
     fn dyn_trailer_len(&self) -> usize;
     fn dyn_total_len(&self) -> usize;
@@ -26,19 +26,19 @@ pub trait DynPDU: std::fmt::Debug {
         dumper: &mut NodeDumper<'_, dyn Dump<Error = Box<dyn Any + Send + Sync + 'static>> + '_>,
     ) -> Result<(), Box<dyn Any + Send + Sync + 'static>>;
     fn dyn_debug(&self) -> &(dyn std::fmt::Debug + Send + Sync + 'static);
-    fn dyn_clone(&self) -> Box<dyn DynPDU + Send + Sync + 'static>;
+    fn dyn_clone(&self) -> Box<dyn DynPdu + Send + Sync + 'static>;
 }
 
-impl<P: PDU> DynPDU for P {
-    fn dyn_base_pdu(&self) -> &BasePDU {
+impl<P: Pdu> DynPdu for P {
+    fn dyn_base_pdu(&self) -> &BasePdu {
         self.base_pdu()
     }
 
-    fn dyn_base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn dyn_base_pdu_mut(&mut self) -> &mut BasePdu {
         self.base_pdu_mut()
     }
 
-    fn dyn_pdu_type(&self) -> PDUType {
+    fn dyn_pdu_type(&self) -> PduType {
         self.pdu_type()
     }
 
@@ -81,12 +81,12 @@ impl<P: PDU> DynPDU for P {
         self
     }
 
-    fn dyn_clone(&self) -> Box<dyn DynPDU + Send + Sync + 'static> {
+    fn dyn_clone(&self) -> Box<dyn DynPdu + Send + Sync + 'static> {
         Box::new(self.clone())
     }
 }
 
-impl Clone for AnyPDU {
+impl Clone for AnyPdu {
     fn clone(&self) -> Self {
         Self {
             pdu: self.pdu.dyn_clone(),
@@ -94,16 +94,16 @@ impl Clone for AnyPDU {
     }
 }
 
-impl PDU for AnyPDU {
-    fn base_pdu(&self) -> &BasePDU {
+impl Pdu for AnyPdu {
+    fn base_pdu(&self) -> &BasePdu {
         self.pdu.dyn_base_pdu()
     }
 
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn base_pdu_mut(&mut self) -> &mut BasePdu {
         self.pdu.dyn_base_pdu_mut()
     }
 
-    unsafe fn unsafe_pdu_type(&self) -> PDUType {
+    unsafe fn unsafe_pdu_type(&self) -> PduType {
         self.pdu.dyn_pdu_type()
     }
 
@@ -123,11 +123,11 @@ impl PDU for AnyPDU {
         self.pdu.dyn_make_canonical();
     }
 
-    unsafe fn unsafe_into_any_pdu(self) -> AnyPDU {
+    unsafe fn unsafe_into_any_pdu(self) -> AnyPdu {
         self
     }
 
-    unsafe fn unsafe_downcast<P: PDU>(self) -> Result<P, Self> {
+    unsafe fn unsafe_downcast<P: Pdu>(self) -> Result<P, Self> {
         let is_type = self.is::<P>();
         if is_type {
             let ptr = Box::into_raw(self.pdu);
@@ -137,19 +137,19 @@ impl PDU for AnyPDU {
         }
     }
 
-    unsafe fn unsafe_downcast_ref<P: PDU>(&self) -> Option<&P> {
+    unsafe fn unsafe_downcast_ref<P: Pdu>(&self) -> Option<&P> {
         if self.is::<P>() {
-            let ptr = self.pdu.as_ref() as *const dyn DynPDU as *const P;
+            let ptr = self.pdu.as_ref() as *const dyn DynPdu as *const P;
             Some(&*ptr)
         } else {
             None
         }
     }
 
-    unsafe fn unsafe_downcast_mut<P: PDU>(&mut self) -> Option<&mut P> {
+    unsafe fn unsafe_downcast_mut<P: Pdu>(&mut self) -> Option<&mut P> {
         let is_type = self.is::<P>();
         if is_type {
-            let ptr = self.pdu.as_mut() as *mut dyn DynPDU as *mut P;
+            let ptr = self.pdu.as_mut() as *mut dyn DynPdu as *mut P;
             Some(&mut *ptr)
         } else {
             None
@@ -179,14 +179,14 @@ impl PDU for AnyPDU {
     }
 }
 
-impl AnyPDU {
-    pub fn new<P: PDU>(pdu: P) -> AnyPDU {
-        PDUExt::into_any_pdu(pdu)
+impl AnyPdu {
+    pub fn new<P: Pdu>(pdu: P) -> AnyPdu {
+        PduExt::into_any_pdu(pdu)
     }
 }
 
-impl std::fmt::Debug for AnyPDU {
+impl std::fmt::Debug for AnyPdu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("AnyPDU").field(self.pdu.dyn_debug()).finish()
+        f.debug_tuple("AnyPdu").field(self.pdu.dyn_debug()).finish()
     }
 }

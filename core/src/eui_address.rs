@@ -4,29 +4,29 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
-use super::MACAddress;
+use super::MacAddress;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(transparent)]
-pub struct EUIAddress([u8; 8]);
+pub struct EuiAddress([u8; 8]);
 
-impl EUIAddress {
-    const BROADCAST: EUIAddress = EUIAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+impl EuiAddress {
+    const BROADCAST: EuiAddress = EuiAddress::new([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
 
     pub const fn new(bytes: [u8; 8]) -> Self {
         Self(bytes)
     }
 
     pub const fn from_prefix_len(prefix_len: u32) -> Self {
-        EUIAddress((!(!0u64 >> prefix_len)).to_be_bytes())
+        EuiAddress((!(!0u64 >> prefix_len)).to_be_bytes())
     }
 
-    pub fn next(&self) -> EUIAddress {
-        EUIAddress::from(u64::from(*self).wrapping_add(1))
+    pub fn next(&self) -> EuiAddress {
+        EuiAddress::from(u64::from(*self).wrapping_add(1))
     }
 
-    pub fn prev(&self) -> EUIAddress {
-        EUIAddress::from(u64::from(*self).wrapping_sub(1))
+    pub fn prev(&self) -> EuiAddress {
+        EuiAddress::from(u64::from(*self).wrapping_sub(1))
     }
 
     pub fn is_broadcast(&self) -> bool {
@@ -34,44 +34,44 @@ impl EUIAddress {
     }
 }
 
-impl From<[u8; 8]> for EUIAddress {
+impl From<[u8; 8]> for EuiAddress {
     fn from(addr: [u8; 8]) -> Self {
         Self(addr)
     }
 }
 
-impl From<EUIAddress> for [u8; 8] {
-    fn from(addr: EUIAddress) -> Self {
+impl From<EuiAddress> for [u8; 8] {
+    fn from(addr: EuiAddress) -> Self {
         addr.0
     }
 }
 
-impl From<u64> for EUIAddress {
+impl From<u64> for EuiAddress {
     fn from(addr: u64) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<EUIAddress> for u64 {
-    fn from(addr: EUIAddress) -> Self {
+impl From<EuiAddress> for u64 {
+    fn from(addr: EuiAddress) -> Self {
         Self::from_ne_bytes(addr.0)
     }
 }
 
-impl From<i64> for EUIAddress {
+impl From<i64> for EuiAddress {
     fn from(addr: i64) -> Self {
         Self(addr.to_ne_bytes())
     }
 }
 
-impl From<EUIAddress> for i64 {
-    fn from(addr: EUIAddress) -> Self {
+impl From<EuiAddress> for i64 {
+    fn from(addr: EuiAddress) -> Self {
         Self::from_ne_bytes(addr.0)
     }
 }
 
-impl From<MACAddress> for EUIAddress {
-    fn from(addr: MACAddress) -> Self {
+impl From<MacAddress> for EuiAddress {
+    fn from(addr: MacAddress) -> Self {
         Self([
             addr[0] ^ 2,
             addr[1],
@@ -85,7 +85,7 @@ impl From<MACAddress> for EUIAddress {
     }
 }
 
-impl Decode for EUIAddress {
+impl Decode for EuiAddress {
     fn decode(buf: &[u8]) -> DResult<'_, Self> {
         map(<[u8; 8]>::decode, Self::from)(buf)
     }
@@ -95,7 +95,7 @@ impl Decode for EUIAddress {
     }
 }
 
-impl Encode for EUIAddress {
+impl Encode for EuiAddress {
     fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
         encoder.encode(&self[..]).map(|_| ())
     }
@@ -115,7 +115,7 @@ impl Encode for EUIAddress {
     }
 }
 
-impl std::ops::Deref for EUIAddress {
+impl std::ops::Deref for EuiAddress {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -123,47 +123,47 @@ impl std::ops::Deref for EUIAddress {
     }
 }
 
-impl std::ops::DerefMut for EUIAddress {
+impl std::ops::DerefMut for EuiAddress {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0[..]
     }
 }
 
-pub enum EUIParseError {
+pub enum EuiParseError {
     ParseInt(std::num::ParseIntError),
     BadLength,
 }
 
-impl From<std::num::ParseIntError> for EUIParseError {
+impl From<std::num::ParseIntError> for EuiParseError {
     fn from(e: std::num::ParseIntError) -> Self {
         Self::ParseInt(e)
     }
 }
 
-impl std::str::FromStr for EUIAddress {
-    type Err = EUIParseError;
+impl std::str::FromStr for EuiAddress {
+    type Err = EuiParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s.split(':');
         let addr: [u8; 8] = [
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
-            u8::from_str_radix(iter.next().ok_or(EUIParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
+            u8::from_str_radix(iter.next().ok_or(EuiParseError::BadLength)?, 16)?,
         ];
         iter.next()
             .ok_or(())
             .err()
-            .ok_or(EUIParseError::BadLength)?;
+            .ok_or(EuiParseError::BadLength)?;
         Ok(Self(addr))
     }
 }
 
-impl std::fmt::Display for EUIAddress {
+impl std::fmt::Display for EuiAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -173,7 +173,7 @@ impl std::fmt::Display for EUIAddress {
     }
 }
 
-impl std::ops::BitAnd for EUIAddress {
+impl std::ops::BitAnd for EuiAddress {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -181,13 +181,13 @@ impl std::ops::BitAnd for EUIAddress {
     }
 }
 
-impl std::ops::BitAndAssign for EUIAddress {
+impl std::ops::BitAndAssign for EuiAddress {
     fn bitand_assign(&mut self, rhs: Self) {
         *self = *self & rhs;
     }
 }
 
-impl std::ops::BitOr for EUIAddress {
+impl std::ops::BitOr for EuiAddress {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -195,13 +195,13 @@ impl std::ops::BitOr for EUIAddress {
     }
 }
 
-impl std::ops::BitOrAssign for EUIAddress {
+impl std::ops::BitOrAssign for EuiAddress {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs;
     }
 }
 
-impl std::ops::Not for EUIAddress {
+impl std::ops::Not for EuiAddress {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -209,13 +209,13 @@ impl std::ops::Not for EUIAddress {
     }
 }
 
-impl PartialOrd for EUIAddress {
+impl PartialOrd for EuiAddress {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         u64::from_be_bytes(self.0).partial_cmp(&u64::from_be_bytes(other.0))
     }
 }
 
-impl Ord for EUIAddress {
+impl Ord for EuiAddress {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u64::from_be_bytes(self.0).cmp(&u64::from_be_bytes(other.0))
     }

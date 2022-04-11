@@ -7,12 +7,12 @@ pub trait Encoder<'a>: Write + 'a {
         Ok(self)
     }
 
-    fn encode_be<E: BasicEncodeBE + ?Sized>(&mut self, data: &E) -> Result<&mut Self> {
+    fn encode_be<E: BasicEncodeBe + ?Sized>(&mut self, data: &E) -> Result<&mut Self> {
         data.encode_one_be(self)?;
         Ok(self)
     }
 
-    fn encode_le<E: BasicEncodeLE + ?Sized>(&mut self, data: &E) -> Result<&mut Self> {
+    fn encode_le<E: BasicEncodeLe + ?Sized>(&mut self, data: &E) -> Result<&mut Self> {
         data.encode_one_le(self)?;
         Ok(self)
     }
@@ -33,7 +33,7 @@ pub trait Encode: Sized {
     }
 }
 
-pub trait EncodeBE: Sized {
+pub trait EncodeBe: Sized {
     fn encode_be<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()>;
 
     fn encode_many_be<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> Result<()> {
@@ -44,7 +44,7 @@ pub trait EncodeBE: Sized {
     }
 }
 
-pub trait EncodeLE: Sized {
+pub trait EncodeLe: Sized {
     fn encode_le<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()>;
 
     fn encode_many_le<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> Result<()> {
@@ -59,11 +59,11 @@ pub trait BasicEncode {
     fn encode_one<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()>;
 }
 
-pub trait BasicEncodeBE {
+pub trait BasicEncodeBe {
     fn encode_one_be<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()>;
 }
 
-pub trait BasicEncodeLE {
+pub trait BasicEncodeLe {
     fn encode_one_le<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()>;
 }
 
@@ -71,11 +71,11 @@ pub trait SliceEncode: Sized {
     fn encode_slice<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> Result<()>;
 }
 
-pub trait SliceEncodeBE: Sized {
+pub trait SliceEncodeBe: Sized {
     fn encode_slice_be<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> Result<()>;
 }
 
-pub trait SliceEncodeLE: Sized {
+pub trait SliceEncodeLe: Sized {
     fn encode_slice_le<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> Result<()>;
 }
 
@@ -97,13 +97,13 @@ impl<E: Encode> BasicEncode for E {
     }
 }
 
-impl<E: EncodeBE> BasicEncodeBE for E {
+impl<E: EncodeBe> BasicEncodeBe for E {
     fn encode_one_be<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
         self.encode_be(encoder)
     }
 }
 
-impl<E: EncodeLE> BasicEncodeLE for E {
+impl<E: EncodeLe> BasicEncodeLe for E {
     fn encode_one_le<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
         self.encode_le(encoder)
     }
@@ -115,13 +115,13 @@ impl<E: Encode> SliceEncode for E {
     }
 }
 
-impl<E: EncodeBE> SliceEncodeBE for E {
+impl<E: EncodeBe> SliceEncodeBe for E {
     fn encode_slice_be<'a, W: Encoder<'a> + ?Sized>(slice: &[E], encoder: &mut W) -> Result<()> {
         Self::encode_many_be(slice, encoder)
     }
 }
 
-impl<E: EncodeLE> SliceEncodeLE for E {
+impl<E: EncodeLe> SliceEncodeLe for E {
     fn encode_slice_le<'a, W: Encoder<'a> + ?Sized>(slice: &[E], encoder: &mut W) -> Result<()> {
         Self::encode_many_le(slice, encoder)
     }
@@ -133,13 +133,13 @@ impl<E: SliceEncode> BasicEncode for [E] {
     }
 }
 
-impl<E: SliceEncodeBE> BasicEncodeBE for [E] {
+impl<E: SliceEncodeBe> BasicEncodeBe for [E] {
     fn encode_one_be<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
         E::encode_slice_be(self, encoder)
     }
 }
 
-impl<E: SliceEncodeLE> BasicEncodeLE for [E] {
+impl<E: SliceEncodeLe> BasicEncodeLe for [E] {
     fn encode_one_le<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
         E::encode_slice_le(self, encoder)
     }
@@ -167,7 +167,7 @@ impl Encode for i8 {
 
 macro_rules! make_encode {
     ($t:ty) => {
-        impl EncodeBE for $t {
+        impl EncodeBe for $t {
             fn encode_be<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
                 encoder.write_all(&self.to_be_bytes()[..])
             }
@@ -192,7 +192,7 @@ macro_rules! make_encode {
             }
         }
 
-        impl EncodeLE for $t {
+        impl EncodeLe for $t {
             fn encode_le<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> Result<()> {
                 encoder.write_all(&self.to_le_bytes()[..])
             }

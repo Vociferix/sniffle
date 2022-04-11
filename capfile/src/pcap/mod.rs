@@ -6,7 +6,7 @@ pub mod writer;
 pub use recorder::{FileRecorder, Recorder};
 pub use sniffer::{FileSniffer, Sniffer};
 
-use pcaprs::TSPrecision;
+use pcaprs::TsPrecision;
 
 pub struct Header {
     pub magic: u32,

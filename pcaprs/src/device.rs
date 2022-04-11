@@ -62,20 +62,20 @@ pub enum ConnectionStatus {
 }
 
 pub type MacAddress = [u8; 6];
-pub type IPv4Address = [u8; 4];
-pub type IPv6Address = [u8; 16];
+pub type Ipv4Address = [u8; 4];
+pub type Ipv6Address = [u8; 16];
 
 #[derive(Debug, Clone)]
-pub struct DeviceIPv4 {
-    addr: IPv4Address,
-    mask: Option<IPv4Address>,
-    brd: Option<IPv4Address>,
-    dst: Option<IPv4Address>,
+pub struct DeviceIpv4 {
+    addr: Ipv4Address,
+    mask: Option<Ipv4Address>,
+    brd: Option<Ipv4Address>,
+    dst: Option<Ipv4Address>,
 }
 
 #[derive(Debug, Clone)]
-pub struct DeviceIPv6 {
-    addr: IPv6Address,
+pub struct DeviceIpv6 {
+    addr: Ipv6Address,
     prefix_len: Option<u32>,
 }
 
@@ -85,8 +85,8 @@ pub struct Device {
     desc: Option<String>,
     flags: u32,
     mac_addrs: SingleOrMulti<MacAddress>,
-    ipv4_addrs: SingleOrMulti<DeviceIPv4>,
-    ipv6_addrs: SingleOrMulti<DeviceIPv6>,
+    ipv4_addrs: SingleOrMulti<DeviceIpv4>,
+    ipv6_addrs: SingleOrMulti<DeviceIpv6>,
 }
 
 #[derive(Debug, Clone)]
@@ -99,12 +99,12 @@ pub struct AllDevicesIter {
     curr: *const pcap_if_t,
 }
 
-impl DeviceIPv4 {
+impl DeviceIpv4 {
     pub fn new(
-        addr: IPv4Address,
-        netmask: Option<IPv4Address>,
-        broadcast: Option<IPv4Address>,
-        destination: Option<IPv4Address>,
+        addr: Ipv4Address,
+        netmask: Option<Ipv4Address>,
+        broadcast: Option<Ipv4Address>,
+        destination: Option<Ipv4Address>,
     ) -> Self {
         Self {
             addr,
@@ -114,29 +114,29 @@ impl DeviceIPv4 {
         }
     }
 
-    pub fn address(&self) -> &IPv4Address {
+    pub fn address(&self) -> &Ipv4Address {
         &self.addr
     }
 
-    pub fn netmask(&self) -> Option<&IPv4Address> {
+    pub fn netmask(&self) -> Option<&Ipv4Address> {
         self.mask.as_ref()
     }
 
-    pub fn broadcast(&self) -> Option<&IPv4Address> {
+    pub fn broadcast(&self) -> Option<&Ipv4Address> {
         self.brd.as_ref()
     }
 
-    pub fn destination(&self) -> Option<&IPv4Address> {
+    pub fn destination(&self) -> Option<&Ipv4Address> {
         self.dst.as_ref()
     }
 }
 
-impl DeviceIPv6 {
-    pub fn new(addr: IPv6Address, prefix_len: Option<u32>) -> Self {
+impl DeviceIpv6 {
+    pub fn new(addr: Ipv6Address, prefix_len: Option<u32>) -> Self {
         Self { addr, prefix_len }
     }
 
-    pub fn address(&self) -> &IPv6Address {
+    pub fn address(&self) -> &Ipv6Address {
         &self.addr
     }
 
@@ -211,11 +211,11 @@ impl Device {
         &self.mac_addrs
     }
 
-    pub fn ipv4_addresses(&self) -> &[DeviceIPv4] {
+    pub fn ipv4_addresses(&self) -> &[DeviceIpv4] {
         &self.ipv4_addrs
     }
 
-    pub fn ipv6_addresses(&self) -> &[DeviceIPv6] {
+    pub fn ipv6_addresses(&self) -> &[DeviceIpv6] {
         &self.ipv6_addrs
     }
 
@@ -315,12 +315,12 @@ impl DeviceBuilder {
         self
     }
 
-    pub fn add_ipv4(&mut self, ipv4: DeviceIPv4) -> &mut Self {
+    pub fn add_ipv4(&mut self, ipv4: DeviceIpv4) -> &mut Self {
         self.device.ipv4_addrs.push(ipv4);
         self
     }
 
-    pub fn add_ipv6(&mut self, ipv6: DeviceIPv6) -> &mut Self {
+    pub fn add_ipv6(&mut self, ipv6: DeviceIpv6) -> &mut Self {
         self.device.ipv6_addrs.push(ipv6);
         self
     }
@@ -362,7 +362,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 .S_un
                 .S_addr()
                 .to_be_bytes();
-                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
+                let mask: Option<Ipv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -376,7 +376,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
+                let brd: Option<Ipv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -390,7 +390,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
+                let dst: Option<Ipv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<
                             *mut sockaddr,
@@ -404,7 +404,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv4(DeviceIPv4::new(ip4addr, mask, brd, dst));
+                bldr.add_ipv4(DeviceIpv4::new(ip4addr, mask, brd, dst));
             }
             winapi::shared::ws2def::AF_INET6 => {
                 let ip6addr = *(*std::mem::transmute::<
@@ -456,7 +456,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv6(DeviceIPv6::new(ip6addr, prefixlen));
+                bldr.add_ipv6(DeviceIpv6::new(ip6addr, prefixlen));
             }
             // XXX Does this actually work on Windows?
             winapi::shared::ws2def::AF_LINK => {
@@ -492,7 +492,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin_addr
                         .s_addr
                         .to_be_bytes();
-                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
+                let mask: Option<Ipv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.netmask,
@@ -504,7 +504,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
+                let brd: Option<Ipv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.broadaddr,
@@ -516,7 +516,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
+                let dst: Option<Ipv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.dstaddr,
@@ -528,7 +528,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv4(DeviceIPv4::new(ip4addr, mask, brd, dst));
+                bldr.add_ipv4(DeviceIpv4::new(ip4addr, mask, brd, dst));
             }
             libc::AF_INET6 => {
                 let ip6addr =
@@ -581,7 +581,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv6(DeviceIPv6::new(ip6addr, prefixlen));
+                bldr.add_ipv6(DeviceIpv6::new(ip6addr, prefixlen));
             }
             libc::AF_LINK => {
                 let tmp =
@@ -617,7 +617,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         .sin_addr
                         .s_addr
                         .to_be_bytes();
-                let mask: Option<IPv4Address> = if !addr.netmask.is_null() {
+                let mask: Option<Ipv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.netmask,
@@ -629,7 +629,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let brd: Option<IPv4Address> = if !addr.broadaddr.is_null() {
+                let brd: Option<Ipv4Address> = if !addr.broadaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.broadaddr,
@@ -641,7 +641,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                let dst: Option<IPv4Address> = if !addr.dstaddr.is_null() {
+                let dst: Option<Ipv4Address> = if !addr.dstaddr.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
                             addr.dstaddr,
@@ -653,7 +653,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv4(DeviceIPv4::new(ip4addr, mask, brd, dst));
+                bldr.add_ipv4(DeviceIpv4::new(ip4addr, mask, brd, dst));
             }
             libc::AF_INET6 => {
                 let ip6addr =
@@ -706,7 +706,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 } else {
                     None
                 };
-                bldr.add_ipv6(DeviceIPv6::new(ip6addr, prefixlen));
+                bldr.add_ipv6(DeviceIpv6::new(ip6addr, prefixlen));
             }
             libc::AF_PACKET => {
                 let tmp =

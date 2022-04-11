@@ -1,4 +1,4 @@
-use super::{AnyPDU, RawPDU, Session, TempPDU, PDU};
+use super::{AnyPdu, Pdu, RawPdu, Session, TempPdu};
 use sniffle_ende::decode::Decode;
 use sniffle_ende::nom::{self, combinator::map, Parser};
 use std::marker::PhantomData;
@@ -9,14 +9,14 @@ pub struct Priority(pub i32);
 pub use sniffle_ende::decode::DResult;
 pub use sniffle_ende::decode::DecodeError as DissectError;
 
-pub trait Dissect: PDU {
+pub trait Dissect: Pdu {
     fn dissect<'a>(
         buf: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self>;
 
-    fn dissector<'a>(session: &'a Session, parent: Option<TempPDU<'a>>) -> DissectParser<'a, Self> {
+    fn dissector<'a>(session: &'a Session, parent: Option<TempPdu<'a>>) -> DissectParser<'a, Self> {
         DissectParser {
             session,
             parent,
@@ -27,28 +27,28 @@ pub trait Dissect: PDU {
 
 pub struct DissectParser<'a, D: Dissect> {
     session: &'a Session,
-    parent: Option<TempPDU<'a>>,
+    parent: Option<TempPdu<'a>>,
     _marker: PhantomData<fn(D) -> D>,
 }
 
 pub trait Dissector {
-    type Out: PDU;
+    type Out: Pdu;
 
     fn dissect<'a>(
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self::Out>;
 }
 
-pub struct AnyDissector(Box<dyn Dissector<Out = AnyPDU> + Send + Sync + 'static>);
+pub struct AnyDissector(Box<dyn Dissector<Out = AnyPdu> + Send + Sync + 'static>);
 
 pub struct DissectorTableParser<'a, T: DissectorTable> {
     table: Option<&'a T>,
     param: &'a T::Param,
     session: &'a Session,
-    parent: Option<TempPDU<'a>>,
+    parent: Option<TempPdu<'a>>,
 }
 
 pub trait DissectorTable: Default {
@@ -67,7 +67,7 @@ pub trait DissectorTable: Default {
         &'a self,
         param: &'a Self::Param,
         session: &'a Session,
-        parent: Option<TempPDU<'a>>,
+        parent: Option<TempPdu<'a>>,
     ) -> DissectorTableParser<'a, Self> {
         DissectorTableParser {
             table: Some(self),
@@ -82,8 +82,8 @@ pub trait DissectorTable: Default {
         param: &Self::Param,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, AnyPDU> {
+        parent: Option<TempPdu<'_>>,
+    ) -> DResult<'a, AnyPdu> {
         self.dissector(param, session, parent).parse(buffer)
     }
 
@@ -92,10 +92,10 @@ pub trait DissectorTable: Default {
         param: &Self::Param,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, AnyPDU> {
+        parent: Option<TempPdu<'_>>,
+    ) -> DResult<'a, AnyPdu> {
         self.dissector(param, session, parent)
-            .or(map(RawPDU::decode, AnyPDU::new))
+            .or(map(RawPdu::decode, AnyPdu::new))
             .parse(buffer)
     }
 }
@@ -106,10 +106,10 @@ impl<'a, 'b, D: Dissect> Parser<&'a [u8], D, DissectError<'a>> for DissectParser
     }
 }
 
-impl<'a, 'b, T: DissectorTable> Parser<&'a [u8], AnyPDU, DissectError<'a>>
+impl<'a, 'b, T: DissectorTable> Parser<&'a [u8], AnyPdu, DissectError<'a>>
     for DissectorTableParser<'b, T>
 {
-    fn parse(&mut self, input: &'a [u8]) -> DResult<'a, AnyPDU> {
+    fn parse(&mut self, input: &'a [u8]) -> DResult<'a, AnyPdu> {
         if let Some(table) = self.table {
             for dissector in table.find(self.param).unwrap_or(&[]) {
                 match Dissector::dissect(dissector, input, self.session, self.parent.clone()) {
@@ -131,7 +131,7 @@ impl<'a, T: DissectorTable> DissectorTableParser<'a, T> {
     pub fn null_parser(
         param: &'a T::Param,
         session: &'a Session,
-        parent: Option<TempPDU<'a>>,
+        parent: Option<TempPdu<'a>>,
     ) -> Self {
         Self {
             table: None,
@@ -143,13 +143,13 @@ impl<'a, T: DissectorTable> DissectorTableParser<'a, T> {
 }
 
 impl Dissector for AnyDissector {
-    type Out = AnyPDU;
+    type Out = AnyPdu;
 
     fn dissect<'a>(
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self::Out> {
         self.0.dissect(buffer, session, parent)
     }
@@ -157,8 +157,8 @@ impl Dissector for AnyDissector {
 
 impl<F, P> Dissector for F
 where
-    P: PDU,
-    F: for<'a> Fn(&'a [u8], &Session, Option<TempPDU<'_>>) -> DResult<'a, P>,
+    P: Pdu,
+    F: for<'a> Fn(&'a [u8], &Session, Option<TempPdu<'_>>) -> DResult<'a, P>,
 {
     type Out = P;
 
@@ -166,7 +166,7 @@ where
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self::Out> {
         self(buffer, session, parent)
     }
@@ -175,17 +175,17 @@ where
 struct DissectorAdapter<D: Dissector>(D);
 
 impl<D: Dissector> Dissector for DissectorAdapter<D> {
-    type Out = AnyPDU;
+    type Out = AnyPdu;
 
     fn dissect<'a>(
         &self,
         buffer: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self::Out> {
         self.0
             .dissect(buffer, session, parent)
-            .map(|(rem, pdu)| (rem, AnyPDU::new(pdu)))
+            .map(|(rem, pdu)| (rem, AnyPdu::new(pdu)))
     }
 }
 

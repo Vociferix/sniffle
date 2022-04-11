@@ -1,4 +1,4 @@
-use super::{IPv4Address, IPv6Address, MACAddress};
+use super::{Ipv4Address, Ipv6Address, MacAddress};
 
 const IS_LOOPBACK: u32 = 1 << 0;
 const IS_RUNNING: u32 = 1 << 1;
@@ -19,16 +19,16 @@ pub enum ConnectionStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct DeviceIPv4 {
-    addr: IPv4Address,
-    mask: Option<IPv4Address>,
-    brd: Option<IPv4Address>,
-    dst: Option<IPv4Address>,
+pub struct DeviceIpv4 {
+    addr: Ipv4Address,
+    mask: Option<Ipv4Address>,
+    brd: Option<Ipv4Address>,
+    dst: Option<Ipv4Address>,
 }
 
 #[derive(Debug, Clone)]
-pub struct DeviceIPv6 {
-    addr: IPv6Address,
+pub struct DeviceIpv6 {
+    addr: Ipv6Address,
     prefix_len: Option<u32>,
 }
 
@@ -37,9 +37,9 @@ pub struct Device {
     name: String,
     desc: Option<String>,
     flags: u32,
-    mac_addrs: Vec<MACAddress>,
-    ipv4_addrs: Vec<DeviceIPv4>,
-    ipv6_addrs: Vec<DeviceIPv6>,
+    mac_addrs: Vec<MacAddress>,
+    ipv4_addrs: Vec<DeviceIpv4>,
+    ipv6_addrs: Vec<DeviceIpv6>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,12 +50,12 @@ pub struct DeviceBuilder {
 #[cfg(feature = "pcaprs")]
 pub struct AllDevicesIter(pcaprs::AllDevicesIter);
 
-impl DeviceIPv4 {
+impl DeviceIpv4 {
     pub fn new(
-        addr: IPv4Address,
-        netmask: Option<IPv4Address>,
-        broadcast: Option<IPv4Address>,
-        destination: Option<IPv4Address>,
+        addr: Ipv4Address,
+        netmask: Option<Ipv4Address>,
+        broadcast: Option<Ipv4Address>,
+        destination: Option<Ipv4Address>,
     ) -> Self {
         Self {
             addr,
@@ -65,29 +65,29 @@ impl DeviceIPv4 {
         }
     }
 
-    pub fn address(&self) -> &IPv4Address {
+    pub fn address(&self) -> &Ipv4Address {
         &self.addr
     }
 
-    pub fn netmask(&self) -> Option<&IPv4Address> {
+    pub fn netmask(&self) -> Option<&Ipv4Address> {
         self.mask.as_ref()
     }
 
-    pub fn broadcast(&self) -> Option<&IPv4Address> {
+    pub fn broadcast(&self) -> Option<&Ipv4Address> {
         self.brd.as_ref()
     }
 
-    pub fn destination(&self) -> Option<&IPv4Address> {
+    pub fn destination(&self) -> Option<&Ipv4Address> {
         self.dst.as_ref()
     }
 }
 
-impl DeviceIPv6 {
-    pub fn new(addr: IPv6Address, prefix_len: Option<u32>) -> Self {
+impl DeviceIpv6 {
+    pub fn new(addr: Ipv6Address, prefix_len: Option<u32>) -> Self {
         Self { addr, prefix_len }
     }
 
-    pub fn address(&self) -> &IPv6Address {
+    pub fn address(&self) -> &Ipv6Address {
         &self.addr
     }
 
@@ -120,15 +120,15 @@ impl Device {
         self.desc.as_deref()
     }
 
-    pub fn mac_addresses(&self) -> &[MACAddress] {
+    pub fn mac_addresses(&self) -> &[MacAddress] {
         &self.mac_addrs[..]
     }
 
-    pub fn ipv4_addresses(&self) -> &[DeviceIPv4] {
+    pub fn ipv4_addresses(&self) -> &[DeviceIpv4] {
         &self.ipv4_addrs[..]
     }
 
-    pub fn ipv6_addresses(&self) -> &[DeviceIPv6] {
+    pub fn ipv6_addresses(&self) -> &[DeviceIpv6] {
         &self.ipv6_addrs[..]
     }
 
@@ -218,25 +218,25 @@ impl From<pcaprs::Device> for Device {
             mac_addrs: dev
                 .mac_addresses()
                 .iter()
-                .map(|addr| MACAddress::from(*addr))
+                .map(|addr| MacAddress::from(*addr))
                 .collect(),
             ipv4_addrs: dev
                 .ipv4_addresses()
                 .iter()
-                .map(|addr| DeviceIPv4::from(addr.clone()))
+                .map(|addr| DeviceIpv4::from(addr.clone()))
                 .collect(),
             ipv6_addrs: dev
                 .ipv6_addresses()
                 .iter()
-                .map(|addr| DeviceIPv6::from(addr.clone()))
+                .map(|addr| DeviceIpv6::from(addr.clone()))
                 .collect(),
         }
     }
 }
 
 #[cfg(feature = "pcaprs")]
-impl From<pcaprs::DeviceIPv4> for DeviceIPv4 {
-    fn from(ipv4: pcaprs::DeviceIPv4) -> Self {
+impl From<pcaprs::DeviceIpv4> for DeviceIpv4 {
+    fn from(ipv4: pcaprs::DeviceIpv4) -> Self {
         Self {
             addr: (*ipv4.address()).into(),
             mask: ipv4.netmask().map(|addr| (*addr).into()),
@@ -247,8 +247,8 @@ impl From<pcaprs::DeviceIPv4> for DeviceIPv4 {
 }
 
 #[cfg(feature = "pcaprs")]
-impl From<pcaprs::DeviceIPv6> for DeviceIPv6 {
-    fn from(ipv6: pcaprs::DeviceIPv6) -> Self {
+impl From<pcaprs::DeviceIpv6> for DeviceIpv6 {
+    fn from(ipv6: pcaprs::DeviceIpv6) -> Self {
         Self {
             addr: (*ipv6.address()).into(),
             prefix_len: ipv6.prefix_length(),
@@ -280,17 +280,17 @@ impl DeviceBuilder {
         self
     }
 
-    pub fn add_mac(&mut self, mac: MACAddress) -> &mut Self {
+    pub fn add_mac(&mut self, mac: MacAddress) -> &mut Self {
         self.device.mac_addrs.push(mac);
         self
     }
 
-    pub fn add_ipv4(&mut self, ipv4: DeviceIPv4) -> &mut Self {
+    pub fn add_ipv4(&mut self, ipv4: DeviceIpv4) -> &mut Self {
         self.device.ipv4_addrs.push(ipv4);
         self
     }
 
-    pub fn add_ipv6(&mut self, ipv6: DeviceIPv6) -> &mut Self {
+    pub fn add_ipv6(&mut self, ipv6: DeviceIpv6) -> &mut Self {
         self.device.ipv6_addrs.push(ipv6);
         self
     }

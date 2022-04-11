@@ -22,7 +22,7 @@ mod transmit;
 pub use ::concat_idents;
 pub use ctor;
 
-pub use device::{ConnectionStatus, Device, DeviceBuilder, DeviceIPv4, DeviceIPv6};
+pub use device::{ConnectionStatus, Device, DeviceBuilder, DeviceIpv4, DeviceIpv6};
 
 #[cfg(feature = "pcaprs")]
 pub use device::AllDevicesIter;
@@ -31,7 +31,7 @@ pub use device::AllDevicesIter;
 pub use device_injector::DeviceInjector;
 
 #[cfg(feature = "pcaprs")]
-pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTSPrecision, DeviceTSType};
+pub use device_sniffer::{DeviceSniffer, DeviceSnifferConfig, DeviceTsPrecision, DeviceTsType};
 
 pub use dissection::{
     AnyDissector, DResult, Dissect, DissectError, DissectParser, Dissector, DissectorTable,
@@ -40,13 +40,13 @@ pub use dissection::{
 
 pub use dump::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};
 
-pub use eui_address::{EUIAddress, EUIParseError};
+pub use eui_address::{EuiAddress, EuiParseError};
 
-pub use mac_address::MACAddress;
+pub use mac_address::MacAddress;
 
-pub use ipv4_address::{IPv4Address, IPv4Network, IPv4NetworkIter};
+pub use ipv4_address::{Ipv4Address, Ipv4Network, Ipv4NetworkIter};
 
-pub use ipv6_address::{IPv6Address, IPv6Network, IPv6NetworkIter};
+pub use ipv6_address::{Ipv6Address, Ipv6Network, Ipv6NetworkIter};
 
 pub use link_type::{LinkType, LinkTypeTable};
 
@@ -55,9 +55,9 @@ pub use link_type::_register_link_layer_pdu;
 
 pub use packet::Packet;
 
-pub use pdu::{AnyPDU, BasePDU, PDUExt, PDUType, TempPDU, PDU};
+pub use pdu::{AnyPdu, BasePdu, Pdu, PduExt, PduType, TempPdu};
 
-pub use raw_pdu::RawPDU;
+pub use raw_pdu::RawPdu;
 
 pub use session::{Session, Virtual};
 

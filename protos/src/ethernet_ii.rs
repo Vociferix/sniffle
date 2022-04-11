@@ -4,14 +4,14 @@ use nom::{
     combinator::{flat_map, map, rest},
     sequence::tuple,
 };
-use sniffle_core::MACAddress;
+use sniffle_core::MacAddress;
 use utils::CountingEncoder;
 
 #[derive(Debug, Clone)]
 pub struct EthernetII {
-    base: BasePDU,
-    dst_addr: MACAddress,
-    src_addr: MACAddress,
+    base: BasePdu,
+    dst_addr: MacAddress,
+    src_addr: MacAddress,
     ethertype: Ethertype,
     trailer: Trailer,
 }
@@ -32,7 +32,7 @@ register_dissector_table!(HeurDissectorTable);
 impl EthernetII {
     pub fn new() -> Self {
         Self {
-            base: BasePDU::default(),
+            base: BasePdu::default(),
             dst_addr: Default::default(),
             src_addr: Default::default(),
             ethertype: Ethertype(0),
@@ -40,9 +40,9 @@ impl EthernetII {
         }
     }
 
-    pub fn with_addresses(dst_addr: MACAddress, src_addr: MACAddress) -> Self {
+    pub fn with_addresses(dst_addr: MacAddress, src_addr: MacAddress) -> Self {
         Self {
-            base: BasePDU::default(),
+            base: BasePdu::default(),
             dst_addr,
             src_addr,
             ethertype: Ethertype(0),
@@ -50,19 +50,19 @@ impl EthernetII {
         }
     }
 
-    pub fn dst_address(&self) -> MACAddress {
+    pub fn dst_address(&self) -> MacAddress {
         self.dst_addr
     }
 
-    pub fn dst_address_mut(&mut self) -> &mut MACAddress {
+    pub fn dst_address_mut(&mut self) -> &mut MacAddress {
         &mut self.dst_addr
     }
 
-    pub fn src_address(&self) -> MACAddress {
+    pub fn src_address(&self) -> MacAddress {
         self.src_addr
     }
 
-    pub fn src_address_mut(&mut self) -> &mut MACAddress {
+    pub fn src_address_mut(&mut self) -> &mut MacAddress {
         &mut self.src_addr
     }
 
@@ -123,15 +123,15 @@ impl Dissect for EthernetII {
     fn dissect<'a>(
         buf: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self> {
         flat_map(
-            tuple((<[MACAddress; 2]>::decode, map(u16::decode_be, Ethertype))),
+            tuple((<[MacAddress; 2]>::decode, map(u16::decode_be, Ethertype))),
             |([dst_addr, src_addr], ethertype)| {
                 let parent = parent.clone();
                 move |buf: &'a [u8]| {
                     let mut eth = Self {
-                        base: BasePDU::default(),
+                        base: BasePdu::default(),
                         dst_addr,
                         src_addr,
                         ethertype,
@@ -141,13 +141,13 @@ impl Dissect for EthernetII {
                     let (buf, (inner, trailer)) = session
                         .table_dissector::<EthertypeDissectorTable>(
                             &eth.ethertype,
-                            Some(TempPDU::new(&eth, &parent)),
+                            Some(TempPdu::new(&eth, &parent)),
                         )
                         .or(session.table_dissector::<HeurDissectorTable>(
                             &(),
-                            Some(TempPDU::new(&eth, &parent)),
+                            Some(TempPdu::new(&eth, &parent)),
                         ))
-                        .or(map(RawPDU::decode, AnyPDU::new))
+                        .or(map(RawPdu::decode, AnyPdu::new))
                         .and(map(rest, |trailer: &'a [u8]| {
                             let inner_len = before - trailer.len();
                             let trailer_len = if inner_len < 46 { 46 - inner_len } else { 0 };
@@ -176,12 +176,12 @@ impl Dissect for EthernetII {
     }
 }
 
-impl PDU for EthernetII {
-    fn base_pdu(&self) -> &BasePDU {
+impl Pdu for EthernetII {
+    fn base_pdu(&self) -> &BasePdu {
         &self.base
     }
 
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn base_pdu_mut(&mut self) -> &mut BasePdu {
         &mut self.base
     }
 

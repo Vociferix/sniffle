@@ -1,18 +1,18 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::{AnyPDU, Device, Dump, DumpValue, Dumper, PDUExt, Virtual, PDU};
+use super::{AnyPdu, Device, Dump, DumpValue, Dumper, Pdu, PduExt, Virtual};
 use std::time::SystemTime;
 
 pub struct Packet {
     ts: SystemTime,
-    pdu: AnyPDU,
+    pdu: AnyPdu,
     len: usize,
     snaplen: usize,
     dev: Option<std::sync::Arc<Device>>,
 }
 
 impl Packet {
-    pub fn new<P: PDU>(
+    pub fn new<P: Pdu>(
         timestamp: SystemTime,
         pdu: P,
         length: Option<usize>,
@@ -22,18 +22,18 @@ impl Packet {
         let len = length.unwrap_or_else(|| pdu.total_len());
         Self {
             ts: timestamp,
-            pdu: AnyPDU::new(pdu),
+            pdu: AnyPdu::new(pdu),
             len,
             snaplen: snaplen.unwrap_or(65535),
             dev: device,
         }
     }
 
-    pub fn pdu(&self) -> &AnyPDU {
+    pub fn pdu(&self) -> &AnyPdu {
         &self.pdu
     }
 
-    pub fn pdu_mut(&mut self) -> &mut AnyPDU {
+    pub fn pdu_mut(&mut self) -> &mut AnyPdu {
         &mut self.pdu
     }
 
@@ -104,13 +104,13 @@ impl Packet {
     }
 }
 
-impl<P: PDU> From<P> for Packet {
+impl<P: Pdu> From<P> for Packet {
     fn from(pdu: P) -> Self {
         Self::new(SystemTime::now(), pdu, None, None, None)
     }
 }
 
-impl From<Packet> for AnyPDU {
+impl From<Packet> for AnyPdu {
     fn from(pkt: Packet) -> Self {
         pkt.pdu
     }

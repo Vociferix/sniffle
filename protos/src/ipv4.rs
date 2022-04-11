@@ -1,4 +1,4 @@
-use super::ip_proto::IPProto;
+use super::ip_proto::IpProto;
 use crate::prelude::*;
 use checksum::U16OnesComplement;
 use chrono::{offset::Utc, DateTime};
@@ -8,12 +8,12 @@ use nom::{
     sequence::tuple,
     Parser,
 };
-use sniffle_core::IPv4Address;
+use sniffle_core::Ipv4Address;
 use std::time::{Duration, SystemTime};
 
 #[derive(Debug, Clone)]
-pub struct IPv4 {
-    base: BasePDU,
+pub struct Ipv4 {
+    base: BasePdu,
     version: uint::U4,
     ihl: uint::U4,
     dscp: uint::U6,
@@ -23,10 +23,10 @@ pub struct IPv4 {
     flags: uint::U3,
     frag_offset: uint::U13,
     ttl: u8,
-    proto: IPProto,
+    proto: IpProto,
     chksum: u16,
-    src_addr: IPv4Address,
-    dst_addr: IPv4Address,
+    src_addr: Ipv4Address,
+    dst_addr: Ipv4Address,
     opts: Vec<Opt>,
     padding: Padding,
 }
@@ -84,7 +84,7 @@ pub struct RawOption {
 #[derive(Clone, Debug)]
 pub struct RouteRecord {
     pub pointer: u8,
-    pub routes: Vec<IPv4Address>,
+    pub routes: Vec<Ipv4Address>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -101,7 +101,7 @@ pub enum TimestampFlag {
 #[derive(Clone, Copy, Debug)]
 pub enum TimestampEntry {
     Ts(SystemTime),
-    Addr(IPv4Address),
+    Addr(Ipv4Address),
 }
 
 #[derive(Clone, Debug)]
@@ -138,14 +138,14 @@ pub struct ExtendedSecurity {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MTU(pub u16);
+pub struct Mtu(pub u16);
 
 #[derive(Clone, Debug)]
 pub struct Traceroute {
     pub id: u16,
     pub out_hops: u16,
     pub return_hops: u16,
-    pub orig_addr: IPv4Address,
+    pub orig_addr: Ipv4Address,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -173,8 +173,8 @@ pub enum Opt {
     Sid(StreamId),
     Ssrr(RouteRecord),
     Zsu(Vec<u8>),
-    Mtup(MTU),
-    Mtur(MTU),
+    Mtup(Mtu),
+    Mtur(Mtu),
     Finn(Vec<u8>),
     Visa(Vec<u8>),
     Encode(Vec<u8>),
@@ -510,7 +510,7 @@ fn dissect_sec(buf: &[u8]) -> DResult<'_, Opt> {
 fn dissect_lsrr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Lsrr, |buf| {
         u8::decode
-            .and(many0(IPv4Address::decode))
+            .and(many0(Ipv4Address::decode))
             .map(|(pointer, routes)| Opt::Lsrr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -536,7 +536,7 @@ fn dissect_ts(buf: &[u8]) -> DResult<'_, Opt> {
                 )(buf),
                 TimestampFlag::AddrAndTs | TimestampFlag::PrespecifiedAddrs => {
                     fold_many0(
-                        (IPv4Address::decode).and(u32::decode_be.map(|ts| {
+                        (Ipv4Address::decode).and(u32::decode_be.map(|ts| {
                             SystemTime::UNIX_EPOCH
                                 .checked_add(Duration::from_millis(ts as u64))
                                 .unwrap()
@@ -580,7 +580,7 @@ fn dissect_cipso(buf: &[u8]) -> DResult<'_, Opt> {
 fn dissect_rr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Rr, |buf| {
         u8::decode
-            .and(many0(IPv4Address::decode))
+            .and(many0(Ipv4Address::decode))
             .map(|(pointer, routes)| Opt::Rr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -595,7 +595,7 @@ fn dissect_sid(buf: &[u8]) -> DResult<'_, Opt> {
 fn dissect_ssrr(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Ssrr, |buf| {
         u8::decode
-            .and(many0(IPv4Address::decode))
+            .and(many0(Ipv4Address::decode))
             .map(|(pointer, routes)| Opt::Ssrr(RouteRecord { pointer, routes }))
             .parse(buf)
     })
@@ -609,13 +609,13 @@ fn dissect_zsu(buf: &[u8]) -> DResult<'_, Opt> {
 
 fn dissect_mtup(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Mtup, |buf| {
-        map(u16::decode_be, |sid| Opt::Mtup(MTU(sid)))(buf)
+        map(u16::decode_be, |sid| Opt::Mtup(Mtu(sid)))(buf)
     })
 }
 
 fn dissect_mtur(buf: &[u8]) -> DResult<'_, Opt> {
     dissect_body(buf, OptionType::Mtur, |buf| {
-        map(u16::decode_be, |sid| Opt::Mtur(MTU(sid)))(buf)
+        map(u16::decode_be, |sid| Opt::Mtur(Mtu(sid)))(buf)
     })
 }
 
@@ -656,7 +656,7 @@ fn dissect_tr(buf: &[u8]) -> DResult<'_, Opt> {
                 u16::decode_be,
                 u16::decode_be,
                 u16::decode_be,
-                IPv4Address::decode,
+                Ipv4Address::decode,
             )),
             |(id, out_hops, return_hops, orig_addr)| {
                 Opt::Tr(Traceroute {
@@ -985,12 +985,12 @@ impl Opt {
     }
 }
 
-dissector_table!(pub IPProtoDissectorTable, IPProto);
+dissector_table!(pub IpProtoDissectorTable, IpProto);
 dissector_table!(pub HeurDissectorTable);
 
 const PADDING: [u8; 3] = [0u8; 3];
 
-impl IPv4 {
+impl Ipv4 {
     pub fn new() -> Self {
         Self {
             base: Default::default(),
@@ -1003,7 +1003,7 @@ impl IPv4 {
             flags: Default::default(),
             frag_offset: Default::default(),
             ttl: Default::default(),
-            proto: IPProto::RESERVED,
+            proto: IpProto::RESERVED,
             chksum: Default::default(),
             src_addr: Default::default(),
             dst_addr: Default::default(),
@@ -1012,7 +1012,7 @@ impl IPv4 {
         }
     }
 
-    pub fn with_addresses(src_addr: IPv4Address, dst_addr: IPv4Address) -> Self {
+    pub fn with_addresses(src_addr: Ipv4Address, dst_addr: Ipv4Address) -> Self {
         Self {
             base: Default::default(),
             version: Default::default(),
@@ -1024,7 +1024,7 @@ impl IPv4 {
             flags: Default::default(),
             frag_offset: Default::default(),
             ttl: Default::default(),
-            proto: IPProto::RESERVED,
+            proto: IpProto::RESERVED,
             chksum: Default::default(),
             src_addr,
             dst_addr,
@@ -1120,18 +1120,18 @@ impl IPv4 {
         &mut self.ttl
     }
 
-    pub fn proto(&self) -> IPProto {
+    pub fn proto(&self) -> IpProto {
         self.proto
     }
 
-    pub fn proto_mut(&mut self) -> &mut IPProto {
+    pub fn proto_mut(&mut self) -> &mut IpProto {
         &mut self.proto
     }
 
     pub fn update_proto(&mut self) {
         let proto = self
             .inner_pdu()
-            .map(|inner| IPProto::from_pdu(inner).unwrap_or(self.proto))
+            .map(|inner| IpProto::from_pdu(inner).unwrap_or(self.proto))
             .unwrap_or(self.proto);
         self.proto = proto;
     }
@@ -1151,19 +1151,19 @@ impl IPv4 {
         self.chksum = acc.checksum();
     }
 
-    pub fn src_address(&self) -> IPv4Address {
+    pub fn src_address(&self) -> Ipv4Address {
         self.src_addr
     }
 
-    pub fn src_address_mut(&mut self) -> &mut IPv4Address {
+    pub fn src_address_mut(&mut self) -> &mut Ipv4Address {
         &mut self.src_addr
     }
 
-    pub fn dst_address(&self) -> IPv4Address {
+    pub fn dst_address(&self) -> Ipv4Address {
         self.dst_addr
     }
 
-    pub fn dst_address_mut(&mut self) -> &mut IPv4Address {
+    pub fn dst_address_mut(&mut self) -> &mut Ipv4Address {
         &mut self.dst_addr
     }
 
@@ -1217,11 +1217,11 @@ impl IPv4 {
     }
 }
 
-impl Dissect for IPv4 {
+impl Dissect for Ipv4 {
     fn dissect<'a>(
         buf: &'a [u8],
         session: &Session,
-        parent: Option<TempPDU<'_>>,
+        parent: Option<TempPdu<'_>>,
     ) -> DResult<'a, Self> {
         map(
             tuple((
@@ -1235,14 +1235,14 @@ impl Dissect for IPv4 {
                         u8::decode,
                         u8::decode,
                         u16::decode_be,
-                        IPv4Address::decode,
-                        IPv4Address::decode,
+                        Ipv4Address::decode,
+                        Ipv4Address::decode,
                     )),
                     move |(vi, de, totlen, ident, ff, ttl, proto, chksum, src_addr, dst_addr)| {
                         let (version, ihl): (uint::U4, uint::U4) = uint::unpack!(vi);
                         let (dscp, ecn): (uint::U6, uint::U2) = uint::unpack!(de);
                         let (flags, frag_offset): (uint::U3, uint::U13) = uint::unpack!(ff);
-                        let proto = IPProto(proto);
+                        let proto = IpProto(proto);
 
                         move |mut buf: &'a [u8]| {
                             let len: usize = (u32::from(ihl) * 4) as usize;
@@ -1292,8 +1292,8 @@ impl Dissect for IPv4 {
 
                             Ok((
                                 buf,
-                                IPv4 {
-                                    base: BasePDU::default(),
+                                Ipv4 {
+                                    base: BasePdu::default(),
                                     version,
                                     ihl,
                                     dscp,
@@ -1325,19 +1325,19 @@ impl Dissect for IPv4 {
                 };
                 if !payload.is_empty() {
                     let (rem, mut inner) = session
-                        .table_dissector::<IPProtoDissectorTable>(
+                        .table_dissector::<IpProtoDissectorTable>(
                             &ipv4.proto,
-                            Some(TempPDU::new(&ipv4, &parent)),
+                            Some(TempPdu::new(&ipv4, &parent)),
                         )
                         .or(session.table_dissector::<HeurDissectorTable>(
                             &(),
-                            Some(TempPDU::new(&ipv4, &parent)),
+                            Some(TempPdu::new(&ipv4, &parent)),
                         ))
-                        .or(map(RawPDU::decode, AnyPDU::new))
+                        .or(map(RawPdu::decode, AnyPdu::new))
                         .parse(payload)?;
                     if !rem.is_empty() {
                         get_inner_most(&mut inner)
-                            .set_inner_pdu(AnyPDU::new(RawPDU::new(Vec::from(rem))));
+                            .set_inner_pdu(AnyPdu::new(RawPdu::new(Vec::from(rem))));
                     }
                     ipv4.set_inner_pdu(inner);
                 }
@@ -1348,7 +1348,7 @@ impl Dissect for IPv4 {
     }
 }
 
-fn get_inner_most(pdu: &mut AnyPDU) -> &mut AnyPDU {
+fn get_inner_most(pdu: &mut AnyPdu) -> &mut AnyPdu {
     let has_inner = pdu.inner_pdu().is_some();
     if !has_inner {
         pdu
@@ -1357,12 +1357,12 @@ fn get_inner_most(pdu: &mut AnyPDU) -> &mut AnyPDU {
     }
 }
 
-impl PDU for IPv4 {
-    fn base_pdu(&self) -> &BasePDU {
+impl Pdu for Ipv4 {
+    fn base_pdu(&self) -> &BasePdu {
         &self.base
     }
 
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn base_pdu_mut(&mut self) -> &mut BasePdu {
         &mut self.base
     }
 
@@ -1398,7 +1398,7 @@ impl PDU for IPv4 {
 
     fn dump<D: Dump + ?Sized>(&self, dumper: &mut NodeDumper<D>) -> Result<(), D::Error> {
         let mut node = dumper.add_node(
-            "IPv4",
+            "Ipv4",
             Some(&format!("{}->{}", self.src_addr, self.dst_addr)[..]),
         )?;
         node.add_field("Version", DumpValue::UInt(self.version.into()), None)?;
@@ -1717,7 +1717,7 @@ impl PDU for IPv4 {
     }
 }
 
-impl Default for IPv4 {
+impl Default for Ipv4 {
     fn default() -> Self {
         Self::new()
     }
@@ -1730,6 +1730,6 @@ register_dissector!(
     EthertypeDissectorTable,
     Ethertype::IPV4,
     Priority(0),
-    IPv4::dissect
+    Ipv4::dissect
 );
-crate::register_ethertype_pdu!(IPv4, Ethertype::IPV4);
+crate::register_ethertype_pdu!(Ipv4, Ethertype::IPV4);

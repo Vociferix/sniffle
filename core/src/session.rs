@@ -1,6 +1,6 @@
 use super::{
-    AnyPDU, BasePDU, DResult, Device, Dissector, DissectorTable, DissectorTableParser, Dump,
-    NodeDumper, PDUExt, Priority, RawPDU, TempPDU, PDU,
+    AnyPdu, BasePdu, DResult, Device, Dissector, DissectorTable, DissectorTableParser, Dump,
+    NodeDumper, Pdu, PduExt, Priority, RawPdu, TempPdu,
 };
 use lazy_static::*;
 use parking_lot::{Mutex, RwLock};
@@ -27,7 +27,7 @@ pub struct Session {
 
 #[derive(Debug)]
 pub struct Virtual {
-    base: BasePDU,
+    base: BasePdu,
 }
 
 impl Default for LastInfo {
@@ -117,7 +117,7 @@ impl Session {
     pub fn table_dissector<'a, T: DissectorTable + Send + Sync + 'static>(
         &'a self,
         param: &'a T::Param,
-        parent: Option<TempPDU<'a>>,
+        parent: Option<TempPdu<'a>>,
     ) -> DissectorTableParser<'a, T> {
         match self.get::<T>() {
             Some(table) => table.dissector(param, self, parent),
@@ -129,8 +129,8 @@ impl Session {
         &self,
         param: &T::Param,
         buffer: &'a [u8],
-        parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, AnyPDU> {
+        parent: Option<TempPdu<'_>>,
+    ) -> DResult<'a, AnyPdu> {
         self.table_dissector::<T>(param, parent).parse(buffer)
     }
 
@@ -138,14 +138,14 @@ impl Session {
         &self,
         param: &T::Param,
         buffer: &'a [u8],
-        parent: Option<TempPDU<'_>>,
-    ) -> DResult<'a, AnyPDU> {
+        parent: Option<TempPdu<'_>>,
+    ) -> DResult<'a, AnyPdu> {
         self.table_dissector::<T>(param, parent)
-            .or(map(RawPDU::decode, AnyPDU::new))
+            .or(map(RawPdu::decode, AnyPdu::new))
             .parse(buffer)
     }
 
-    pub fn enqueue_virtual_packet<P: PDU + Send + Sync + 'static>(&self, packet: P) {
+    pub fn enqueue_virtual_packet<P: Pdu + Send + Sync + 'static>(&self, packet: P) {
         let mut virt = Virtual {
             base: Default::default(),
         };
@@ -174,12 +174,12 @@ impl Default for Session {
     }
 }
 
-impl PDU for Virtual {
-    fn base_pdu(&self) -> &BasePDU {
+impl Pdu for Virtual {
+    fn base_pdu(&self) -> &BasePdu {
         &self.base
     }
 
-    fn base_pdu_mut(&mut self) -> &mut BasePDU {
+    fn base_pdu_mut(&mut self) -> &mut BasePdu {
         &mut self.base
     }
 

@@ -16,10 +16,10 @@ pub struct PcapConfig {
     promisc: Option<bool>,
     rfmon: Option<bool>,
     timeout: Option<Duration>,
-    ts_type: Option<TSType>,
+    ts_type: Option<TsType>,
     immediate: Option<bool>,
     bufsize: Option<u32>,
-    ts_prec: Option<TSPrecision>,
+    ts_prec: Option<TsPrecision>,
 }
 
 impl Pcap {
@@ -89,7 +89,7 @@ impl Pcap {
                     }
                 } else if rfmon {
                     pcap_close(hndl);
-                    return Err(PcapError::RFMonNotSupported);
+                    return Err(PcapError::RfMonNotSupported);
                 }
             }
 
@@ -104,16 +104,16 @@ impl Pcap {
             #[cfg(feature = "npcap")]
             if let Some(ts_type) = config.ts_type {
                 let ts_type = match ts_type {
-                    TSType::Host => PCAP_TSTAMP_HOST,
-                    TSType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
-                    TSType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
-                    TSType::Adapter => PCAP_TSTAMP_ADAPTER,
-                    TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
+                    TsType::Host => PCAP_TSTAMP_HOST,
+                    TsType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
+                    TsType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
+                    TsType::Adapter => PCAP_TSTAMP_ADAPTER,
+                    TsType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
                 };
                 match pcap_set_tstamp_type(hndl, ts_type) {
                     PCAP_WARNING_TSTAMP_TYPE_NOTSUP => {
                         pcap_close(hndl);
-                        return Err(PcapError::TSTypeNotSupported);
+                        return Err(PcapError::TsTypeNotSupported);
                     }
                     PCAP_ERROR_ACTIVATED => {
                         pcap_close(hndl);
@@ -121,7 +121,7 @@ impl Pcap {
                     }
                     PCAP_ERROR_CANTSET_TSTAMP_TYPE => {
                         pcap_close(hndl);
-                        return Err(PcapError::CantSetTSType);
+                        return Err(PcapError::CantSetTsType);
                     }
                     _ => {}
                 }
@@ -138,13 +138,13 @@ impl Pcap {
             #[cfg(feature = "npcap")]
             if let Some(ts_prec) = config.ts_prec {
                 let ts_prec = match ts_prec {
-                    TSPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
-                    TSPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
+                    TsPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
+                    TsPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
                 };
                 match pcap_set_tstamp_precision(hndl, ts_prec as i32) {
                     PCAP_ERROR_TSTAMP_PRECISION_NOTSUP => {
                         pcap_close(hndl);
-                        return Err(PcapError::TSPrecisionNotSupported);
+                        return Err(PcapError::TsPrecisionNotSupported);
                     }
                     PCAP_ERROR_ACTIVATED => {
                         pcap_close(hndl);
@@ -169,7 +169,7 @@ impl Pcap {
                 #[cfg(feature = "npcap")]
                 PCAP_WARNING_TSTAMP_TYPE_NOTSUP => {
                     pcap_close(hndl);
-                    return Err(PcapError::TSTypeNotSupported);
+                    return Err(PcapError::TsTypeNotSupported);
                 }
                 PCAP_ERROR_ACTIVATED => {
                     pcap_close(hndl);
@@ -192,7 +192,7 @@ impl Pcap {
                 }
                 PCAP_ERROR_RFMON_NOTSUP => {
                     pcap_close(hndl);
-                    return Err(PcapError::RFMonNotSupported);
+                    return Err(PcapError::RfMonNotSupported);
                 }
                 PCAP_ERROR_IFACE_NOT_UP => {
                     pcap_close(hndl);
@@ -241,8 +241,8 @@ impl Pcap {
 
     pub fn open_offline<P: AsRef<Path>>(
         filepath: P,
-        #[cfg(feature = "npcap")] precision: Option<TSPrecision>,
-        #[cfg(not(feature = "npcap"))] _precision: Option<TSPrecision>,
+        #[cfg(feature = "npcap")] precision: Option<TsPrecision>,
+        #[cfg(not(feature = "npcap"))] _precision: Option<TsPrecision>,
     ) -> Result<Pcap> {
         unsafe {
             let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
@@ -260,8 +260,8 @@ impl Pcap {
             let hndl = match precision {
                 Some(prec) => {
                     let prec = match prec {
-                        TSPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
-                        TSPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
+                        TsPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
+                        TsPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
                     };
                     pcap_open_offline_with_tstamp_precision(c_name, prec, errbuf_ptr)
                 }
@@ -281,16 +281,16 @@ impl Pcap {
     pub fn open_dead(
         linktype: LinkType,
         snaplen: u32,
-        #[cfg(feature = "npcap")] precision: Option<TSPrecision>,
-        #[cfg(not(feature = "npcap"))] _precision: Option<TSPrecision>,
+        #[cfg(feature = "npcap")] precision: Option<TsPrecision>,
+        #[cfg(not(feature = "npcap"))] _precision: Option<TsPrecision>,
     ) -> Result<Pcap> {
         unsafe {
             #[cfg(feature = "npcap")]
             let hndl = match precision {
                 Some(prec) => {
                     let prec = match prec {
-                        TSPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
-                        TSPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
+                        TsPrecision::Micro => PCAP_TSTAMP_PRECISION_MICRO,
+                        TsPrecision::Nano => PCAP_TSTAMP_PRECISION_NANO,
                     };
                     pcap_open_dead_with_tstamp_precision(linktype.0 as i32, snaplen as i32, prec)
                 }
@@ -315,7 +315,7 @@ impl Pcap {
         self,
         filter: &str,
         optimize: bool,
-        mask: IPv4Address,
+        mask: Ipv4Address,
     ) -> Result<FilteredPcap> {
         let mut filt = FilteredPcap {
             pcap: self,
@@ -429,7 +429,7 @@ impl PcapConfig {
         self
     }
 
-    pub fn timestamp_type(&mut self, ts_type: TSType) -> &mut Self {
+    pub fn timestamp_type(&mut self, ts_type: TsType) -> &mut Self {
         self.ts_type = Some(ts_type);
         self
     }
@@ -444,7 +444,7 @@ impl PcapConfig {
         self
     }
 
-    pub fn timestamp_precision(&mut self, prec: TSPrecision) -> &mut Self {
+    pub fn timestamp_precision(&mut self, prec: TsPrecision) -> &mut Self {
         self.ts_prec = Some(prec);
         self
     }

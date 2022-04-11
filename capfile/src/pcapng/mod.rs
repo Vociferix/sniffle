@@ -6,10 +6,10 @@ pub mod writer;
 pub use recorder::{FileRecorder, Recorder};
 pub use sniffer::{FileSniffer, Sniffer};
 
-use sniffle_core::EUIAddress;
-use sniffle_core::IPv4Address;
-use sniffle_core::IPv6Address;
-use sniffle_core::MACAddress;
+use sniffle_core::EuiAddress;
+use sniffle_core::Ipv4Address;
+use sniffle_core::Ipv6Address;
+use sniffle_core::MacAddress;
 
 const BE_MAGIC: u32 = u32::from_ne_bytes([0x1A, 0x2B, 0x3C, 0x4D]);
 const LE_MAGIC: u32 = u32::from_ne_bytes([0x4D, 0x3C, 0x2B, 0x1A]);

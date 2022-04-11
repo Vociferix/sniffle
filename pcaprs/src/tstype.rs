@@ -6,7 +6,7 @@ use std::ffi::{CStr, CString};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
-pub enum TSType {
+pub enum TsType {
     Host,
     HostLowPrecision,
     HostHighPrecision,
@@ -15,33 +15,33 @@ pub enum TSType {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ParseTSTypeError;
+pub struct ParseTsTypeError;
 
 #[cfg(feature = "npcap")]
-impl FromStr for TSType {
-    type Err = ParseTSTypeError;
+impl FromStr for TsType {
+    type Err = ParseTsTypeError;
 
     fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
         unsafe {
             let name = match CString::new(name) {
                 Ok(name) => name,
                 Err(_) => {
-                    return Err(ParseTSTypeError);
+                    return Err(ParseTsTypeError);
                 }
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
             let val = pcap_tstamp_type_name_to_val(c_name);
             if val < 0 {
-                Err(ParseTSTypeError)
+                Err(ParseTsTypeError)
             } else {
                 match val {
-                    PCAP_TSTAMP_HOST => Ok(TSType::Host),
-                    PCAP_TSTAMP_HOST_LOWPREC => Ok(TSType::HostLowPrecision),
-                    PCAP_TSTAMP_HOST_HIPREC => Ok(TSType::HostHighPrecision),
-                    PCAP_TSTAMP_ADAPTER => Ok(TSType::Adapter),
-                    PCAP_TSTAMP_ADAPTER_UNSYNCED => Ok(TSType::AdapterUnsynced),
-                    _ => Err(ParseTSTypeError),
+                    PCAP_TSTAMP_HOST => Ok(TsType::Host),
+                    PCAP_TSTAMP_HOST_LOWPREC => Ok(TsType::HostLowPrecision),
+                    PCAP_TSTAMP_HOST_HIPREC => Ok(TsType::HostHighPrecision),
+                    PCAP_TSTAMP_ADAPTER => Ok(TsType::Adapter),
+                    PCAP_TSTAMP_ADAPTER_UNSYNCED => Ok(TsType::AdapterUnsynced),
+                    _ => Err(ParseTsTypeError),
                 }
             }
         }
@@ -49,15 +49,15 @@ impl FromStr for TSType {
 }
 
 #[cfg(feature = "npcap")]
-impl fmt::Display for TSType {
+impl fmt::Display for TsType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unsafe {
             let t = match self {
-                TSType::Host => PCAP_TSTAMP_HOST,
-                TSType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
-                TSType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
-                TSType::Adapter => PCAP_TSTAMP_ADAPTER,
-                TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
+                TsType::Host => PCAP_TSTAMP_HOST,
+                TsType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
+                TsType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
+                TsType::Adapter => PCAP_TSTAMP_ADAPTER,
+                TsType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_name = pcap_tstamp_type_val_to_name(t);
             if c_name.is_null() {
@@ -70,15 +70,15 @@ impl fmt::Display for TSType {
 }
 
 #[cfg(feature = "npcap")]
-impl TSType {
+impl TsType {
     pub fn name(&self) -> Option<String> {
         unsafe {
             let t = match self {
-                TSType::Host => PCAP_TSTAMP_HOST,
-                TSType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
-                TSType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
-                TSType::Adapter => PCAP_TSTAMP_ADAPTER,
-                TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
+                TsType::Host => PCAP_TSTAMP_HOST,
+                TsType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
+                TsType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
+                TsType::Adapter => PCAP_TSTAMP_ADAPTER,
+                TsType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_name = pcap_tstamp_type_val_to_name(t);
             if c_name.is_null() {
@@ -92,11 +92,11 @@ impl TSType {
     pub fn description(&self) -> Option<String> {
         unsafe {
             let t = match self {
-                TSType::Host => PCAP_TSTAMP_HOST,
-                TSType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
-                TSType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
-                TSType::Adapter => PCAP_TSTAMP_ADAPTER,
-                TSType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
+                TsType::Host => PCAP_TSTAMP_HOST,
+                TsType::HostLowPrecision => PCAP_TSTAMP_HOST_LOWPREC,
+                TsType::HostHighPrecision => PCAP_TSTAMP_HOST_HIPREC,
+                TsType::Adapter => PCAP_TSTAMP_ADAPTER,
+                TsType::AdapterUnsynced => PCAP_TSTAMP_ADAPTER_UNSYNCED,
             };
             let c_desc = pcap_tstamp_type_val_to_description(t);
             if c_desc.is_null() {

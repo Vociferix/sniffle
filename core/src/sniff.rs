@@ -1,4 +1,4 @@
-use super::{AnyPDU, Device, LinkType, LinkTypeTable, Packet, RawPDU, Session};
+use super::{AnyPdu, Device, LinkType, LinkTypeTable, Packet, RawPdu, Session};
 use std::time::SystemTime;
 use thiserror::Error;
 
@@ -65,7 +65,7 @@ pub enum SniffError {
     #[error("Malformed capture")]
     MalformedCapture,
     #[error(transparent)]
-    IO(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[cfg(feature = "pcaprs")]
     #[error(transparent)]
     Pcap(#[from] pcaprs::PcapError),
@@ -152,7 +152,7 @@ impl<S: SniffRaw> Sniff for Sniffer<S> {
                     }
                     _ => Ok(Some(Packet::new(
                         ts,
-                        AnyPDU::new(RawPDU::new(Vec::from(data))),
+                        AnyPdu::new(RawPdu::new(Vec::from(data))),
                         Some(len),
                         Some(snaplen),
                         device,
@@ -183,7 +183,7 @@ impl<S: SniffRaw> Sniff for S {
         Ok(self.sniff_raw()?.map(|pkt| {
             Packet::new(
                 pkt.ts,
-                AnyPDU::new(RawPDU::new(Vec::from(pkt.data))),
+                AnyPdu::new(RawPdu::new(Vec::from(pkt.data))),
                 Some(pkt.len),
                 Some(pkt.snaplen),
                 pkt.device,

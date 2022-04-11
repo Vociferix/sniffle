@@ -9,7 +9,7 @@ pub enum TransmitError {
     #[error("Attempt to transmit packet without a valid link layer")]
     UnknownLinkType,
     #[error(transparent)]
-    IO(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[cfg(feature = "pcaprs")]
     #[error(transparent)]
     Pcap(#[from] pcaprs::PcapError),

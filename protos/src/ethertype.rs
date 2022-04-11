@@ -20,7 +20,7 @@ pub struct EthertypeIter {
 }
 
 lazy_static! {
-    static ref ETHERTYPE_PDUS: RwLock<HashMap<PDUType, Ethertype>> = RwLock::new(HashMap::new());
+    static ref ETHERTYPE_PDUS: RwLock<HashMap<PduType, Ethertype>> = RwLock::new(HashMap::new());
 }
 
 macro_rules! count {
@@ -291,11 +291,11 @@ impl Ethertype {
     ethertype!(BBN_VITAL_LANBRIDGE_CACHE = 0xff00);
     ethertype!(ISC_BUNKER_RAMO = [0xff00, 0xff0f]);
 
-    pub fn of<P: PDU>() -> Option<Self> {
-        ETHERTYPE_PDUS.read().get(&PDUType::of::<P>()).copied()
+    pub fn of<P: Pdu>() -> Option<Self> {
+        ETHERTYPE_PDUS.read().get(&PduType::of::<P>()).copied()
     }
 
-    pub fn from_pdu<P: PDU>(pdu: &P) -> Option<Self> {
+    pub fn from_pdu<P: Pdu>(pdu: &P) -> Option<Self> {
         ETHERTYPE_PDUS.read().get(&pdu.pdu_type()).copied()
     }
 }
@@ -352,13 +352,13 @@ impl Iterator for EthertypeIter {
 }
 
 #[doc(hidden)]
-pub fn _register_ethertype_pdu<P: PDU>(ethertype: Ethertype) {
+pub fn _register_ethertype_pdu<P: Pdu>(ethertype: Ethertype) {
     if ETHERTYPE_PDUS
         .write()
-        .insert(PDUType::of::<P>(), ethertype)
+        .insert(PduType::of::<P>(), ethertype)
         .is_some()
     {
-        panic!("A PDU can only be registered for one ethertype");
+        panic!("A Pdu can only be registered for one ethertype");
     }
 }
 
