@@ -1,10 +1,13 @@
 #[cfg(windows)]
 use std::path::PathBuf;
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(feature = "static")))]
 use std::process::Command;
 
-#[cfg(all(windows, not(feature = "npcap")))]
+#[cfg(all(not(windows), feature = "static"))]
+use cmake;
+
+#[cfg(all(windows, not(feature = "npcap"), not(feature = "static")))]
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut lib_path = PathBuf::from(&dir).join("winpcap");
@@ -16,7 +19,7 @@ fn main() {
     println!("cargo:rustc-link-lib=wpcap");
 }
 
-#[cfg(all(windows, feature = "npcap"))]
+#[cfg(all(windows, feature = "npcap", not(feature = "static")))]
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut lib_path = PathBuf::from(&dir).join("npcap");
@@ -30,7 +33,7 @@ fn main() {
     println!("cargo:rustc-link-lib=wpcap");
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(feature = "static")))]
 fn main() {
     if pkg_config::probe_library("libpcap").is_ok() {
         return;
@@ -44,7 +47,7 @@ fn main() {
     println!("cargo:rustc-link-search=native=/usr/lib");
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(feature = "static")))]
 fn parse_libs_cflags(output: &[u8]) {
     let words = split_flags(output);
     let parts = words
@@ -69,7 +72,7 @@ fn parse_libs_cflags(output: &[u8]) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(feature = "static")))]
 fn split_flags(output: &[u8]) -> Vec<String> {
     let mut word = Vec::new();
     let mut words = Vec::new();
@@ -97,4 +100,21 @@ fn split_flags(output: &[u8]) -> Vec<String> {
     }
 
     words
+}
+
+#[cfg(all(not(windows), feature = "static"))]
+fn main() {
+    #[cfg(debug_assertions)]
+    const PROFILE: &'static str = "Debug";
+    #[cfg(not(debug_assertions))]
+    const PROFILE: &'static str = "Release";
+
+    let dst = cmake::Config::new("libpcap")
+        .profile(PROFILE)
+        .define("BUILD_SHARED_LIBS", "OFF")
+        .define("ENABLE_REMOTE", "ON")
+        .build_target("pcap_static")
+        .build();
+    println!("cargo:rustc-link-search=native={}", dst.display());
+    println!("cargo:rustc-link-lib=static=pcap");
 }
