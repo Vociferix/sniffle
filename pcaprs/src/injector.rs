@@ -16,9 +16,9 @@ impl Injector {
         unsafe {
             let ptr = data.as_ptr();
             let len = data.len() as libc::c_int;
-            if pcap_sendpacket(self.0.raw_handle(), ptr, len) != 0 {
+            if pcap_sendpacket(self.0.raw_handle().as_ptr(), ptr, len) != 0 {
                 Err(PcapError::General(make_string(pcap_geterr(
-                    self.0.raw_handle(),
+                    self.0.raw_handle().as_ptr(),
                 ))))
             } else {
                 Ok(())

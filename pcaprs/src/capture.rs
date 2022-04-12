@@ -35,7 +35,7 @@ pub trait Capture: Sized + AsEventHandle {
 
     fn snaplen(&self) -> Result<u32> {
         unsafe {
-            let snaplen = pcap_snapshot(self.pcap().raw_handle());
+            let snaplen = pcap_snapshot(self.pcap().raw_handle().as_ptr());
             if snaplen < 0 {
                 Err(PcapError::NotActivated)
             } else {
@@ -47,7 +47,7 @@ pub trait Capture: Sized + AsEventHandle {
     #[cfg(feature = "npcap")]
     fn buffer_size(&self) -> Result<u32> {
         unsafe {
-            let bufsize = pcap_bufsize(self.pcap().raw_handle());
+            let bufsize = pcap_bufsize(self.pcap().raw_handle().as_ptr());
             if bufsize < 0 {
                 Err(PcapError::NotActivated)
             } else {
@@ -59,7 +59,7 @@ pub trait Capture: Sized + AsEventHandle {
     #[cfg(feature = "npcap")]
     fn timestamp_precision(&self) -> TsPrecision {
         unsafe {
-            if pcap_get_tstamp_precision(self.pcap().raw_handle())
+            if pcap_get_tstamp_precision(self.pcap().raw_handle().as_ptr())
                 == PCAP_TSTAMP_PRECISION_MICRO as i32
             {
                 TsPrecision::Micro
@@ -81,9 +81,9 @@ pub trait Capture: Sized + AsEventHandle {
             Direction::InOut => PCAP_D_INOUT,
         };
         unsafe {
-            if pcap_setdirection(self.pcap().raw_handle(), direction) != 0 {
+            if pcap_setdirection(self.pcap().raw_handle().as_ptr(), direction) != 0 {
                 Err(PcapError::General(make_string(pcap_geterr(
-                    self.pcap().raw_handle(),
+                    self.pcap().raw_handle().as_ptr(),
                 ))))
             } else {
                 Ok(())
@@ -96,7 +96,7 @@ pub trait Capture: Sized + AsEventHandle {
         unsafe {
             let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
             let errbuf_ptr = errbuf.as_mut_ptr();
-            if pcap_setnonblock(self.pcap().raw_handle(), enable, errbuf_ptr) != 0 {
+            if pcap_setnonblock(self.pcap().raw_handle().as_ptr(), enable, errbuf_ptr) != 0 {
                 Err(PcapError::General(make_string(errbuf_ptr)))
             } else {
                 Ok(())
@@ -108,7 +108,7 @@ pub trait Capture: Sized + AsEventHandle {
         unsafe {
             let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
             let errbuf_ptr = errbuf.as_mut_ptr();
-            let ret = pcap_getnonblock(self.pcap().raw_handle(), errbuf_ptr);
+            let ret = pcap_getnonblock(self.pcap().raw_handle().as_ptr(), errbuf_ptr);
             if ret < 0 {
                 Err(PcapError::General(make_string(errbuf_ptr)))
             } else {
@@ -119,7 +119,7 @@ pub trait Capture: Sized + AsEventHandle {
 
     fn link_type(&self) -> Result<LinkType> {
         unsafe {
-            let datalink = pcap_datalink(self.pcap().raw_handle());
+            let datalink = pcap_datalink(self.pcap().raw_handle().as_ptr());
             if datalink < 0 {
                 Err(PcapError::NotActivated)
             } else {
@@ -131,9 +131,13 @@ pub trait Capture: Sized + AsEventHandle {
     fn stats(&self) -> Result<Stats> {
         let mut stats = pcap_stat::default();
         unsafe {
-            if pcap_stats(self.pcap().raw_handle(), (&mut stats) as *mut pcap_stat) != 0 {
+            if pcap_stats(
+                self.pcap().raw_handle().as_ptr(),
+                (&mut stats) as *mut pcap_stat,
+            ) != 0
+            {
                 return Err(PcapError::General(make_string(pcap_geterr(
-                    self.pcap().raw_handle(),
+                    self.pcap().raw_handle().as_ptr(),
                 ))));
             }
         }
@@ -144,13 +148,13 @@ pub trait Capture: Sized + AsEventHandle {
         unsafe {
             let mut data: *const u8 = std::ptr::null_mut();
             let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
-            let datalink = pcap_datalink(self.pcap().raw_handle());
+            let datalink = pcap_datalink(self.pcap().raw_handle().as_ptr());
             if datalink < 0 {
                 return Some(Err(PcapError::NotActivated));
             }
             let datalink = LinkType(datalink as u16);
             match pcap_next_ex(
-                self.pcap().raw_handle(),
+                self.pcap().raw_handle().as_ptr(),
                 (&mut hdr) as *mut *mut pcap_pkthdr,
                 (&mut data) as *mut *const libc::c_uchar,
             ) {
@@ -163,7 +167,7 @@ pub trait Capture: Sized + AsEventHandle {
                 }
                 _ => {
                     return Some(Err(PcapError::General(make_string(pcap_geterr(
-                        self.pcap().raw_handle(),
+                        self.pcap().raw_handle().as_ptr(),
                     )))));
                 }
             }
@@ -193,14 +197,14 @@ pub trait Capture: Sized + AsEventHandle {
         unsafe {
             let mut data: *const u8 = std::ptr::null_mut();
             let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
-            let datalink = pcap_datalink(self.pcap().raw_handle());
+            let datalink = pcap_datalink(self.pcap().raw_handle().as_ptr());
             if datalink < 0 {
                 return Some(Err(PcapError::NotActivated));
             }
             let datalink = LinkType(datalink as u16);
             loop {
                 match pcap_next_ex(
-                    self.pcap().raw_handle(),
+                    self.pcap().raw_handle().as_ptr(),
                     (&mut hdr) as *mut *mut pcap_pkthdr,
                     (&mut data) as *mut *const libc::c_uchar,
                 ) {
@@ -213,7 +217,7 @@ pub trait Capture: Sized + AsEventHandle {
                     }
                     _ => {
                         return Some(Err(PcapError::General(make_string(pcap_geterr(
-                            self.pcap().raw_handle(),
+                            self.pcap().raw_handle().as_ptr(),
                         )))));
                     }
                 }

@@ -158,13 +158,3 @@ impl From<std::io::Error> for PcapError {
 }
 
 impl std::error::Error for PcapError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

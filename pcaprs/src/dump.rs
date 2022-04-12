@@ -1,10 +1,11 @@
 use super::*;
 use std::path::Path;
+use std::ptr::NonNull;
 
 #[derive(Debug)]
 pub struct DumpFile {
     _pcap: Pcap,
-    dumper: *mut pcap_dumper_t,
+    dumper: NonNull<pcap_dumper_t>,
     nano: bool,
 }
 
@@ -25,13 +26,12 @@ impl DumpFile {
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
-            let dumper = pcap_dump_open(pcap.raw_handle(), c_name);
-            if dumper.is_null() {
-                Err(PcapError::General(make_string(pcap_geterr(
-                    pcap.raw_handle(),
-                ))))
-            } else {
-                match precision {
+
+            match NonNull::new(pcap_dump_open(pcap.raw_handle().as_ptr(), c_name)) {
+                None => Err(PcapError::General(make_string(pcap_geterr(
+                    pcap.raw_handle().as_ptr(),
+                )))),
+                Some(dumper) => match precision {
                     TsPrecision::Micro => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
@@ -42,7 +42,7 @@ impl DumpFile {
                         dumper,
                         nano: true,
                     }),
-                }
+                },
             }
         }
     }
@@ -64,13 +64,12 @@ impl DumpFile {
             };
             let c_name =
                 std::mem::transmute::<*const u8, *const i8>(name.as_bytes_with_nul().as_ptr());
-            let dumper = pcap_dump_open_append(pcap.raw_handle(), c_name);
-            if dumper.is_null() {
-                Err(PcapError::General(make_string(pcap_geterr(
-                    pcap.raw_handle(),
-                ))))
-            } else {
-                match precision {
+
+            match NonNull::new(pcap_dump_open_append(pcap.raw_handle().as_ptr(), c_name)) {
+                None => Err(PcapError::General(make_string(pcap_geterr(
+                    pcap.raw_handle().as_ptr(),
+                )))),
+                Some(dumper) => match precision {
                     TsPrecision::Micro => Ok(DumpFile {
                         _pcap: pcap,
                         dumper,
@@ -81,7 +80,7 @@ impl DumpFile {
                         dumper,
                         nano: true,
                     }),
-                }
+                },
             }
         }
     }
@@ -110,7 +109,7 @@ impl DumpFile {
         hdr.len = orig_len;
         unsafe {
             pcap_dump(
-                std::mem::transmute::<*mut pcap_dumper_t, *mut libc::c_uchar>(self.dumper),
+                std::mem::transmute::<*mut pcap_dumper_t, *mut libc::c_uchar>(self.dumper.as_ptr()),
                 (&mut hdr) as *mut pcap_pkthdr,
                 std::mem::transmute::<_, *mut libc::c_uchar>(ptr),
             );
