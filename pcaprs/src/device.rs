@@ -491,7 +491,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                     (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(addr.addr))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes();
+                        .to_ne_bytes();
                 let mask: Option<Ipv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
@@ -499,7 +499,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
@@ -511,7 +511,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
@@ -523,7 +523,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
@@ -616,7 +616,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                     (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(addr.addr))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes();
+                        .to_ne_bytes();
                 let mask: Option<Ipv4Address> = if !addr.netmask.is_null() {
                     Some(
                         (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in>(
@@ -624,7 +624,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
@@ -636,7 +636,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
@@ -648,7 +648,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                         ))
                         .sin_addr
                         .s_addr
-                        .to_be_bytes(),
+                        .to_ne_bytes(),
                     )
                 } else {
                     None
