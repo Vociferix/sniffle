@@ -534,8 +534,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 let ip6addr =
                     (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(addr.addr))
                         .sin6_addr
-                        .s6_addr
-                        .clone();
+                        .s6_addr;
                 let prefixlen: Option<u32> = if !addr.netmask.is_null() {
                     let mask = &(*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(
                         addr.netmask,
@@ -554,27 +553,21 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                                 } else {
                                     count += 1;
                                 }
+                            } else if byte < 0b11100000 {
+                                count += 2;
                             } else {
-                                if byte < 0b11100000 {
-                                    count += 2;
-                                } else {
-                                    count += 3;
-                                }
+                                count += 3;
                             }
+                        } else if byte < 0b11111100 {
+                            if byte < 0b11111000 {
+                                count += 4;
+                            } else {
+                                count += 5;
+                            }
+                        } else if byte < 0b11111110 {
+                            count += 6;
                         } else {
-                            if byte < 0b11111100 {
-                                if byte < 0b11111000 {
-                                    count += 4;
-                                } else {
-                                    count += 5;
-                                }
-                            } else {
-                                if byte < 0b11111110 {
-                                    count += 6;
-                                } else {
-                                    count += 7;
-                                }
-                            }
+                            count += 7;
                         }
                     }
                     Some(count)
@@ -659,8 +652,7 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                 let ip6addr =
                     (*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(addr.addr))
                         .sin6_addr
-                        .s6_addr
-                        .clone();
+                        .s6_addr;
                 let prefixlen: Option<u32> = if !addr.netmask.is_null() {
                     let mask = &(*std::mem::transmute::<*mut sockaddr, *mut libc::sockaddr_in6>(
                         addr.netmask,
@@ -679,27 +671,21 @@ unsafe fn read_address(bldr: &mut DeviceBuilder, addr: &pcap_addr_t) {
                                 } else {
                                     count += 1;
                                 }
+                            } else if byte < 0b11100000 {
+                                count += 2;
                             } else {
-                                if byte < 0b11100000 {
-                                    count += 2;
-                                } else {
-                                    count += 3;
-                                }
+                                count += 3;
                             }
+                        } else if byte < 0b11111100 {
+                            if byte < 0b11111000 {
+                                count += 4;
+                            } else {
+                                count += 5;
+                            }
+                        } else if byte < 0b11111110 {
+                            count += 6;
                         } else {
-                            if byte < 0b11111100 {
-                                if byte < 0b11111000 {
-                                    count += 4;
-                                } else {
-                                    count += 5;
-                                }
-                            } else {
-                                if byte < 0b11111110 {
-                                    count += 6;
-                                } else {
-                                    count += 7;
-                                }
-                            }
+                            count += 7;
                         }
                     }
                     Some(count)

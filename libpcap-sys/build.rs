@@ -39,9 +39,8 @@ fn main() {
         return;
     }
 
-    match Command::new("pcap-config").arg("--libs").output() {
-        Ok(output) => parse_libs_cflags(&output.stdout),
-        Err(_) => (),
+    if let Ok(output) = Command::new("pcap-config").arg("--libs").output() {
+        parse_libs_cflags(&output.stdout);
     }
 
     println!("cargo:rustc-link-search=native=/usr/lib");

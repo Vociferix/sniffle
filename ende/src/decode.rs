@@ -168,7 +168,9 @@ pub unsafe fn cast<T>(buf: &[u8]) -> DResult<'_, T> {
 
     if std::mem::size_of::<T>() != 0 {
         if buf.len() < std::mem::size_of::<T>() {
-            return Err(nom::Err::Incomplete(nom::Needed::Size(std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>() - buf.len()))));
+            return Err(nom::Err::Incomplete(nom::Needed::Size(
+                std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>() - buf.len()),
+            )));
         }
         let mut buf: &[u8] = &buf[..std::mem::size_of::<T>()];
         if std::io::copy(
@@ -276,8 +278,14 @@ mod test {
     use super::*;
 
     macro_rules! incomplete {
-        () => { nom::Err::Incomplete(nom::Needed::Unknown) };
-        ($size:expr) => { nom::Err::Incomplete(nom::Needed::Size(std::num::NonZeroUsize::new($size).unwrap())) };
+        () => {
+            nom::Err::Incomplete(nom::Needed::Unknown)
+        };
+        ($size:expr) => {
+            nom::Err::Incomplete(nom::Needed::Size(
+                std::num::NonZeroUsize::new($size).unwrap(),
+            ))
+        };
     }
 
     #[test]
@@ -313,11 +321,26 @@ mod test {
     #[test]
     fn u16_array_decode_be() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8][..];
-        assert_eq!(<[u16; 2]>::decode_be(buf), Ok((&[5, 6, 7, 8][..], [0x0102, 0x0304])));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[1..]), Ok((&[6, 7, 8][..], [0x0203, 0x0405])));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[2..]), Ok((&[7, 8][..], [0x0304, 0x0506])));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[3..]), Ok((&[8][..], [0x0405, 0x0607])));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[4..]), Ok((&[][..], [0x0506, 0x0708])));
+        assert_eq!(
+            <[u16; 2]>::decode_be(buf),
+            Ok((&[5, 6, 7, 8][..], [0x0102, 0x0304]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_be(&buf[1..]),
+            Ok((&[6, 7, 8][..], [0x0203, 0x0405]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_be(&buf[2..]),
+            Ok((&[7, 8][..], [0x0304, 0x0506]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_be(&buf[3..]),
+            Ok((&[8][..], [0x0405, 0x0607]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_be(&buf[4..]),
+            Ok((&[][..], [0x0506, 0x0708]))
+        );
         assert_eq!(<[u16; 2]>::decode_be(&buf[5..]), Err(incomplete!(1)));
         assert_eq!(<[u16; 2]>::decode_be(&buf[6..]), Err(incomplete!(2)));
         assert_eq!(<[u16; 2]>::decode_be(&buf[7..]), Err(incomplete!(3)));
@@ -337,11 +360,26 @@ mod test {
     #[test]
     fn u16_array_decode_le() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8][..];
-        assert_eq!(<[u16; 2]>::decode_le(buf), Ok((&[5, 6, 7, 8][..], [0x0201, 0x0403])));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[1..]), Ok((&[6, 7, 8][..], [0x0302, 0x0504])));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[2..]), Ok((&[7, 8][..], [0x0403, 0x0605])));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[3..]), Ok((&[8][..], [0x0504, 0x0706])));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[4..]), Ok((&[][..], [0x0605, 0x0807])));
+        assert_eq!(
+            <[u16; 2]>::decode_le(buf),
+            Ok((&[5, 6, 7, 8][..], [0x0201, 0x0403]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_le(&buf[1..]),
+            Ok((&[6, 7, 8][..], [0x0302, 0x0504]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_le(&buf[2..]),
+            Ok((&[7, 8][..], [0x0403, 0x0605]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_le(&buf[3..]),
+            Ok((&[8][..], [0x0504, 0x0706]))
+        );
+        assert_eq!(
+            <[u16; 2]>::decode_le(&buf[4..]),
+            Ok((&[][..], [0x0605, 0x0807]))
+        );
         assert_eq!(<[u16; 2]>::decode_le(&buf[5..]), Err(incomplete!(1)));
         assert_eq!(<[u16; 2]>::decode_le(&buf[6..]), Err(incomplete!(2)));
         assert_eq!(<[u16; 2]>::decode_le(&buf[7..]), Err(incomplete!(3)));
@@ -363,9 +401,18 @@ mod test {
     #[test]
     fn u32_array_decode_be() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(<[u32; 2]>::decode_be(buf), Ok((&[9, 10][..], [0x01020304, 0x05060708])));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[1..]), Ok((&[10][..], [0x02030405, 0x06070809])));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[2..]), Ok((&[][..], [0x03040506, 0x0708090A])));
+        assert_eq!(
+            <[u32; 2]>::decode_be(buf),
+            Ok((&[9, 10][..], [0x01020304, 0x05060708]))
+        );
+        assert_eq!(
+            <[u32; 2]>::decode_be(&buf[1..]),
+            Ok((&[10][..], [0x02030405, 0x06070809]))
+        );
+        assert_eq!(
+            <[u32; 2]>::decode_be(&buf[2..]),
+            Ok((&[][..], [0x03040506, 0x0708090A]))
+        );
         assert_eq!(<[u32; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u32; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u32; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
@@ -391,9 +438,18 @@ mod test {
     #[test]
     fn u32_array_decode_le() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(<[u32; 2]>::decode_le(buf), Ok((&[9, 10][..], [0x04030201, 0x08070605])));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[1..]), Ok((&[10][..], [0x05040302, 0x09080706])));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[2..]), Ok((&[][..], [0x06050403, 0x0A090807])));
+        assert_eq!(
+            <[u32; 2]>::decode_le(buf),
+            Ok((&[9, 10][..], [0x04030201, 0x08070605]))
+        );
+        assert_eq!(
+            <[u32; 2]>::decode_le(&buf[1..]),
+            Ok((&[10][..], [0x05040302, 0x09080706]))
+        );
+        assert_eq!(
+            <[u32; 2]>::decode_le(&buf[2..]),
+            Ok((&[][..], [0x06050403, 0x0A090807]))
+        );
         assert_eq!(<[u32; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u32; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u32; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
@@ -408,7 +464,10 @@ mod test {
     fn u64_decode_be() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
         assert_eq!(u64::decode_be(buf), Ok((&[9, 10][..], 0x0102030405060708)));
-        assert_eq!(u64::decode_be(&buf[1..]), Ok((&[10][..], 0x0203040506070809)));
+        assert_eq!(
+            u64::decode_be(&buf[1..]),
+            Ok((&[10][..], 0x0203040506070809))
+        );
         assert_eq!(u64::decode_be(&buf[2..]), Ok((&[][..], 0x030405060708090A)));
         assert_eq!(u64::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(u64::decode_be(&buf[4..]), Err(incomplete!(2)));
@@ -422,10 +481,21 @@ mod test {
 
     #[test]
     fn u64_array_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18][..];
-        assert_eq!(<[u64; 2]>::decode_be(buf), Ok((&[17, 18][..], [0x0102030405060708, 0x090A0B0C0D0E0F10])));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[1..]), Ok((&[18][..], [0x0203040506070809, 0x0A0B0C0D0E0F1011])));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[2..]), Ok((&[][..], [0x030405060708090A, 0x0B0C0D0E0F101112])));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        ][..];
+        assert_eq!(
+            <[u64; 2]>::decode_be(buf),
+            Ok((&[17, 18][..], [0x0102030405060708, 0x090A0B0C0D0E0F10]))
+        );
+        assert_eq!(
+            <[u64; 2]>::decode_be(&buf[1..]),
+            Ok((&[18][..], [0x0203040506070809, 0x0A0B0C0D0E0F1011]))
+        );
+        assert_eq!(
+            <[u64; 2]>::decode_be(&buf[2..]),
+            Ok((&[][..], [0x030405060708090A, 0x0B0C0D0E0F101112]))
+        );
         assert_eq!(<[u64; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u64; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u64; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
@@ -448,7 +518,10 @@ mod test {
     fn u64_decode_le() {
         let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
         assert_eq!(u64::decode_le(buf), Ok((&[9, 10][..], 0x0807060504030201)));
-        assert_eq!(u64::decode_le(&buf[1..]), Ok((&[10][..], 0x0908070605040302)));
+        assert_eq!(
+            u64::decode_le(&buf[1..]),
+            Ok((&[10][..], 0x0908070605040302))
+        );
         assert_eq!(u64::decode_le(&buf[2..]), Ok((&[][..], 0x0A09080706050403)));
         assert_eq!(u64::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(u64::decode_le(&buf[4..]), Err(incomplete!(2)));
@@ -462,10 +535,21 @@ mod test {
 
     #[test]
     fn u64_array_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18][..];
-        assert_eq!(<[u64; 2]>::decode_le(buf), Ok((&[17, 18][..], [0x0807060504030201, 0x100F0E0D0C0B0A09])));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[1..]), Ok((&[18][..], [0x0908070605040302, 0x11100F0E0D0C0B0A])));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[2..]), Ok((&[][..], [0x0A09080706050403, 0x1211100F0E0D0C0B])));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        ][..];
+        assert_eq!(
+            <[u64; 2]>::decode_le(buf),
+            Ok((&[17, 18][..], [0x0807060504030201, 0x100F0E0D0C0B0A09]))
+        );
+        assert_eq!(
+            <[u64; 2]>::decode_le(&buf[1..]),
+            Ok((&[18][..], [0x0908070605040302, 0x11100F0E0D0C0B0A]))
+        );
+        assert_eq!(
+            <[u64; 2]>::decode_le(&buf[2..]),
+            Ok((&[][..], [0x0A09080706050403, 0x1211100F0E0D0C0B]))
+        );
         assert_eq!(<[u64; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u64; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u64; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
@@ -486,10 +570,21 @@ mod test {
 
     #[test]
     fn u128_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18][..];
-        assert_eq!(u128::decode_be(buf), Ok((&[17, 18][..], 0x0102030405060708090A0B0C0D0E0F10)));
-        assert_eq!(u128::decode_be(&buf[1..]), Ok((&[18][..], 0x02030405060708090A0B0C0D0E0F1011)));
-        assert_eq!(u128::decode_be(&buf[2..]), Ok((&[][..], 0x030405060708090A0B0C0D0E0F101112)));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        ][..];
+        assert_eq!(
+            u128::decode_be(buf),
+            Ok((&[17, 18][..], 0x0102030405060708090A0B0C0D0E0F10))
+        );
+        assert_eq!(
+            u128::decode_be(&buf[1..]),
+            Ok((&[18][..], 0x02030405060708090A0B0C0D0E0F1011))
+        );
+        assert_eq!(
+            u128::decode_be(&buf[2..]),
+            Ok((&[][..], 0x030405060708090A0B0C0D0E0F101112))
+        );
         assert_eq!(u128::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(u128::decode_be(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(u128::decode_be(&buf[5..]), Err(incomplete!(3)));
@@ -510,10 +605,40 @@ mod test {
 
     #[test]
     fn u128_array_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34][..];
-        assert_eq!(<[u128; 2]>::decode_be(buf), Ok((&[33, 34][..], [0x0102030405060708090A0B0C0D0E0F10, 0x1112131415161718191A1B1C1D1E1F20])));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[1..]), Ok((&[34][..], [0x02030405060708090A0B0C0D0E0F1011, 0x12131415161718191A1B1C1D1E1F2021])));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[2..]), Ok((&[][..], [0x030405060708090A0B0C0D0E0F101112, 0x131415161718191A1B1C1D1E1F202122])));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+        ][..];
+        assert_eq!(
+            <[u128; 2]>::decode_be(buf),
+            Ok((
+                &[33, 34][..],
+                [
+                    0x0102030405060708090A0B0C0D0E0F10,
+                    0x1112131415161718191A1B1C1D1E1F20
+                ]
+            ))
+        );
+        assert_eq!(
+            <[u128; 2]>::decode_be(&buf[1..]),
+            Ok((
+                &[34][..],
+                [
+                    0x02030405060708090A0B0C0D0E0F1011,
+                    0x12131415161718191A1B1C1D1E1F2021
+                ]
+            ))
+        );
+        assert_eq!(
+            <[u128; 2]>::decode_be(&buf[2..]),
+            Ok((
+                &[][..],
+                [
+                    0x030405060708090A0B0C0D0E0F101112,
+                    0x131415161718191A1B1C1D1E1F202122
+                ]
+            ))
+        );
         assert_eq!(<[u128; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u128; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u128; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
@@ -550,10 +675,21 @@ mod test {
 
     #[test]
     fn u128_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18][..];
-        assert_eq!(u128::decode_le(buf), Ok((&[17, 18][..], 0x100F0E0D0C0B0A090807060504030201)));
-        assert_eq!(u128::decode_le(&buf[1..]), Ok((&[18][..], 0x11100F0E0D0C0B0A0908070605040302)));
-        assert_eq!(u128::decode_le(&buf[2..]), Ok((&[][..], 0x1211100F0E0D0C0B0A09080706050403)));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+        ][..];
+        assert_eq!(
+            u128::decode_le(buf),
+            Ok((&[17, 18][..], 0x100F0E0D0C0B0A090807060504030201))
+        );
+        assert_eq!(
+            u128::decode_le(&buf[1..]),
+            Ok((&[18][..], 0x11100F0E0D0C0B0A0908070605040302))
+        );
+        assert_eq!(
+            u128::decode_le(&buf[2..]),
+            Ok((&[][..], 0x1211100F0E0D0C0B0A09080706050403))
+        );
         assert_eq!(u128::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(u128::decode_le(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(u128::decode_le(&buf[5..]), Err(incomplete!(3)));
@@ -574,10 +710,40 @@ mod test {
 
     #[test]
     fn u128_array_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34][..];
-        assert_eq!(<[u128; 2]>::decode_le(buf), Ok((&[33, 34][..], [0x100F0E0D0C0B0A090807060504030201, 0x201F1E1D1C1B1A191817161514131211])));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[1..]), Ok((&[34][..], [0x11100F0E0D0C0B0A0908070605040302, 0x21201F1E1D1C1B1A1918171615141312])));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[2..]), Ok((&[][..], [0x1211100F0E0D0C0B0A09080706050403, 0x2221201F1E1D1C1B1A19181716151413])));
+        let buf = &[
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+        ][..];
+        assert_eq!(
+            <[u128; 2]>::decode_le(buf),
+            Ok((
+                &[33, 34][..],
+                [
+                    0x100F0E0D0C0B0A090807060504030201,
+                    0x201F1E1D1C1B1A191817161514131211
+                ]
+            ))
+        );
+        assert_eq!(
+            <[u128; 2]>::decode_le(&buf[1..]),
+            Ok((
+                &[34][..],
+                [
+                    0x11100F0E0D0C0B0A0908070605040302,
+                    0x21201F1E1D1C1B1A1918171615141312
+                ]
+            ))
+        );
+        assert_eq!(
+            <[u128; 2]>::decode_le(&buf[2..]),
+            Ok((
+                &[][..],
+                [
+                    0x1211100F0E0D0C0B0A09080706050403,
+                    0x2221201F1E1D1C1B1A19181716151413
+                ]
+            ))
+        );
         assert_eq!(<[u128; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[u128; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[u128; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
@@ -645,9 +811,18 @@ mod test {
     #[test]
     fn i16_array_decode_be() {
         let buf = &[1, 2, 0xFF, 0, 0x80, 1][..];
-        assert_eq!(<[i16; 2]>::decode_be(buf), Ok((&[0x80, 1][..], [0x0102, -256])));
-        assert_eq!(<[i16; 2]>::decode_be(&buf[1..]), Ok((&[1][..], [0x02FF, 0x80])));
-        assert_eq!(<[i16; 2]>::decode_be(&buf[2..]), Ok((&[][..], [-256, -32767])));
+        assert_eq!(
+            <[i16; 2]>::decode_be(buf),
+            Ok((&[0x80, 1][..], [0x0102, -256]))
+        );
+        assert_eq!(
+            <[i16; 2]>::decode_be(&buf[1..]),
+            Ok((&[1][..], [0x02FF, 0x80]))
+        );
+        assert_eq!(
+            <[i16; 2]>::decode_be(&buf[2..]),
+            Ok((&[][..], [-256, -32767]))
+        );
         assert_eq!(<[i16; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[i16; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[i16; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
@@ -667,9 +842,18 @@ mod test {
     #[test]
     fn i16_array_decode_le() {
         let buf = &[1, 2, 0, 0xFF, 1, 0x80][..];
-        assert_eq!(<[i16; 2]>::decode_le(buf), Ok((&[1, 0x80][..], [0x0201, -256])));
-        assert_eq!(<[i16; 2]>::decode_le(&buf[1..]), Ok((&[0x80][..], [2, 0x1FF])));
-        assert_eq!(<[i16; 2]>::decode_le(&buf[2..]), Ok((&[][..], [-256, -32767])));
+        assert_eq!(
+            <[i16; 2]>::decode_le(buf),
+            Ok((&[1, 0x80][..], [0x0201, -256]))
+        );
+        assert_eq!(
+            <[i16; 2]>::decode_le(&buf[1..]),
+            Ok((&[0x80][..], [2, 0x1FF]))
+        );
+        assert_eq!(
+            <[i16; 2]>::decode_le(&buf[2..]),
+            Ok((&[][..], [-256, -32767]))
+        );
         assert_eq!(<[i16; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
         assert_eq!(<[i16; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
         assert_eq!(<[i16; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
