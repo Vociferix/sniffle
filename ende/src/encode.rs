@@ -1,4 +1,3 @@
-use super::*;
 use std::io::{Result, Write};
 
 pub trait Encoder<'a>: Write + 'a {
@@ -176,7 +175,7 @@ macro_rules! make_encode {
                 slice: &[Self],
                 encoder: &mut W,
             ) -> Result<()> {
-                if IS_BIG_ENDIAN {
+                if cfg!(target_endian = "big") {
                     unsafe {
                         encoder.write_all(std::slice::from_raw_parts(
                             slice.as_ptr() as *const u8,
@@ -201,7 +200,7 @@ macro_rules! make_encode {
                 slice: &[Self],
                 encoder: &mut W,
             ) -> Result<()> {
-                if IS_LITTLE_ENDIAN {
+                if cfg!(target_endian = "little") {
                     unsafe {
                         encoder.write_all(std::slice::from_raw_parts(
                             slice.as_ptr() as *const u8,
