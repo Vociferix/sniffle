@@ -4,7 +4,7 @@ fn main() {
     let mut first_dev = true;
     for dev in Device::all() {
         if !first_dev {
-            println!("");
+            println!();
         }
         first_dev = false;
         let has_desc = if cfg!(windows) {
@@ -67,15 +67,23 @@ fn main() {
         }
         for addr in dev.ipv4_addresses() {
             print!("  ipv4: {}", addr.address());
-            addr.netmask().map(|mask| print!("  mask: {}", mask));
-            addr.broadcast().map(|brd| print!("  brd: {}", brd));
-            addr.destination().map(|dst| print!("  dst: {}", dst));
-            println!("");
+            if let Some(mask) = addr.netmask() {
+                print!("  mask: {}", mask);
+            }
+            if let Some(brd) = addr.broadcast() {
+                print!("  brd: {}", brd);
+            }
+            if let Some(dst) = addr.destination() {
+                print!("  dst: {}", dst);
+            }
+            println!();
         }
         for addr in dev.ipv6_addresses() {
             print!("  ipv6: {}", addr.address());
-            addr.prefix_length().map(|pl| print!("  prefixlen: {}", pl));
-            println!("");
+            if let Some(pl) = addr.prefix_length() {
+                print!("  prefixlen: {}", pl);
+            }
+            println!();
         }
     }
 }
