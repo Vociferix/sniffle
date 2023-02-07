@@ -26,17 +26,3 @@ impl Injector {
         }
     }
 }
-
-#[cfg(unix)]
-impl std::os::unix::io::AsRawFd for Injector {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        self.0.as_raw_fd()
-    }
-}
-
-#[cfg(windows)]
-impl std::os::windows::io::AsRawHandle for Injector {
-    fn as_raw_handle(&self) -> std::os::windows::io::RawHandle {
-        self.0.as_raw_handle()
-    }
-}

@@ -4,32 +4,14 @@ use super::*;
 pub struct Stats(pcap_stat);
 
 pub struct Packet<'a> {
-    pcap: &'a mut Pcap,
-    datalink: LinkType,
-    ts: SystemTime,
-    len: u32,
-    data: &'a [u8],
+    pub(crate) pcap: &'a mut Pcap,
+    pub(crate) datalink: LinkType,
+    pub(crate) ts: SystemTime,
+    pub(crate) len: u32,
+    pub(crate) data: &'a [u8],
 }
 
-#[cfg(windows)]
-pub trait AsEventHandle: std::os::windows::io::AsRawHandle {}
-
-#[cfg(windows)]
-impl<T: std::os::windows::io::AsRawHandle> AsEventHandle for T {}
-
-#[cfg(unix)]
-pub trait AsEventHandle: std::os::unix::io::AsRawFd {}
-
-#[cfg(unix)]
-impl<T: std::os::unix::io::AsRawFd> AsEventHandle for T {}
-
-#[cfg(not(any(windows, unix)))]
-pub trait AsEventHandle {}
-
-#[cfg(not(any(windows, unix)))]
-impl<T> AsEventHandle for T {}
-
-pub trait Capture: Sized + AsEventHandle {
+pub trait Capture: Sized {
     fn pcap(&self) -> &Pcap;
     fn pcap_mut(&mut self) -> &mut Pcap;
 
@@ -91,32 +73,6 @@ pub trait Capture: Sized + AsEventHandle {
         }
     }
 
-    fn set_nonblocking(&mut self, enable: bool) -> Result<()> {
-        let enable = if enable { 1 } else { 0 };
-        unsafe {
-            let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
-            let errbuf_ptr = errbuf.as_mut_ptr();
-            if pcap_setnonblock(self.pcap().raw_handle().as_ptr(), enable, errbuf_ptr) != 0 {
-                Err(PcapError::General(make_string(errbuf_ptr)))
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    fn is_nonblocking(&self) -> Result<bool> {
-        unsafe {
-            let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
-            let errbuf_ptr = errbuf.as_mut_ptr();
-            let ret = pcap_getnonblock(self.pcap().raw_handle().as_ptr(), errbuf_ptr);
-            if ret < 0 {
-                Err(PcapError::General(make_string(errbuf_ptr)))
-            } else {
-                Ok(ret != 0)
-            }
-        }
-    }
-
     fn link_type(&self) -> Result<LinkType> {
         unsafe {
             let datalink = pcap_datalink(self.pcap().raw_handle().as_ptr());
@@ -142,55 +98,6 @@ pub trait Capture: Sized + AsEventHandle {
             }
         }
         Ok(Stats(stats))
-    }
-
-    fn try_next_packet(&mut self) -> Option<Result<Option<Packet<'_>>>> {
-        unsafe {
-            let mut data: *const u8 = std::ptr::null_mut();
-            let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
-            let datalink = pcap_datalink(self.pcap().raw_handle().as_ptr());
-            if datalink < 0 {
-                return Some(Err(PcapError::NotActivated));
-            }
-            let datalink = LinkType(datalink as u16);
-            match pcap_next_ex(
-                self.pcap().raw_handle().as_ptr(),
-                (&mut hdr) as *mut *mut pcap_pkthdr,
-                (&mut data) as *mut *const libc::c_uchar,
-            ) {
-                0 => {
-                    return Some(Ok(None));
-                }
-                1 => {}
-                PCAP_ERROR_BREAK => {
-                    return None;
-                }
-                _ => {
-                    return Some(Err(PcapError::General(make_string(pcap_geterr(
-                        self.pcap().raw_handle().as_ptr(),
-                    )))));
-                }
-            }
-            let hdr = &*hdr;
-            let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
-            let ts = match self.timestamp_precision() {
-                TsPrecision::Micro => {
-                    std::time::UNIX_EPOCH
-                        + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
-                }
-                TsPrecision::Nano => {
-                    std::time::UNIX_EPOCH
-                        + Duration::new(hdr.ts.tv_sec as u64, hdr.ts.tv_usec as u32)
-                }
-            };
-            Some(Ok(Some(Packet {
-                pcap: self.pcap_mut(),
-                datalink,
-                ts,
-                len: hdr.len,
-                data,
-            })))
-        }
     }
 
     fn next_packet(&mut self) -> Option<Result<Packet<'_>>> {

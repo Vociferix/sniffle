@@ -13,10 +13,16 @@ description = "Safe Rust API for libpcap functionality"
 libpcap-sys = { path = "../libpcap-sys", default-features = false }
 libc = "0.2"
 link-types = { path = "../link-types" }
+tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
+async-std = { version = "1", optional = true }
+smol = { version = "1", optional = true, default-features = false }
 
 [features]
-default = ["npcap"]
+default = ["npcap", "smol"]
 npcap = ["libpcap-sys/npcap"]
+tokio = ["dep:tokio"]
+async-std = ["dep:async-std"]
+smol = ["dep:smol"]
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"

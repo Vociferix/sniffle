@@ -464,31 +464,3 @@ impl From<&Device> for PcapConfig {
         PcapConfig::create(dev.name())
     }
 }
-
-#[cfg(unix)]
-impl std::os::unix::io::AsRawFd for Pcap {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        unsafe { pcap_get_selectable_fd(self.0.as_ptr()) }
-    }
-}
-
-#[cfg(windows)]
-impl std::os::windows::io::AsRawHandle for Pcap {
-    fn as_raw_handle(&self) -> std::os::windows::io::RawHandle {
-        unsafe { std::mem::transmute(pcap_getevent(self.0.as_ptr())) }
-    }
-}
-
-#[cfg(unix)]
-impl std::os::unix::io::AsRawFd for FilteredPcap {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        self.pcap.as_raw_fd()
-    }
-}
-
-#[cfg(windows)]
-impl std::os::windows::io::AsRawHandle for FilteredPcap {
-    fn as_raw_handle(&self) -> std::os::windows::io::RawHandle {
-        self.pcap.as_raw_handle()
-    }
-}
