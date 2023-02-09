@@ -22,6 +22,9 @@ mod utils;
 #[cfg(feature = "tokio")]
 mod async_capture;
 
+#[cfg(feature = "tokio")]
+mod async_injector;
+
 pub use capture::*;
 pub use device::*;
 pub use dump::*;
@@ -34,6 +37,9 @@ use utils::*;
 
 #[cfg(feature = "tokio")]
 pub use async_capture::*;
+
+#[cfg(feature = "tokio")]
+pub use async_injector::*;
 
 #[derive(Debug)]
 #[non_exhaustive]

@@ -10,6 +10,24 @@ pub struct Packet<'a> {
     pub(crate) data: &'a [u8],
 }
 
+#[cfg(feature = "npcap")]
+fn get_ts_prec<C: Capture>(cap: &C) -> TsPrecision {
+    unsafe {
+        if pcap_get_tstamp_precision(cap.pcap().raw_handle().as_ptr())
+            == PCAP_TSTAMP_PRECISION_MICRO as i32
+        {
+            TsPrecision::Micro
+        } else {
+            TsPrecision::Nano
+        }
+    }
+}
+
+#[cfg(not(feature = "npcap"))]
+fn get_ts_prec<C: Capture>(cap: &C) -> TsPrecision {
+    TsPrecision::Micro
+}
+
 pub trait Capture: Sized {
     fn pcap(&self) -> &Pcap;
     fn pcap_mut(&mut self) -> &mut Pcap;
@@ -37,22 +55,8 @@ pub trait Capture: Sized {
         }
     }
 
-    #[cfg(feature = "npcap")]
     fn timestamp_precision(&self) -> TsPrecision {
-        unsafe {
-            if pcap_get_tstamp_precision(self.pcap().raw_handle().as_ptr())
-                == PCAP_TSTAMP_PRECISION_MICRO as i32
-            {
-                TsPrecision::Micro
-            } else {
-                TsPrecision::Nano
-            }
-        }
-    }
-
-    #[cfg(not(feature = "npcap"))]
-    fn timestamp_precision(&self) -> TsPrecision {
-        TsPrecision::Micro
+        get_ts_prec(self)
     }
 
     fn set_direction(&mut self, direction: Direction) -> Result<()> {
@@ -147,6 +151,11 @@ pub trait Capture: Sized {
                 data,
             }))
         }
+    }
+
+    #[cfg(feature = "tokio")]
+    fn into_async(self) -> Result<AsyncCapture<Self>> {
+        AsyncCapture::new(self)
     }
 }
 

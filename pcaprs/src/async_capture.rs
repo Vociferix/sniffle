@@ -1,21 +1,7 @@
 use super::*;
 
-pub struct AsyncCapture<C: Capture> {
-    cap: C,
-}
-
-unsafe fn set_nonblocking<C: Capture>(cap: &mut C, enable: bool) -> Result<()> {
-    let enable = if enable { 1 } else { 0 };
-    unsafe {
-        let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
-        let errbuf_ptr = errbuf.as_mut_ptr();
-        if pcap_setnonblock(cap.pcap().raw_handle().as_ptr(), enable, errbuf_ptr) != 0 {
-            Err(PcapError::General(make_string(errbuf_ptr)))
-        } else {
-            Ok(())
-        }
-    }
-}
+#[repr(transparent)]
+pub struct AsyncCapture<C: Capture>(C);
 
 #[cfg(not(windows))]
 struct WaitHandle(libc::c_int);
@@ -78,17 +64,13 @@ impl WaitHandle {
 
 impl<C: Capture> AsyncCapture<C> {
     pub fn new(mut capture: C) -> Result<Self> {
-        unsafe {
-            set_nonblocking(&mut capture, true)?;
-        }
-        Ok(Self { cap: capture })
+        capture.pcap_mut().set_nonblocking(true)?;
+        Ok(Self(capture))
     }
 
     pub fn into_inner(mut self) -> Result<C> {
-        unsafe {
-            set_nonblocking(&mut self.cap, false)?;
-        }
-        Ok(self.cap)
+        self.0.pcap_mut().set_nonblocking(false)?;
+        Ok(self.0)
     }
 
     #[cfg(not(windows))]
@@ -116,14 +98,14 @@ impl<C: Capture> AsyncCapture<C> {
         unsafe {
             let mut data: *const u8 = std::ptr::null_mut();
             let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
-            let datalink = pcap_datalink(self.cap.pcap().raw_handle().as_ptr());
+            let datalink = pcap_datalink(self.0.pcap().raw_handle().as_ptr());
             if datalink < 0 {
                 return Some(Err(PcapError::NotActivated));
             }
             let datalink = LinkType(datalink as u16);
             loop {
                 match pcap_next_ex(
-                    self.cap.pcap().raw_handle().as_ptr(),
+                    self.0.pcap().raw_handle().as_ptr(),
                     (&mut hdr) as *mut *mut pcap_pkthdr,
                     (&mut data) as *mut *const libc::c_uchar,
                 ) {
@@ -136,18 +118,18 @@ impl<C: Capture> AsyncCapture<C> {
                     }
                     _ => {
                         return Some(Err(PcapError::General(make_string(pcap_geterr(
-                            self.cap.pcap().raw_handle().as_ptr(),
+                            self.0.pcap().raw_handle().as_ptr(),
                         )))));
                     }
                 }
 
-                if let Err(err) = Self::wait_for_packets(&self.cap).await {
+                if let Err(err) = Self::wait_for_packets(&self.0).await {
                     return Some(Err(err));
                 }
             }
             let hdr = &*hdr;
             let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
-            let ts = match self.cap.timestamp_precision() {
+            let ts = match self.0.timestamp_precision() {
                 TsPrecision::Micro => {
                     std::time::UNIX_EPOCH
                         + Duration::new(hdr.ts.tv_sec as u64, (hdr.ts.tv_usec as u32) * 1000)
@@ -164,5 +146,30 @@ impl<C: Capture> AsyncCapture<C> {
                 data,
             }))
         }
+    }
+
+    pub fn snaplen(&self) -> Result<u32> {
+        self.0.snaplen()
+    }
+
+    #[cfg(feature = "npcap")]
+    pub fn buffer_size(&self) -> Result<u32> {
+        self.0.buffer_size()
+    }
+
+    pub fn timestamp_precision(&self) -> TsPrecision {
+        self.0.timestamp_precision()
+    }
+
+    pub fn set_direction(&mut self, direction: Direction) -> Result<()> {
+        self.0.set_direction(direction)
+    }
+
+    pub fn link_type(&self) -> Result<LinkType> {
+        self.0.link_type()
+    }
+
+    pub fn stats(&self) -> Result<Stats> {
+        self.0.stats()
     }
 }

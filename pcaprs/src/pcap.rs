@@ -359,6 +359,19 @@ impl Pcap {
         }
         Ok(filt)
     }
+
+    pub(crate) fn set_nonblocking(&mut self, enable: bool) -> Result<()> {
+        let enable = if enable { 1 } else { 0 };
+        unsafe {
+            let mut errbuf: [libc::c_char; PCAP_ERRBUF_SIZE] = [0; PCAP_ERRBUF_SIZE];
+            let errbuf_ptr = errbuf.as_mut_ptr();
+            if pcap_setnonblock(self.raw_handle().as_ptr(), enable, errbuf_ptr) != 0 {
+                Err(PcapError::General(make_string(errbuf_ptr)))
+            } else {
+                Ok(())
+            }
+        }
+    }
 }
 
 impl Capture for Pcap {
