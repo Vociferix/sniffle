@@ -4,7 +4,6 @@ use super::*;
 pub struct Stats(pcap_stat);
 
 pub struct Packet<'a> {
-    pub(crate) pcap: &'a mut Pcap,
     pub(crate) datalink: LinkType,
     pub(crate) ts: SystemTime,
     pub(crate) len: u32,
@@ -142,7 +141,6 @@ pub trait Capture: Sized {
                 }
             };
             Some(Ok(Packet {
-                pcap: self.pcap_mut(),
                 datalink,
                 ts,
                 len: hdr.len,
@@ -182,10 +180,6 @@ impl Stats {
 }
 
 impl<'a> Packet<'a> {
-    pub fn pcap<'b: 'a>(&'b self) -> &'a Pcap {
-        self.pcap
-    }
-
     pub fn datalink(&self) -> LinkType {
         self.datalink
     }

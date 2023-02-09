@@ -19,7 +19,7 @@ mod pcap;
 mod tstype;
 mod utils;
 
-#[cfg(any(feature = "tokio", feature = "async-std", feature = "smol"))]
+#[cfg(feature = "tokio")]
 mod async_capture;
 
 pub use capture::*;
@@ -32,7 +32,7 @@ pub use pcap::*;
 pub use tstype::*;
 use utils::*;
 
-#[cfg(any(feature = "tokio", feature = "async-std", feature = "smol"))]
+#[cfg(feature = "tokio")]
 pub use async_capture::*;
 
 #[derive(Debug)]

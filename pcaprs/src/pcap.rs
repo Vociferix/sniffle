@@ -24,6 +24,10 @@ pub struct PcapConfig {
     ts_prec: Option<TsPrecision>,
 }
 
+unsafe impl Send for Pcap {}
+
+unsafe impl Send for FilteredPcap {}
+
 impl Pcap {
     pub(crate) unsafe fn raw_handle(&self) -> NonNull<pcap_t> {
         self.0

@@ -9,6 +9,8 @@ pub struct DumpFile {
     nano: bool,
 }
 
+unsafe impl Send for DumpFile {}
+
 impl DumpFile {
     pub fn create<P: AsRef<Path>>(
         filepath: P,

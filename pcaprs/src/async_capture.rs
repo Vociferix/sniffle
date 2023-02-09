@@ -17,85 +17,6 @@ unsafe fn set_nonblocking<C: Capture>(cap: &mut C, enable: bool) -> Result<()> {
     }
 }
 
-enum Waiter {
-    #[cfg(feature = "tokio")]
-    Tokio(tokio::task::JoinHandle<Result<()>>),
-    #[cfg(feature = "async-std")]
-    AsyncStd(async_std::task::JoinHandle<Result<()>>),
-    #[cfg(feature = "smol")]
-    Smol(smol::Task<Result<()>>),
-}
-
-impl Waiter {
-    #[cfg(all(feature = "tokio", feature = "async-std", feature = "smol"))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            Self::Tokio(tokio::task::spawn_blocking(f))
-        } else if async_std::task::try_current().is_some() {
-            Self::AsyncStd(tokio::task::spawn_blocking(f))
-        } else {
-            Self::Smol(smol::unblock(f))
-        }
-    }
-
-    #[cfg(all(feature = "tokio", feature = "async-std", not(feature = "smol")))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            Self::Tokio(tokio::task::spawn_blocking(f))
-        } else {
-            Self::AsyncStd(tokio::task::spawn_blocking(f))
-        }
-    }
-
-    #[cfg(all(feature = "tokio", not(feature = "async-std"), feature = "smol"))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            Self::Tokio(tokio::task::spawn_blocking(f))
-        } else {
-            Self::Smol(smol::unblock(f))
-        }
-    }
-
-    #[cfg(all(not(feature = "tokio"), feature = "async-std", feature = "smol"))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        if async_std::task::try_current().is_some() {
-            Self::AsyncStd(tokio::task::spawn_blocking(f))
-        } else {
-            Self::Smol(smol::unblock(f))
-        }
-    }
-
-    #[cfg(all(not(feature = "tokio"), not(feature = "async-std"), feature = "smol"))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        Self::Smol(smol::unblock(f))
-    }
-
-    #[cfg(all(not(feature = "tokio"), feature = "async-std", not(feature = "smol")))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        Self::AsyncStd(async_std::task::spawn_blocking(f))
-    }
-
-    #[cfg(all(feature = "tokio", not(feature = "async-std"), not(feature = "smol")))]
-    fn new<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Self {
-        Self::Tokio(tokio::task::spawn_blocking(f))
-    }
-
-    async fn wait(self) -> Result<()> {
-        match self {
-            #[cfg(feature = "tokio")]
-            Self::Tokio(waiter) => waiter.await.unwrap(),
-            #[cfg(feature = "async-std")]
-            Self::AsyncStd(waiter) => waiter.await,
-            #[cfg(feature = "smol")]
-            Self::Smol(waiter) => waiter.await,
-        }
-    }
-}
-
-async fn spawn_blocking<F: 'static + Send + FnOnce() -> Result<()>>(f: F) -> Result<()> {
-    Waiter::new(f).wait().await
-}
-
 #[cfg(not(windows))]
 struct WaitHandle(libc::c_int);
 
@@ -171,26 +92,24 @@ impl<C: Capture> AsyncCapture<C> {
     }
 
     #[cfg(not(windows))]
-    fn wait_handle(&self) -> WaitHandle {
-        unsafe {
-            WaitHandle(pcap_get_selectable_fd(
-                self.cap.pcap().raw_handle().as_ptr(),
-            ))
-        }
+    fn wait_handle(capture: &C) -> WaitHandle {
+        unsafe { WaitHandle(pcap_get_selectable_fd(capture.pcap().raw_handle().as_ptr())) }
     }
 
     #[cfg(windows)]
-    fn wait_handle(&self) -> WaitHandle {
+    fn wait_handle(capture: &C) -> WaitHandle {
         unsafe {
             WaitHandle(std::mem::transmute(pcap_getevent(
-                self.cap.pcap().raw_handle().as_ptr(),
+                capture.pcap().raw_handle().as_ptr(),
             )))
         }
     }
 
-    pub async fn wait_for_packets(&self) -> Result<()> {
-        let wh = self.wait_handle();
-        spawn_blocking(move || wh.wait()).await
+    pub async fn wait_for_packets(capture: &C) -> Result<()> {
+        let wh = Self::wait_handle(capture);
+        tokio::task::spawn_blocking(move || wh.wait())
+            .await
+            .unwrap()
     }
 
     pub async fn next_packet<'a>(&'a mut self) -> Option<Result<Packet<'a>>> {
@@ -222,7 +141,7 @@ impl<C: Capture> AsyncCapture<C> {
                     }
                 }
 
-                if let Err(err) = self.wait_for_packets().await {
+                if let Err(err) = Self::wait_for_packets(&self.cap).await {
                     return Some(Err(err));
                 }
             }
@@ -239,7 +158,6 @@ impl<C: Capture> AsyncCapture<C> {
                 }
             };
             Some(Ok(Packet {
-                pcap: self.cap.pcap_mut(),
                 datalink,
                 ts,
                 len: hdr.len,
