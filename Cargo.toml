@@ -17,6 +17,9 @@ sniffle-protos = { path = "protos" }
 nom = "7"
 chrono = "0.4"
 
+[dev-dependencies]
+tokio = { version = "1.25", features = ["rt", "rt-multi-thread", "macros"] }
+
 [features]
 default = ["npcap"]
 libpcap = ["sniffle-core/libpcap"]
