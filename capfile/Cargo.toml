@@ -12,3 +12,5 @@ description = "Packet capture file library for sniffle"
 [dependencies]
 sniffle-core = { path = "../core" }
 pcaprs = { path = "../pcaprs" }
+async-trait = "0.1"
+tokio = { version = "1.25", default-features = false, features = ["fs", "io-util"] }

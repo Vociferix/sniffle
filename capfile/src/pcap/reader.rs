@@ -1,19 +1,20 @@
 use super::*;
-use sniffle_core::SniffError;
+use sniffle_core::Error;
+use tokio::io::AsyncReadExt;
 
-pub struct Reader<F: std::io::BufRead> {
+pub struct Reader<F: tokio::io::AsyncBufRead + Send + Unpin> {
     file: F,
     hdr: Header,
     be: bool,
     nano: bool,
 }
 
-pub type FileReader = Reader<std::io::BufReader<std::fs::File>>;
+pub type FileReader = Reader<tokio::io::BufReader<tokio::fs::File>>;
 
-impl<F: std::io::BufRead> Reader<F> {
-    pub fn new(mut file: F) -> Result<Self, SniffError> {
+impl<F: tokio::io::AsyncBufRead + Send + Unpin> Reader<F> {
+    pub async fn new(mut file: F) -> Result<Self, Error> {
         let mut hdr = [0u8; 24];
-        file.read_exact(&mut hdr[..])?;
+        file.read_exact(&mut hdr[..]).await?;
         let magic = u32::from_ne_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]);
 
         let (be, nano) = match magic {
@@ -22,7 +23,7 @@ impl<F: std::io::BufRead> Reader<F> {
             LE_MAGIC_U => (false, false),
             LE_MAGIC_N => (false, true),
             _ => {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
         };
 
@@ -56,8 +57,11 @@ impl<F: std::io::BufRead> Reader<F> {
         })
     }
 
-    pub fn open<P: AsRef<std::path::Path>>(path: P) -> Result<FileReader, SniffError> {
-        FileReader::new(std::io::BufReader::new(std::fs::File::open(path)?))
+    pub async fn open<P: AsRef<std::path::Path>>(path: P) -> Result<FileReader, Error> {
+        FileReader::new(tokio::io::BufReader::new(
+            tokio::fs::File::open(path).await?,
+        ))
+        .await
     }
 
     pub fn header(&self) -> &Header {
@@ -80,12 +84,12 @@ impl<F: std::io::BufRead> Reader<F> {
         }
     }
 
-    pub fn next_record(
+    pub async fn next_record(
         &mut self,
         buffer: &mut Vec<u8>,
-    ) -> Result<Option<RecordHeader>, SniffError> {
+    ) -> Result<Option<RecordHeader>, Error> {
         let mut hdr = [0u8; 16];
-        match self.file.read_exact(&mut hdr[..]) {
+        match self.file.read_exact(&mut hdr[..]).await {
             Ok(_) => {}
             Err(e) => {
                 let kind = e.kind();
@@ -94,7 +98,7 @@ impl<F: std::io::BufRead> Reader<F> {
                         return Ok(None);
                     }
                     _ => {
-                        return Err(SniffError::from(e));
+                        return Err(Error::from(e));
                     }
                 }
             }
@@ -117,7 +121,7 @@ impl<F: std::io::BufRead> Reader<F> {
         };
 
         buffer.resize(hdr.incl_len as usize, 0);
-        self.file.read_exact(&mut buffer[..])?;
+        self.file.read_exact(&mut buffer[..]).await?;
         Ok(Some(hdr))
     }
 }

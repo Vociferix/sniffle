@@ -1,4 +1,4 @@
-use super::{Device, Packet, Pdu, RawPacket, Transmit, Error};
+use super::{Device, Error, Packet, Pdu, RawPacket, Transmit};
 use async_trait::async_trait;
 
 pub struct DeviceInjector {

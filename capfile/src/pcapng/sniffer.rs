@@ -1,10 +1,10 @@
 use super::reader::*;
+use async_trait::async_trait;
 use sniffle_core::{
-    Device, DeviceBuilder, DeviceIpv4, DeviceIpv6, LinkType, RawPacket, Session, SniffError,
-    SniffRaw,
+    Device, DeviceBuilder, DeviceIpv4, DeviceIpv6, Error, LinkType, RawPacket, Session, SniffRaw,
 };
-use std::io::{BufRead, Seek};
 use std::time::{Duration, SystemTime};
+use tokio::io::{AsyncBufRead, AsyncSeek};
 
 struct Iface {
     device: std::sync::Arc<Device>,
@@ -14,13 +14,13 @@ struct Iface {
     tsoffset: i64,
 }
 
-pub struct Sniffer<F: BufRead + Seek> {
+pub struct Sniffer<F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     file: Reader<F>,
     ifaces: Vec<Iface>,
     buf: Vec<u8>,
 }
 
-pub type FileSniffer = Sniffer<std::io::BufReader<std::fs::File>>;
+pub type FileSniffer = Sniffer<tokio::io::BufReader<tokio::fs::File>>;
 
 fn ts_calc(ts: u64, tsresol: u8, tsoffset: i64) -> SystemTime {
     let (secs, nanos) = if (tsresol & 0b1000_0000) == 0 {
@@ -56,58 +56,59 @@ fn ts_calc(ts: u64, tsresol: u8, tsoffset: i64) -> SystemTime {
     SystemTime::UNIX_EPOCH + Duration::new(secs, nanos as u32)
 }
 
-impl<F: BufRead + Seek> Sniffer<F> {
-    pub fn new_raw(file: F) -> Result<Self, SniffError> {
+impl<F: AsyncBufRead + AsyncSeek + Send + Unpin> Sniffer<F> {
+    pub async fn new_raw(file: F) -> Result<Self, Error> {
         Ok(Self {
-            file: Reader::new(file)?,
+            file: Reader::new(file).await?,
             ifaces: Vec::new(),
             buf: Vec::new(),
         })
     }
 
-    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    pub async fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file).await?))
     }
 
-    pub fn new_with_session(
+    pub async fn new_with_session(
         file: F,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<Self>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::new_raw(file)?,
+            Self::new_raw(file).await?,
             session,
         ))
     }
 
-    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
+    pub async fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, Error> {
         Ok(FileSniffer {
-            file: FileReader::open(path)?,
+            file: FileReader::open(path).await?,
             ifaces: Vec::new(),
             buf: Vec::new(),
         })
     }
 
-    pub fn open<P: AsRef<std::path::Path>>(
+    pub async fn open<P: AsRef<std::path::Path>>(
         path: P,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path).await?))
     }
 
-    pub fn open_with_session<P: AsRef<std::path::Path>>(
+    pub async fn open_with_session<P: AsRef<std::path::Path>>(
         path: P,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::open_raw(path)?,
+            Self::open_raw(path).await?,
             session,
         ))
     }
 }
 
-impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
-    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+#[async_trait]
+impl<F: AsyncBufRead + AsyncSeek + Send + Unpin> SniffRaw for Sniffer<F> {
+    async fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, Error> {
         loop {
-            match self.file.next_block()? {
+            match self.file.next_block().await? {
                 Some(block) => match block {
                     Block::Shb(_) => {
                         self.ifaces.clear();
@@ -116,46 +117,46 @@ impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
                         let mut bldr = DeviceBuilder::new();
                         let mut tsresol = 6u8;
                         let mut tsoffset = 0i64;
-                        while let Some(opt) = idb.next_option()? {
+                        while let Some(opt) = idb.next_option().await? {
                             match opt {
                                 IdbOption::Name(mut opt) => {
                                     let mut name = String::new();
-                                    opt.string(&mut name)?;
+                                    opt.string(&mut name).await?;
                                     bldr.name(name);
                                 }
                                 IdbOption::Description(mut opt) => {
                                     let mut desc = String::new();
-                                    opt.string(&mut desc)?;
+                                    opt.string(&mut desc).await?;
                                     bldr.description(desc);
                                 }
                                 IdbOption::Ipv4(mut opt) => {
                                     bldr.add_ipv4(DeviceIpv4::new(
-                                        opt.address()?,
-                                        Some(opt.netmask()?),
+                                        opt.address().await?,
+                                        Some(opt.netmask().await?),
                                         None,
                                         None,
                                     ));
                                 }
                                 IdbOption::Ipv6(mut opt) => {
                                     bldr.add_ipv6(DeviceIpv6::new(
-                                        opt.address()?,
-                                        Some(opt.prefix_length()? as u32),
+                                        opt.address().await?,
+                                        Some(opt.prefix_length().await? as u32),
                                     ));
                                 }
                                 IdbOption::Mac(mut opt) => {
-                                    bldr.add_mac(opt.address()?);
+                                    bldr.add_mac(opt.address().await?);
                                 }
                                 IdbOption::TsResol(mut opt) => {
-                                    tsresol = opt.value()?;
+                                    tsresol = opt.value().await?;
                                 }
                                 IdbOption::TsOffset(mut opt) => {
-                                    tsoffset = opt.value()?;
+                                    tsoffset = opt.value().await?;
                                 }
                                 _ => {}
                             }
                         }
-                        let link = LinkType(idb.link_type()?);
-                        let snaplen = idb.snaplen()?;
+                        let link = LinkType(idb.link_type().await?);
+                        let snaplen = idb.snaplen().await?;
                         let _ = idb;
                         self.ifaces.push(Iface {
                             device: std::sync::Arc::new(bldr.into_device()),
@@ -166,15 +167,15 @@ impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
                         });
                     }
                     Block::Epb(mut epb) => {
-                        let iface_id = epb.interface_id()? as usize;
+                        let iface_id = epb.interface_id().await? as usize;
                         let tsresol = self.ifaces[iface_id].tsresol;
                         let tsoffset = self.ifaces[iface_id].tsoffset;
                         let link = self.ifaces[iface_id].link;
                         let snaplen = self.ifaces[iface_id].snaplen;
                         let device = self.ifaces[iface_id].device.clone();
-                        let ts = ts_calc(epb.timestamp()?, tsresol, tsoffset);
-                        let orig_len = epb.original_length()?;
-                        epb.packet_data(&mut self.buf)?;
+                        let ts = ts_calc(epb.timestamp().await?, tsresol, tsoffset);
+                        let orig_len = epb.original_length().await?;
+                        epb.packet_data(&mut self.buf).await?;
                         break Ok(Some(RawPacket::new(
                             link,
                             ts,
@@ -188,8 +189,8 @@ impl<F: BufRead + Seek> SniffRaw for Sniffer<F> {
                         let link = self.ifaces[0].link;
                         let snaplen = self.ifaces[0].snaplen;
                         let device = self.ifaces[0].device.clone();
-                        let orig_len = spb.original_length()?;
-                        spb.packet_data(&mut self.buf)?;
+                        let orig_len = spb.original_length().await?;
+                        spb.packet_data(&mut self.buf).await?;
                         break Ok(Some(RawPacket::new(
                             link,
                             SystemTime::UNIX_EPOCH,

@@ -1,8 +1,8 @@
-use super::{Packet, RawPacket, Error, LinkType};
+use super::{Error, LinkType, Packet, RawPacket};
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait Transmit {
+pub trait Transmit: Send {
     async fn transmit_raw(&mut self, packet: RawPacket<'_>) -> Result<(), Error>;
 
     fn transmission_buffer(&mut self) -> Option<&mut Vec<u8>> {
@@ -19,7 +19,9 @@ pub trait Transmit {
             }
             None => Vec::new(),
         };
-        let res = self.transmit_raw(packet.make_raw_with_datalink(&mut buf, datalink)?).await;
+        let res = self
+            .transmit_raw(packet.make_raw_with_datalink(&mut buf, datalink)?)
+            .await;
         if has_buffer {
             if let Some(tbuf) = self.transmission_buffer() {
                 *tbuf = buf;

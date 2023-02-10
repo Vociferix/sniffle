@@ -1,8 +1,8 @@
 use super::*;
-use sniffle_core::SniffError;
-use std::io::{BufRead, Seek};
+use sniffle_core::Error;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncSeek, AsyncSeekExt};
 
-pub struct Reader<F: BufRead + Seek> {
+pub struct Reader<F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     file: F,
     pos: u64,
     curr: u64,
@@ -11,9 +11,9 @@ pub struct Reader<F: BufRead + Seek> {
     first_snaplen: Option<u32>,
 }
 
-pub type FileReader = Reader<std::io::BufReader<std::fs::File>>;
+pub type FileReader = Reader<tokio::io::BufReader<tokio::fs::File>>;
 
-pub enum Block<'a, F: BufRead + Seek> {
+pub enum Block<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Shb(SectionHeaderBlock<'a, F>),
     Idb(InterfaceDescriptionBlock<'a, F>),
     Epb(EnhancedPacketBlock<'a, F>),
@@ -25,110 +25,110 @@ pub enum Block<'a, F: BufRead + Seek> {
     Other(RawBlock<'a, F>),
 }
 
-pub struct RawOpt<'a, F: BufRead + Seek> {
+pub struct RawOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     code: u16,
     offset: u64,
     len: u16,
 }
 
-pub struct StringOpt<'a, F: BufRead + Seek> {
+pub struct StringOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct U8Opt<'a, F: BufRead + Seek> {
+pub struct U8Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     value: Option<u8>,
 }
 
-pub struct U32Opt<'a, F: BufRead + Seek> {
+pub struct U32Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     value: Option<u32>,
 }
 
-pub struct I32Opt<'a, F: BufRead + Seek> {
+pub struct I32Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     value: Option<i32>,
 }
 
-pub struct U64Opt<'a, F: BufRead + Seek> {
+pub struct U64Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     value: Option<u64>,
 }
 
-pub struct I64Opt<'a, F: BufRead + Seek> {
+pub struct I64Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     value: Option<i64>,
 }
 
-pub struct Ipv4Opt<'a, F: BufRead + Seek> {
+pub struct Ipv4Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<Ipv4Address>,
 }
 
-pub struct Ipv6Opt<'a, F: BufRead + Seek> {
+pub struct Ipv6Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<Ipv6Address>,
 }
 
-pub struct Ipv4IfaceOpt<'a, F: BufRead + Seek> {
+pub struct Ipv4IfaceOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<(Ipv4Address, Ipv4Address)>,
 }
 
-pub struct Ipv6IfaceOpt<'a, F: BufRead + Seek> {
+pub struct Ipv6IfaceOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<(Ipv6Address, u8)>,
 }
 
-pub struct MacOpt<'a, F: BufRead + Seek> {
+pub struct MacOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<MacAddress>,
 }
 
-pub struct EuiOpt<'a, F: BufRead + Seek> {
+pub struct EuiOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<EuiAddress>,
 }
 
-pub struct TimestampOpt<'a, F: BufRead + Seek> {
+pub struct TimestampOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     ts: Option<u64>,
 }
 
-pub enum FilterOpt<'a, F: BufRead + Seek> {
+pub enum FilterOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     String(StringFilterOpt<'a, F>),
     ByteCode(ByteCodeFilterOpt<'a, F>),
     Unknown(RawFilterOpt<'a, F>),
 }
 
-pub struct StringFilterOpt<'a, F: BufRead + Seek> {
+pub struct StringFilterOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct ByteCodeFilterOpt<'a, F: BufRead + Seek> {
+pub struct ByteCodeFilterOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct RawFilterOpt<'a, F: BufRead + Seek> {
+pub struct RawFilterOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     code: u8,
     offset: u64,
     len: u16,
 }
 
-pub struct PacketFlagsOpt<'a, F: BufRead + Seek> {
+pub struct PacketFlagsOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     flags: Option<u32>,
 }
 
-pub enum HashOpt<'a, F: BufRead + Seek> {
+pub enum HashOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     TwosComplement(TwosComplementOpt<'a, F>),
     Xor(XorOpt<'a, F>),
     Crc32(Crc32Opt<'a, F>),
@@ -138,71 +138,71 @@ pub enum HashOpt<'a, F: BufRead + Seek> {
     Unknown(RawHashOpt<'a, F>),
 }
 
-pub struct TwosComplementOpt<'a, F: BufRead + Seek> {
+pub struct TwosComplementOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct XorOpt<'a, F: BufRead + Seek> {
+pub struct XorOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct Crc32Opt<'a, F: BufRead + Seek> {
+pub struct Crc32Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     crc: Option<[u8; 4]>,
 }
 
-pub struct Md5Opt<'a, F: BufRead + Seek> {
+pub struct Md5Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     hash: Option<[u8; 16]>,
 }
 
-pub struct Sha1Opt<'a, F: BufRead + Seek> {
+pub struct Sha1Opt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     hash: Option<[u8; 20]>,
 }
 
-pub struct ToeplitzOpt<'a, F: BufRead + Seek> {
+pub struct ToeplitzOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     hash: Option<[u8; 4]>,
 }
 
-pub struct RawHashOpt<'a, F: BufRead + Seek> {
+pub struct RawHashOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     id: u8,
     offset: u64,
     len: u16,
 }
 
-pub enum VerdictOpt<'a, F: BufRead + Seek> {
+pub enum VerdictOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Hardware(HardwareVerdictOpt<'a, F>),
     LinuxEbpftc(LinuxVerdictOpt<'a, F>),
     LinuxEbpfxdp(LinuxVerdictOpt<'a, F>),
     Unknown(RawVerdictOpt<'a, F>),
 }
 
-pub struct HardwareVerdictOpt<'a, F: BufRead + Seek> {
+pub struct HardwareVerdictOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     offset: u64,
     len: u16,
 }
 
-pub struct LinuxVerdictOpt<'a, F: BufRead + Seek> {
+pub struct LinuxVerdictOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     verdict: Option<u64>,
 }
 
-pub struct RawVerdictOpt<'a, F: BufRead + Seek> {
+pub struct RawVerdictOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     id: u8,
     offset: u64,
     len: u16,
 }
 
-pub struct SectionHeaderBlock<'a, F: BufRead + Seek> {
+pub struct SectionHeaderBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Shb>,
     next: u64,
@@ -215,7 +215,7 @@ struct Shb {
     section_len: u64,
 }
 
-pub enum ShbOption<'a, F: BufRead + Seek> {
+pub enum ShbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     Hardware(StringOpt<'a, F>),
     Os(StringOpt<'a, F>),
@@ -223,7 +223,7 @@ pub enum ShbOption<'a, F: BufRead + Seek> {
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct InterfaceDescriptionBlock<'a, F: BufRead + Seek> {
+pub struct InterfaceDescriptionBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Idb>,
     next: u64,
@@ -235,7 +235,7 @@ struct Idb {
     snaplen: u32,
 }
 
-pub enum IdbOption<'a, F: BufRead + Seek> {
+pub enum IdbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     Name(StringOpt<'a, F>),
     Description(StringOpt<'a, F>),
@@ -256,7 +256,7 @@ pub enum IdbOption<'a, F: BufRead + Seek> {
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct EnhancedPacketBlock<'a, F: BufRead + Seek> {
+pub struct EnhancedPacketBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Epb>,
     offset: u64,
@@ -271,7 +271,7 @@ struct Epb {
     orig_len: u32,
 }
 
-pub enum EpbOption<'a, F: BufRead + Seek> {
+pub enum EpbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     Flags(PacketFlagsOpt<'a, F>),
     Hash(HashOpt<'a, F>),
@@ -282,7 +282,7 @@ pub enum EpbOption<'a, F: BufRead + Seek> {
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct SimplePacketBlock<'a, F: BufRead + Seek> {
+pub struct SimplePacketBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Spb>,
     offset: u64,
@@ -293,34 +293,34 @@ struct Spb {
     orig_len: u32,
 }
 
-pub struct NameResolutionBlock<'a, F: BufRead + Seek> {
+pub struct NameResolutionBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     next_rec: u64,
     next: u64,
     opt_end: u64,
 }
 
-pub enum NameRecord<'a, F: BufRead + Seek> {
+pub enum NameRecord<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Ipv4(Ipv4NameRecord<'a, F>),
     Ipv6(Ipv6NameRecord<'a, F>),
     Other(RawOpt<'a, F>),
 }
 
-pub struct Ipv4NameRecord<'a, F: BufRead + Seek> {
+pub struct Ipv4NameRecord<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<Ipv4Address>,
     next: u64,
     names_end: u64,
 }
 
-pub struct Ipv6NameRecord<'a, F: BufRead + Seek> {
+pub struct Ipv6NameRecord<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     addr: Option<Ipv6Address>,
     next: u64,
     names_end: u64,
 }
 
-pub enum NrbOption<'a, F: BufRead + Seek> {
+pub enum NrbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     DnsName(StringOpt<'a, F>),
     DnsIpv4Addr(Ipv4Opt<'a, F>),
@@ -328,7 +328,7 @@ pub enum NrbOption<'a, F: BufRead + Seek> {
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct InterfaceStatisticsBlock<'a, F: BufRead + Seek> {
+pub struct InterfaceStatisticsBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Isb>,
     next: u64,
@@ -340,7 +340,7 @@ struct Isb {
     ts: u64,
 }
 
-pub enum IsbOption<'a, F: BufRead + Seek> {
+pub enum IsbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     StartTime(TimestampOpt<'a, F>),
     EndTime(TimestampOpt<'a, F>),
@@ -352,13 +352,13 @@ pub enum IsbOption<'a, F: BufRead + Seek> {
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct SystemdJournalExportBlock<'a, F: BufRead + Seek> {
+pub struct SystemdJournalExportBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     len: u32,
     offset: u64,
 }
 
-pub struct DecryptionSecretsBlock<'a, F: BufRead + Seek> {
+pub struct DecryptionSecretsBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     data: Option<Dsb>,
     offset: u64,
@@ -371,12 +371,12 @@ struct Dsb {
     secrets_len: u32,
 }
 
-pub enum DsbOption<'a, F: BufRead + Seek> {
+pub enum DsbOption<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     Comment(StringOpt<'a, F>),
     Unknown(RawOpt<'a, F>),
 }
 
-pub struct RawBlock<'a, F: BufRead + Seek> {
+pub struct RawBlock<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
     id: u32,
     len: u32,
@@ -390,68 +390,68 @@ fn guarantee<T>(opt: Option<T>) -> T {
     }
 }
 
-impl<F: BufRead + Seek> Reader<F> {
-    pub fn new(mut file: F) -> std::io::Result<Self> {
-        let pos = file.stream_position()?;
+impl<F: AsyncBufRead + AsyncSeek + Send + Unpin> Reader<F> {
+    pub async fn new(mut file: F) -> std::io::Result<Self> {
+        let pos = file.stream_position().await?;
         Ok(Self::init(file, pos))
     }
 
-    pub fn open<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<FileReader> {
+    pub async fn open<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<FileReader> {
         Ok(FileReader::init(
-            std::io::BufReader::new(std::fs::File::open(path)?),
+            tokio::io::BufReader::new(tokio::fs::File::open(path).await?),
             0,
         ))
     }
 
-    fn jump_to(&mut self, pos: u64) -> std::io::Result<()> {
+    async fn jump_to(&mut self, pos: u64) -> std::io::Result<()> {
         if self.pos != pos {
-            self.pos = self.file.seek(std::io::SeekFrom::Start(pos))?;
+            self.pos = self.file.seek(std::io::SeekFrom::Start(pos)).await?;
         }
         Ok(())
     }
 
-    fn skip(&mut self, bytes: u64) -> std::io::Result<()> {
-        self.jump_to(self.pos + bytes)
+    async fn skip(&mut self, bytes: u64) -> std::io::Result<()> {
+        self.jump_to(self.pos + bytes).await
     }
 
-    fn read_buf(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
-        self.file.read_exact(buf)?;
+    async fn read_buf(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        self.file.read_exact(buf).await?;
         self.pos += buf.len() as u64;
         Ok(())
     }
 
-    fn read_buf_at(&mut self, buf: &mut [u8], pos: u64) -> std::io::Result<()> {
-        self.jump_to(pos)?;
-        self.read_buf(buf)
+    async fn read_buf_at(&mut self, buf: &mut [u8], pos: u64) -> std::io::Result<()> {
+        self.jump_to(pos).await?;
+        self.read_buf(buf).await
     }
 
-    fn read_strz(&mut self, s: &mut String) -> Result<(), SniffError> {
+    async fn read_strz(&mut self, s: &mut String) -> Result<(), Error> {
         let mut buf = std::mem::take(s).into_bytes();
-        self.file.read_until(0, &mut buf)?;
+        self.file.read_until(0, &mut buf).await?;
         buf.pop();
-        *s = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
+        *s = String::from_utf8(buf).map_err(|_| Error::MalformedCapture)?;
         Ok(())
     }
 
-    fn read_strz_at(&mut self, s: &mut String, pos: u64) -> Result<(), SniffError> {
-        self.jump_to(pos)?;
-        self.read_strz(s)
+    async fn read_strz_at(&mut self, s: &mut String, pos: u64) -> Result<(), Error> {
+        self.jump_to(pos).await?;
+        self.read_strz(s).await
     }
 
-    fn read_u8(&mut self) -> std::io::Result<u8> {
+    async fn read_u8(&mut self) -> std::io::Result<u8> {
         let mut buf = [0u8];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(buf[0])
     }
 
-    fn read_u8_at(&mut self, pos: u64) -> std::io::Result<u8> {
-        self.jump_to(pos)?;
-        self.read_u8()
+    async fn read_u8_at(&mut self, pos: u64) -> std::io::Result<u8> {
+        self.jump_to(pos).await?;
+        self.read_u8().await
     }
 
-    fn read_u16(&mut self) -> std::io::Result<u16> {
+    async fn read_u16(&mut self) -> std::io::Result<u16> {
         let mut buf = [0u8; 2];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(if self.be {
             u16::from_be_bytes(buf)
         } else {
@@ -459,14 +459,14 @@ impl<F: BufRead + Seek> Reader<F> {
         })
     }
 
-    fn read_u16_at(&mut self, pos: u64) -> std::io::Result<u16> {
-        self.jump_to(pos)?;
-        self.read_u16()
+    async fn read_u16_at(&mut self, pos: u64) -> std::io::Result<u16> {
+        self.jump_to(pos).await?;
+        self.read_u16().await
     }
 
-    fn read_u32(&mut self) -> std::io::Result<u32> {
+    async fn read_u32(&mut self) -> std::io::Result<u32> {
         let mut buf = [0u8; 4];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(if self.be {
             u32::from_be_bytes(buf)
         } else {
@@ -474,14 +474,14 @@ impl<F: BufRead + Seek> Reader<F> {
         })
     }
 
-    fn read_u32_at(&mut self, pos: u64) -> std::io::Result<u32> {
-        self.jump_to(pos)?;
-        self.read_u32()
+    async fn read_u32_at(&mut self, pos: u64) -> std::io::Result<u32> {
+        self.jump_to(pos).await?;
+        self.read_u32().await
     }
 
-    fn read_i32(&mut self) -> std::io::Result<i32> {
+    async fn read_i32(&mut self) -> std::io::Result<i32> {
         let mut buf = [0u8; 4];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(if self.be {
             i32::from_be_bytes(buf)
         } else {
@@ -489,9 +489,9 @@ impl<F: BufRead + Seek> Reader<F> {
         })
     }
 
-    fn read_u64(&mut self) -> std::io::Result<u64> {
+    async fn read_u64(&mut self) -> std::io::Result<u64> {
         let mut buf = [0u8; 8];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(if self.be {
             u64::from_be_bytes(buf)
         } else {
@@ -499,9 +499,9 @@ impl<F: BufRead + Seek> Reader<F> {
         })
     }
 
-    fn read_i64(&mut self) -> std::io::Result<i64> {
+    async fn read_i64(&mut self) -> std::io::Result<i64> {
         let mut buf = [0u8; 8];
-        self.read_buf(&mut buf[..])?;
+        self.read_buf(&mut buf[..]).await?;
         Ok(if self.be {
             i64::from_be_bytes(buf)
         } else {
@@ -520,8 +520,8 @@ impl<F: BufRead + Seek> Reader<F> {
         }
     }
 
-    pub fn next_block(&mut self) -> Result<Option<Block<'_, F>>, SniffError> {
-        let id = match self.read_u32_at(self.next) {
+    pub async fn next_block(&mut self) -> Result<Option<Block<'_, F>>, Error> {
+        let id = match self.read_u32_at(self.next).await {
             Ok(id) => id,
             Err(e) => {
                 let kind = e.kind();
@@ -530,17 +530,17 @@ impl<F: BufRead + Seek> Reader<F> {
                         return Ok(None);
                     }
                     _ => {
-                        return Err(SniffError::from(e));
+                        return Err(Error::from(e));
                     }
                 }
             }
         };
-        let len = self.read_u32()?;
+        let len = self.read_u32().await?;
         self.curr = self.pos - 8;
         self.next = self.curr + (len as u64);
         Ok(Some(match id {
-            SHB_ID => Block::Shb(SectionHeaderBlock::new(self, len)?),
-            IDB_ID => Block::Idb(InterfaceDescriptionBlock::new(self, len)?),
+            SHB_ID => Block::Shb(SectionHeaderBlock::new(self, len).await?),
+            IDB_ID => Block::Idb(InterfaceDescriptionBlock::new(self, len).await?),
             EPB_ID => Block::Epb(EnhancedPacketBlock::new(self, len)?),
             SPB_ID => Block::Spb(SimplePacketBlock::new(self, len)?),
             NRB_ID => Block::Nrb(NameResolutionBlock::new(self, len)?),
@@ -554,16 +554,16 @@ impl<F: BufRead + Seek> Reader<F> {
 
 macro_rules! impl_next_opt {
     ((&mut $slf:ident, $off:ident, $len:ident) -> $opt:ty { }) => {
-        pub fn next_option(&mut $slf) -> Result<Option<$opt>, SniffError> {
+        pub async fn next_option(&mut $slf) -> Result<Option<$opt>, Error> {
             if $slf.next == $slf.opt_end { return Ok(None); }
-            let _ = $slf.data()?;
-            let id_ = $slf.reader.read_u16_at($slf.next)?;
-            let $len = $slf.reader.read_u16()?;
+            let _ = $slf.data().await?;
+            let id_ = $slf.reader.read_u16_at($slf.next).await?;
+            let $len = $slf.reader.read_u16().await?;
             $slf.next += (4 + $len + ((4 - ($len % 4)) % 4)) as u64;
             let $off = $slf.reader.pos;
             Ok(Some(match id_ {
                 OPT_ENDOFOPT => {
-                    if $len != 0 { return Err(SniffError::MalformedCapture); }
+                    if $len != 0 { return Err(Error::MalformedCapture); }
                     return Ok(None);
                 },
                 OPT_COMMENT => {
@@ -585,16 +585,16 @@ macro_rules! impl_next_opt {
         }
     };
     ((&mut $slf:ident, $off:ident, $len:ident) -> $opt:ty { $($id:ident => $bld:expr),+ }) => {
-        pub fn next_option(&mut $slf) -> Result<Option<$opt>, SniffError> {
+        pub async fn next_option(&mut $slf) -> Result<Option<$opt>, Error> {
             if $slf.next == $slf.opt_end { return Ok(None); }
-            let _ = $slf.data()?;
-            let id_ = $slf.reader.read_u16_at($slf.next)?;
-            let $len = $slf.reader.read_u16()?;
+            let _ = $slf.data().await?;
+            let id_ = $slf.reader.read_u16_at($slf.next).await?;
+            let $len = $slf.reader.read_u16().await?;
             $slf.next += (4 + $len + ((4 - ($len % 4)) % 4)) as u64;
             let $off = $slf.reader.pos;
             Ok(Some(match id_ {
                 OPT_ENDOFOPT => {
-                    if $len != 0 { return Err(SniffError::MalformedCapture); }
+                    if $len != 0 { return Err(Error::MalformedCapture); }
                     return Ok(None);
                 },
                 OPT_COMMENT => {
@@ -621,10 +621,10 @@ macro_rules! impl_next_opt {
     };
 }
 
-impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> SectionHeaderBlock<'a, F> {
+    async fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<SectionHeaderBlock<'a, F>, Error> {
         let mut magic = [0u8; 4];
-        rdr.read_buf(&mut magic)?;
+        rdr.read_buf(&mut magic).await?;
         let magic = u32::from_ne_bytes(magic);
         match magic {
             BE_MAGIC => {
@@ -634,7 +634,7 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
                 rdr.be = false;
             }
             _ => {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
         }
         rdr.first_snaplen = None;
@@ -648,12 +648,12 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut Shb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Shb, Error> {
         let ready = self.data.is_some();
         if !ready {
-            let version_major = self.reader.read_u16()?;
-            let version_minor = self.reader.read_u16()?;
-            let section_len = self.reader.read_u64()?;
+            let version_major = self.reader.read_u16().await?;
+            let version_minor = self.reader.read_u16().await?;
+            let section_len = self.reader.read_u64().await?;
             self.data = Some(Shb {
                 version_major,
                 version_minor,
@@ -663,16 +663,16 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn version_major(&mut self) -> Result<u16, SniffError> {
-        Ok(self.data()?.version_major)
+    pub async fn version_major(&mut self) -> Result<u16, Error> {
+        Ok(self.data().await?.version_major)
     }
 
-    pub fn version_minor(&mut self) -> Result<u16, SniffError> {
-        Ok(self.data()?.version_minor)
+    pub async fn version_minor(&mut self) -> Result<u16, Error> {
+        Ok(self.data().await?.version_minor)
     }
 
-    pub fn section_length(&mut self) -> Result<u64, SniffError> {
-        Ok(self.data()?.section_len)
+    pub async fn section_length(&mut self) -> Result<u64, Error> {
+        Ok(self.data().await?.section_len)
     }
 
     impl_next_opt!((&mut self, offset, len) -> ShbOption<'_, F> {
@@ -694,8 +694,11 @@ impl<'a, F: BufRead + Seek> SectionHeaderBlock<'a, F> {
     });
 }
 
-impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> InterfaceDescriptionBlock<'a, F> {
+    async fn new(
+        rdr: &'a mut Reader<F>,
+        len: u32,
+    ) -> Result<InterfaceDescriptionBlock<'a, F>, Error> {
         let opt_end = rdr.pos + ((len as u64) - 20);
         let next = rdr.pos + 8;
         let mut blk = Self {
@@ -706,29 +709,29 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         };
         let has_first = blk.reader.first_snaplen.is_some();
         if has_first {
-            let snaplen = blk.data()?.snaplen;
+            let snaplen = blk.data().await?.snaplen;
             blk.reader.first_snaplen = Some(snaplen);
         }
         Ok(blk)
     }
 
-    fn data(&mut self) -> Result<&mut Idb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Idb, Error> {
         let ready = self.data.is_some();
         if !ready {
-            let link_type = self.reader.read_u16()?;
-            self.reader.skip(2)?;
-            let snaplen = self.reader.read_u32()?;
+            let link_type = self.reader.read_u16().await?;
+            self.reader.skip(2).await?;
+            let snaplen = self.reader.read_u32().await?;
             self.data = Some(Idb { link_type, snaplen });
         }
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn link_type(&mut self) -> Result<u16, SniffError> {
-        Ok(self.data()?.link_type)
+    pub async fn link_type(&mut self) -> Result<u16, Error> {
+        Ok(self.data().await?.link_type)
     }
 
-    pub fn snaplen(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.snaplen)
+    pub async fn snaplen(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.snaplen)
     }
 
     impl_next_opt!((&mut self, offset, len) -> IdbOption<'_, F> {
@@ -744,7 +747,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         }),
         IF_IPV4ADDR => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::Ipv4(Ipv4IfaceOpt {
                 reader: self.reader,
@@ -753,7 +756,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_IPV6ADDR => {
             if len != 17 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::Ipv6(Ipv6IfaceOpt {
                 reader: self.reader,
@@ -762,7 +765,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_MACADDR => {
             if len != 6 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::Mac(MacOpt {
                 reader: self.reader,
@@ -771,7 +774,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_EUIADDR => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::Eui(EuiOpt {
                 reader: self.reader,
@@ -780,7 +783,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_SPEED => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::Speed(U64Opt {
                 reader: self.reader,
@@ -789,7 +792,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_TSRESOL => {
             if len != 1 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::TsResol(U8Opt {
                 reader: self.reader,
@@ -798,7 +801,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_TZONE => {
             if len != 4 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::TimeZone(I32Opt {
                 reader: self.reader,
@@ -807,9 +810,9 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_FILTER => {
             if len < 1 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
-            let code = self.reader.read_u8_at(offset)?;
+            let code = self.reader.read_u8_at(offset).await?;
             match code {
                 0 => IdbOption::Filter(FilterOpt::String(StringFilterOpt {
                     reader: self.reader,
@@ -836,7 +839,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         }),
         IF_FCSLEN => {
             if len != 1 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::FcsLen(U8Opt {
                 reader: self.reader,
@@ -845,7 +848,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_TSOFFSET => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::TsOffset(I64Opt {
                 reader: self.reader,
@@ -859,7 +862,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         }),
         IF_TXSPEED => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::TxSpeed(U64Opt {
                 reader: self.reader,
@@ -868,7 +871,7 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
         },
         IF_RXSPEED => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IdbOption::RxSpeed(U64Opt {
                 reader: self.reader,
@@ -878,8 +881,8 @@ impl<'a, F: BufRead + Seek> InterfaceDescriptionBlock<'a, F> {
     });
 }
 
-impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> EnhancedPacketBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, Error> {
         let offset = rdr.pos + 20;
         let opt_end = rdr.pos + ((len as u64) - 12);
         Ok(Self {
@@ -891,14 +894,14 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut Epb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Epb, Error> {
         let ready = self.data.is_some();
         if !ready {
-            let iface = self.reader.read_u32_at(self.offset - 20)?;
-            let ts_hi = self.reader.read_u32()?;
-            let ts_lo = self.reader.read_u32()?;
-            let cap_len = self.reader.read_u32()?;
-            let orig_len = self.reader.read_u32()?;
+            let iface = self.reader.read_u32_at(self.offset - 20).await?;
+            let ts_hi = self.reader.read_u32().await?;
+            let ts_lo = self.reader.read_u32().await?;
+            let cap_len = self.reader.read_u32().await?;
+            let orig_len = self.reader.read_u32().await?;
             let ts = ((ts_hi as u64) << 32) | (ts_lo as u64);
             self.next = self.offset + (cap_len as u64) + (((4 - (cap_len % 4)) % 4) as u64);
             self.data = Some(Epb {
@@ -911,25 +914,25 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn interface_id(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.iface)
+    pub async fn interface_id(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.iface)
     }
 
-    pub fn timestamp(&mut self) -> Result<u64, SniffError> {
-        Ok(self.data()?.ts)
+    pub async fn timestamp(&mut self) -> Result<u64, Error> {
+        Ok(self.data().await?.ts)
     }
 
-    pub fn capture_length(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.cap_len)
+    pub async fn capture_length(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.cap_len)
     }
 
-    pub fn original_length(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.orig_len)
+    pub async fn original_length(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.orig_len)
     }
 
-    pub fn packet_data(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
-        buf.resize(self.capture_length()? as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+    pub async fn packet_data(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
+        buf.resize(self.capture_length().await? as usize, 0);
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 
@@ -939,29 +942,29 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
             flags: None,
         }),
         EPB_DROPCOUNT => {
-            if len != 8 { return Err(SniffError::MalformedCapture); }
+            if len != 8 { return Err(Error::MalformedCapture); }
             EpbOption::DropCount(U64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
         EPB_PACKETID => {
-            if len != 8 { return Err(SniffError::MalformedCapture); }
+            if len != 8 { return Err(Error::MalformedCapture); }
             EpbOption::PacketId(U64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
         EPB_QUEUE => {
-            if len != 4 { return Err(SniffError::MalformedCapture); }
+            if len != 4 { return Err(Error::MalformedCapture); }
             EpbOption::PacketId(U64Opt {
                 reader: self.reader,
                 value: None,
             })
         },
         EPB_VERDICT => {
-            if len < 1 { return Err(SniffError::MalformedCapture); }
-            let id = self.reader.read_u8()?;
+            if len < 1 { return Err(Error::MalformedCapture); }
+            let id = self.reader.read_u8().await?;
             EpbOption::Verdict(match id {
                 0 => VerdictOpt::Hardware(HardwareVerdictOpt {
                     reader: self.reader,
@@ -985,8 +988,8 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
             })
         },
         EPB_HASH => {
-            if len < 1 { return Err(SniffError::MalformedCapture); }
-            let id = self.reader.read_u8()?;
+            if len < 1 { return Err(Error::MalformedCapture); }
+            let id = self.reader.read_u8().await?;
             EpbOption::Hash(match id {
                 0 => HashOpt::TwosComplement(TwosComplementOpt {
                     reader: self.reader,
@@ -1025,10 +1028,10 @@ impl<'a, F: BufRead + Seek> EnhancedPacketBlock<'a, F> {
     });
 }
 
-impl<'a, F: BufRead + Seek> SimplePacketBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, _len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> SimplePacketBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, _len: u32) -> Result<Self, Error> {
         if rdr.first_snaplen.is_none() {
-            return Err(SniffError::MalformedCapture);
+            return Err(Error::MalformedCapture);
         }
 
         let offset = rdr.pos + 4;
@@ -1039,34 +1042,34 @@ impl<'a, F: BufRead + Seek> SimplePacketBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut Spb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Spb, Error> {
         let ready = self.data.is_some();
         if !ready {
             let snaplen = self.reader.first_snaplen.unwrap_or(0);
-            let orig_len = self.reader.read_u32_at(self.offset - 4)?;
+            let orig_len = self.reader.read_u32_at(self.offset - 4).await?;
             let cap_len = std::cmp::min(snaplen, orig_len);
             self.data = Some(Spb { cap_len, orig_len });
         }
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn capture_length(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.cap_len)
+    pub async fn capture_length(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.cap_len)
     }
 
-    pub fn original_length(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.orig_len)
+    pub async fn original_length(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.orig_len)
     }
 
-    pub fn packet_data(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
-        buf.resize(self.capture_length()? as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+    pub async fn packet_data(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
+        buf.resize(self.capture_length().await? as usize, 0);
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> NameResolutionBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, Error> {
         let next_rec = rdr.pos;
         let opt_end = next_rec + (len as u64) - 12;
         Ok(Self {
@@ -1077,17 +1080,17 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<(), SniffError> {
+    async fn data(&mut self) -> Result<(), Error> {
         let ready = self.next != 0;
         let mut next_rec = self.next_rec;
         if !ready && next_rec == u64::MAX {
-            self.reader.jump_to(next_rec)?;
+            self.reader.jump_to(next_rec).await?;
             loop {
-                let id = self.reader.read_u16_at(next_rec)?;
+                let id = self.reader.read_u16_at(next_rec).await?;
                 if id == 0 {
                     break;
                 } else {
-                    let len = self.reader.read_u16()? as u64;
+                    let len = self.reader.read_u16().await? as u64;
                     let len = len + ((4 - (len % 4)) % 4);
                     next_rec += len;
                 }
@@ -1096,18 +1099,18 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
         Ok(())
     }
 
-    pub fn next_record(&mut self) -> Result<Option<NameRecord<'_, F>>, SniffError> {
+    pub async fn next_record(&mut self) -> Result<Option<NameRecord<'_, F>>, Error> {
         if self.next_rec == u64::MAX {
             return Ok(None);
         }
-        let id = self.reader.read_u16_at(self.next_rec)?;
-        let len = self.reader.read_u16()?;
+        let id = self.reader.read_u16_at(self.next_rec).await?;
+        let len = self.reader.read_u16().await?;
         self.next_rec += (4 + len + ((4 - (len % 4)) % 4)) as u64;
         let offset = self.reader.pos;
         Ok(Some(match id {
             NRB_RECORD_END => {
                 if len != 0 {
-                    return Err(SniffError::MalformedCapture);
+                    return Err(Error::MalformedCapture);
                 }
                 self.next_rec = u64::MAX;
                 return Ok(None);
@@ -1150,8 +1153,8 @@ impl<'a, F: BufRead + Seek> NameResolutionBlock<'a, F> {
     });
 }
 
-impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> InterfaceStatisticsBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, Error> {
         let next = rdr.pos + 12;
         let opt_end = rdr.pos + (len as u64) - 12;
         Ok(Self {
@@ -1162,30 +1165,30 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut Isb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Isb, Error> {
         let ready = self.data.is_some();
         if !ready {
-            let iface = self.reader.read_u32()?;
-            let ts_hi = self.reader.read_u32()?;
-            let ts_lo = self.reader.read_u32()?;
+            let iface = self.reader.read_u32().await?;
+            let ts_hi = self.reader.read_u32().await?;
+            let ts_lo = self.reader.read_u32().await?;
             let ts = ((ts_hi as u64) << 32) | (ts_lo as u64);
             self.data = Some(Isb { iface, ts });
         }
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn interface_id(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.iface)
+    pub async fn interface_id(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.iface)
     }
 
-    pub fn timestamp(&mut self) -> Result<u64, SniffError> {
-        Ok(self.data()?.ts)
+    pub async fn timestamp(&mut self) -> Result<u64, Error> {
+        Ok(self.data().await?.ts)
     }
 
     impl_next_opt!((&mut self, offset, len) -> IsbOption<'_, F> {
         ISB_STARTTIME => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::StartTime(TimestampOpt {
                 reader: self.reader,
@@ -1194,7 +1197,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_ENDTIME => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::EndTime(TimestampOpt {
                 reader: self.reader,
@@ -1203,7 +1206,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_IFRECV => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::IfRecv(U64Opt {
                 reader: self.reader,
@@ -1212,7 +1215,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_IFDROP => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::IfDrop(U64Opt {
                 reader: self.reader,
@@ -1221,7 +1224,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_FILTERACCEPT => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::FilterAccept(U64Opt {
                 reader: self.reader,
@@ -1230,7 +1233,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_OSDROP => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::OsDrop(U64Opt {
                 reader: self.reader,
@@ -1239,7 +1242,7 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
         },
         ISB_USRDELIV => {
             if len != 8 {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
             IsbOption::UserDeliv(U64Opt {
                 reader: self.reader,
@@ -1249,8 +1252,8 @@ impl<'a, F: BufRead + Seek> InterfaceStatisticsBlock<'a, F> {
     });
 }
 
-impl<'a, F: BufRead + Seek> SystemdJournalExportBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> SystemdJournalExportBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, Error> {
         let offset = rdr.pos;
         Ok(Self {
             reader: rdr,
@@ -1259,14 +1262,14 @@ impl<'a, F: BufRead + Seek> SystemdJournalExportBlock<'a, F> {
         })
     }
 
-    pub fn journal_entry(&mut self, entry: &mut String) -> Result<(), SniffError> {
+    pub async fn journal_entry(&mut self, entry: &mut String) -> Result<(), Error> {
         entry.reserve(self.len as usize);
-        self.reader.read_strz_at(entry, self.offset)
+        self.reader.read_strz_at(entry, self.offset).await
     }
 }
 
-impl<'a, F: BufRead + Seek> DecryptionSecretsBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> DecryptionSecretsBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, len: u32) -> Result<Self, Error> {
         let offset = rdr.pos + 8;
         let opt_end = rdr.pos + (len as u64) - 12;
         Ok(Self {
@@ -1278,11 +1281,11 @@ impl<'a, F: BufRead + Seek> DecryptionSecretsBlock<'a, F> {
         })
     }
 
-    fn data(&mut self) -> Result<&mut Dsb, SniffError> {
+    async fn data(&mut self) -> Result<&mut Dsb, Error> {
         let ready = self.data.is_some();
         if !ready {
-            let secrets_type = self.reader.read_u32_at(self.offset - 8)?;
-            let secrets_len = self.reader.read_u32()?;
+            let secrets_type = self.reader.read_u32_at(self.offset - 8).await?;
+            let secrets_len = self.reader.read_u32().await?;
             self.data = Some(Dsb {
                 secrets_type,
                 secrets_len,
@@ -1293,26 +1296,26 @@ impl<'a, F: BufRead + Seek> DecryptionSecretsBlock<'a, F> {
         Ok(guarantee(self.data.as_mut()))
     }
 
-    pub fn secrets_type(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.secrets_type)
+    pub async fn secrets_type(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.secrets_type)
     }
 
-    pub fn secrets_length(&mut self) -> Result<u32, SniffError> {
-        Ok(self.data()?.secrets_len)
+    pub async fn secrets_length(&mut self) -> Result<u32, Error> {
+        Ok(self.data().await?.secrets_len)
     }
 
-    pub fn secrets(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
-        let len = self.secrets_length()?;
+    pub async fn secrets(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
+        let len = self.secrets_length().await?;
         buf.resize(len as usize, 0);
-        self.reader.read_buf_at(buf, self.offset)?;
+        self.reader.read_buf_at(buf, self.offset).await?;
         Ok(())
     }
 
     impl_next_opt!((&mut self, offset, len) -> DsbOption<'_, F> {});
 }
 
-impl<'a, F: BufRead + Seek> RawBlock<'a, F> {
-    fn new(rdr: &'a mut Reader<F>, id: u32, len: u32) -> Result<Self, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> RawBlock<'a, F> {
+    fn new(rdr: &'a mut Reader<F>, id: u32, len: u32) -> Result<Self, Error> {
         let offset = rdr.pos;
         Ok(Self {
             reader: rdr,
@@ -1330,14 +1333,14 @@ impl<'a, F: BufRead + Seek> RawBlock<'a, F> {
         self.len
     }
 
-    pub fn content(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+    pub async fn content(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> RawOpt<'a, F> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> RawOpt<'a, F> {
     pub fn option_code(&self) -> u16 {
         self.code
     }
@@ -1346,32 +1349,32 @@ impl<'a, F: BufRead + Seek> RawOpt<'a, F> {
         self.len
     }
 
-    pub fn content(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+    pub async fn content(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> StringOpt<'a, F> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> StringOpt<'a, F> {
     pub fn string_length(&self) -> u16 {
         self.len
     }
 
-    pub fn string(&mut self, s: &mut String) -> Result<(), SniffError> {
+    pub async fn string(&mut self, s: &mut String) -> Result<(), Error> {
         let mut buf = std::mem::take(s).into_bytes();
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
-        *s = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
+        *s = String::from_utf8(buf).map_err(|_| Error::MalformedCapture)?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> U8Opt<'a, F> {
-    pub fn value(&mut self) -> Result<u8, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> U8Opt<'a, F> {
+    pub async fn value(&mut self) -> Result<u8, Error> {
         let ready = self.value.is_some();
         if !ready {
-            let val = self.reader.read_u8()?;
+            let val = self.reader.read_u8().await?;
             self.value = Some(val);
             Ok(val)
         } else {
@@ -1380,11 +1383,11 @@ impl<'a, F: BufRead + Seek> U8Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> U32Opt<'a, F> {
-    pub fn value(&mut self) -> Result<u32, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> U32Opt<'a, F> {
+    pub async fn value(&mut self) -> Result<u32, Error> {
         let ready = self.value.is_some();
         if !ready {
-            let val = self.reader.read_u32()?;
+            let val = self.reader.read_u32().await?;
             self.value = Some(val);
             Ok(val)
         } else {
@@ -1393,11 +1396,11 @@ impl<'a, F: BufRead + Seek> U32Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> I32Opt<'a, F> {
-    pub fn value(&mut self) -> Result<i32, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> I32Opt<'a, F> {
+    pub async fn value(&mut self) -> Result<i32, Error> {
         let ready = self.value.is_some();
         if !ready {
-            let val = self.reader.read_i32()?;
+            let val = self.reader.read_i32().await?;
             self.value = Some(val);
             Ok(val)
         } else {
@@ -1406,11 +1409,11 @@ impl<'a, F: BufRead + Seek> I32Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> U64Opt<'a, F> {
-    pub fn value(&mut self) -> Result<u64, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> U64Opt<'a, F> {
+    pub async fn value(&mut self) -> Result<u64, Error> {
         let ready = self.value.is_some();
         if !ready {
-            let val = self.reader.read_u64()?;
+            let val = self.reader.read_u64().await?;
             self.value = Some(val);
             Ok(val)
         } else {
@@ -1419,11 +1422,11 @@ impl<'a, F: BufRead + Seek> U64Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> I64Opt<'a, F> {
-    pub fn value(&mut self) -> Result<i64, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> I64Opt<'a, F> {
+    pub async fn value(&mut self) -> Result<i64, Error> {
         let ready = self.value.is_some();
         if !ready {
-            let val = self.reader.read_i64()?;
+            let val = self.reader.read_i64().await?;
             self.value = Some(val);
             Ok(val)
         } else {
@@ -1432,12 +1435,12 @@ impl<'a, F: BufRead + Seek> I64Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv4Opt<'a, F> {
-    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv4Opt<'a, F> {
+    pub async fn address(&mut self) -> Result<Ipv4Address, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 4];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = Ipv4Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1447,12 +1450,12 @@ impl<'a, F: BufRead + Seek> Ipv4Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv6Opt<'a, F> {
-    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv6Opt<'a, F> {
+    pub async fn address(&mut self) -> Result<Ipv6Address, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 16];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = Ipv6Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1462,12 +1465,12 @@ impl<'a, F: BufRead + Seek> Ipv6Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv4IfaceOpt<'a, F> {
-    fn data(&mut self) -> Result<&mut (Ipv4Address, Ipv4Address), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv4IfaceOpt<'a, F> {
+    async fn data(&mut self) -> Result<&mut (Ipv4Address, Ipv4Address), Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 8];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             self.addr = Some((
                 Ipv4Address::new([addr[0], addr[1], addr[2], addr[3]]),
                 Ipv4Address::new([addr[4], addr[5], addr[6], addr[7]]),
@@ -1476,21 +1479,21 @@ impl<'a, F: BufRead + Seek> Ipv4IfaceOpt<'a, F> {
         Ok(guarantee(self.addr.as_mut()))
     }
 
-    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
-        Ok(self.data()?.0)
+    pub async fn address(&mut self) -> Result<Ipv4Address, Error> {
+        Ok(self.data().await?.0)
     }
 
-    pub fn netmask(&mut self) -> Result<Ipv4Address, SniffError> {
-        Ok(self.data()?.1)
+    pub async fn netmask(&mut self) -> Result<Ipv4Address, Error> {
+        Ok(self.data().await?.1)
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv6IfaceOpt<'a, F> {
-    fn data(&mut self) -> Result<&mut (Ipv6Address, u8), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv6IfaceOpt<'a, F> {
+    async fn data(&mut self) -> Result<&mut (Ipv6Address, u8), Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 17];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             self.addr = Some((
                 Ipv6Address::new([
                     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
@@ -1502,21 +1505,21 @@ impl<'a, F: BufRead + Seek> Ipv6IfaceOpt<'a, F> {
         Ok(guarantee(self.addr.as_mut()))
     }
 
-    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
-        Ok(self.data()?.0)
+    pub async fn address(&mut self) -> Result<Ipv6Address, Error> {
+        Ok(self.data().await?.0)
     }
 
-    pub fn prefix_length(&mut self) -> Result<u8, SniffError> {
-        Ok(self.data()?.1)
+    pub async fn prefix_length(&mut self) -> Result<u8, Error> {
+        Ok(self.data().await?.1)
     }
 }
 
-impl<'a, F: BufRead + Seek> MacOpt<'a, F> {
-    pub fn address(&mut self) -> Result<MacAddress, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> MacOpt<'a, F> {
+    pub async fn address(&mut self) -> Result<MacAddress, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 6];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = MacAddress::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1526,12 +1529,12 @@ impl<'a, F: BufRead + Seek> MacOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> EuiOpt<'a, F> {
-    pub fn address(&mut self) -> Result<EuiAddress, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> EuiOpt<'a, F> {
+    pub async fn address(&mut self) -> Result<EuiAddress, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 8];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = EuiAddress::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1541,12 +1544,12 @@ impl<'a, F: BufRead + Seek> EuiOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> TimestampOpt<'a, F> {
-    pub fn timestamp(&mut self) -> Result<u64, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> TimestampOpt<'a, F> {
+    pub async fn timestamp(&mut self) -> Result<u64, Error> {
         let ready = self.ts.is_some();
         if !ready {
-            let ts_hi = self.reader.read_u32()?;
-            let ts_lo = self.reader.read_u32()?;
+            let ts_hi = self.reader.read_u32().await?;
+            let ts_lo = self.reader.read_u32().await?;
             let ts = ((ts_hi as u64) << 32) | (ts_lo as u64);
             self.ts = Some(ts);
             Ok(ts)
@@ -1556,25 +1559,27 @@ impl<'a, F: BufRead + Seek> TimestampOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> StringFilterOpt<'a, F> {
-    pub fn filter_string(&mut self, filter: &mut String) -> Result<(), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> StringFilterOpt<'a, F> {
+    pub async fn filter_string(&mut self, filter: &mut String) -> Result<(), Error> {
         let mut buf = std::mem::take(filter).into_bytes();
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
-        *filter = String::from_utf8(buf).map_err(|_| SniffError::MalformedCapture)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
+        *filter = String::from_utf8(buf).map_err(|_| Error::MalformedCapture)?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> ByteCodeFilterOpt<'a, F> {
-    pub fn filter_byte_code(&mut self, filter: &mut Vec<u8>) -> Result<(), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> ByteCodeFilterOpt<'a, F> {
+    pub async fn filter_byte_code(&mut self, filter: &mut Vec<u8>) -> Result<(), Error> {
         filter.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut filter[..], self.offset)?;
+        self.reader
+            .read_buf_at(&mut filter[..], self.offset)
+            .await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> RawFilterOpt<'a, F> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> RawFilterOpt<'a, F> {
     pub fn filter_type(&self) -> u8 {
         self.code
     }
@@ -1583,18 +1588,18 @@ impl<'a, F: BufRead + Seek> RawFilterOpt<'a, F> {
         self.len
     }
 
-    pub fn filter_data(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+    pub async fn filter_data(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> PacketFlagsOpt<'a, F> {
-    pub fn raw_flags(&mut self) -> Result<u32, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> PacketFlagsOpt<'a, F> {
+    pub async fn raw_flags(&mut self) -> Result<u32, Error> {
         let ready = self.flags.is_some();
         if !ready {
-            let flags = self.reader.read_u32()?;
+            let flags = self.reader.read_u32().await?;
             self.flags = Some(flags);
             Ok(flags)
         } else {
@@ -1602,89 +1607,89 @@ impl<'a, F: BufRead + Seek> PacketFlagsOpt<'a, F> {
         }
     }
 
-    pub fn direction(&mut self) -> Result<Direction, SniffError> {
-        Ok(match self.raw_flags()? & 0b0011 {
+    pub async fn direction(&mut self) -> Result<Direction, Error> {
+        Ok(match self.raw_flags().await? & 0b0011 {
             0b00 => Direction::Unknown,
             0b01 => Direction::Inbound,
             0b10 => Direction::Outbound,
             _ => {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
         })
     }
 
-    pub fn reception_type(&mut self) -> Result<ReceptionType, SniffError> {
-        Ok(match (self.raw_flags()? >> 2) & 0b111 {
+    pub async fn reception_type(&mut self) -> Result<ReceptionType, Error> {
+        Ok(match (self.raw_flags().await? >> 2) & 0b111 {
             0b000 => ReceptionType::Unspecified,
             0b001 => ReceptionType::Unicast,
             0b010 => ReceptionType::Multicast,
             0b011 => ReceptionType::Broadcast,
             0b100 => ReceptionType::Promiscuous,
             _ => {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
         })
     }
 
-    pub fn fcs_length(&mut self) -> Result<u8, SniffError> {
-        Ok(((self.raw_flags()? >> 5) & 0b0000_1111) as u8)
+    pub async fn fcs_length(&mut self) -> Result<u8, Error> {
+        Ok(((self.raw_flags().await? >> 5) & 0b0000_1111) as u8)
     }
 
-    pub fn link_layer_dependent_errors(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 31) & 1) != 0)
+    pub async fn link_layer_dependent_errors(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 31) & 1) != 0)
     }
 
-    pub fn preamble_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 30) & 1) != 0)
+    pub async fn preamble_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 30) & 1) != 0)
     }
 
-    pub fn start_frame_delimiter_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 29) & 1) != 0)
+    pub async fn start_frame_delimiter_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 29) & 1) != 0)
     }
 
-    pub fn unaligned_frame_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 28) & 1) != 0)
+    pub async fn unaligned_frame_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 28) & 1) != 0)
     }
 
-    pub fn wrong_inter_frame_gap_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 27) & 1) != 0)
+    pub async fn wrong_inter_frame_gap_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 27) & 1) != 0)
     }
 
-    pub fn packet_too_short_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 26) & 1) != 0)
+    pub async fn packet_too_short_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 26) & 1) != 0)
     }
 
-    pub fn packet_too_long_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 25) & 1) != 0)
+    pub async fn packet_too_long_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 25) & 1) != 0)
     }
 
-    pub fn crc_error(&mut self) -> Result<bool, SniffError> {
-        Ok(((self.raw_flags()? >> 24) & 1) != 0)
+    pub async fn crc_error(&mut self) -> Result<bool, Error> {
+        Ok(((self.raw_flags().await? >> 24) & 1) != 0)
     }
 }
 
-impl<'a, F: BufRead + Seek> TwosComplementOpt<'a, F> {
-    pub fn hash(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> TwosComplementOpt<'a, F> {
+    pub async fn hash(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> XorOpt<'a, F> {
-    pub fn hash(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> XorOpt<'a, F> {
+    pub async fn hash(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> Crc32Opt<'a, F> {
-    pub fn hash(&mut self) -> Result<[u8; 4], SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Crc32Opt<'a, F> {
+    pub async fn hash(&mut self) -> Result<[u8; 4], Error> {
         let ready = self.crc.is_some();
         if !ready {
             let mut buf = [0u8; 4];
-            self.reader.read_buf(&mut buf[..])?;
+            self.reader.read_buf(&mut buf[..]).await?;
             self.crc = Some(buf);
             Ok(buf)
         } else {
@@ -1693,12 +1698,12 @@ impl<'a, F: BufRead + Seek> Crc32Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Md5Opt<'a, F> {
-    pub fn hash(&mut self) -> Result<[u8; 16], SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Md5Opt<'a, F> {
+    pub async fn hash(&mut self) -> Result<[u8; 16], Error> {
         let ready = self.hash.is_some();
         if !ready {
             let mut buf = [0u8; 16];
-            self.reader.read_buf(&mut buf[..])?;
+            self.reader.read_buf(&mut buf[..]).await?;
             self.hash = Some(buf);
             Ok(buf)
         } else {
@@ -1707,12 +1712,12 @@ impl<'a, F: BufRead + Seek> Md5Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Sha1Opt<'a, F> {
-    pub fn hash(&mut self) -> Result<[u8; 20], SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Sha1Opt<'a, F> {
+    pub async fn hash(&mut self) -> Result<[u8; 20], Error> {
         let ready = self.hash.is_some();
         if !ready {
             let mut buf = [0u8; 20];
-            self.reader.read_buf(&mut buf[..])?;
+            self.reader.read_buf(&mut buf[..]).await?;
             self.hash = Some(buf);
             Ok(buf)
         } else {
@@ -1721,12 +1726,12 @@ impl<'a, F: BufRead + Seek> Sha1Opt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> ToeplitzOpt<'a, F> {
-    pub fn hash(&mut self) -> Result<[u8; 4], SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> ToeplitzOpt<'a, F> {
+    pub async fn hash(&mut self) -> Result<[u8; 4], Error> {
         let ready = self.hash.is_some();
         if !ready {
             let mut buf = [0u8; 4];
-            self.reader.read_buf(&mut buf[..])?;
+            self.reader.read_buf(&mut buf[..]).await?;
             self.hash = Some(buf);
             Ok(buf)
         } else {
@@ -1735,31 +1740,31 @@ impl<'a, F: BufRead + Seek> ToeplitzOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> RawHashOpt<'a, F> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> RawHashOpt<'a, F> {
     pub fn hash_type(&self) -> u8 {
         self.id
     }
 
-    pub fn hash_data(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+    pub async fn hash_data(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> HardwareVerdictOpt<'a, F> {
-    pub fn verdict(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> HardwareVerdictOpt<'a, F> {
+    pub async fn verdict(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> LinuxVerdictOpt<'a, F> {
-    pub fn verdict(&mut self) -> Result<u64, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> LinuxVerdictOpt<'a, F> {
+    pub async fn verdict(&mut self) -> Result<u64, Error> {
         let ready = self.verdict.is_some();
         if !ready {
-            let v = self.reader.read_u64()?;
+            let v = self.reader.read_u64().await?;
             self.verdict = Some(v);
             Ok(v)
         } else {
@@ -1768,24 +1773,24 @@ impl<'a, F: BufRead + Seek> LinuxVerdictOpt<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> RawVerdictOpt<'a, F> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> RawVerdictOpt<'a, F> {
     pub fn verdict_type(&self) -> u8 {
         self.id
     }
 
-    pub fn verdict_data(&mut self, buf: &mut Vec<u8>) -> Result<(), SniffError> {
+    pub async fn verdict_data(&mut self, buf: &mut Vec<u8>) -> Result<(), Error> {
         buf.resize(self.len as usize, 0);
-        self.reader.read_buf_at(&mut buf[..], self.offset)?;
+        self.reader.read_buf_at(&mut buf[..], self.offset).await?;
         Ok(())
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv4NameRecord<'a, F> {
-    pub fn address(&mut self) -> Result<Ipv4Address, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv4NameRecord<'a, F> {
+    pub async fn address(&mut self) -> Result<Ipv4Address, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 4];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = Ipv4Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1794,14 +1799,14 @@ impl<'a, F: BufRead + Seek> Ipv4NameRecord<'a, F> {
         }
     }
 
-    pub fn next_name(&mut self, name: &mut String) -> Result<Option<()>, SniffError> {
+    pub async fn next_name(&mut self, name: &mut String) -> Result<Option<()>, Error> {
         if self.next == self.names_end {
             return Ok(None);
         }
 
-        let _ = self.address()?;
+        let _ = self.address().await?;
 
-        self.reader.read_strz_at(name, self.next)?;
+        self.reader.read_strz_at(name, self.next).await?;
         if name.is_empty() {
             self.next = self.names_end;
             return Ok(None);
@@ -1811,12 +1816,12 @@ impl<'a, F: BufRead + Seek> Ipv4NameRecord<'a, F> {
     }
 }
 
-impl<'a, F: BufRead + Seek> Ipv6NameRecord<'a, F> {
-    pub fn address(&mut self) -> Result<Ipv6Address, SniffError> {
+impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> Ipv6NameRecord<'a, F> {
+    pub async fn address(&mut self) -> Result<Ipv6Address, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 16];
-            self.reader.read_buf(&mut addr[..])?;
+            self.reader.read_buf(&mut addr[..]).await?;
             let addr = Ipv6Address::from(addr);
             self.addr = Some(addr);
             Ok(addr)
@@ -1825,14 +1830,14 @@ impl<'a, F: BufRead + Seek> Ipv6NameRecord<'a, F> {
         }
     }
 
-    pub fn next_name(&mut self, name: &mut String) -> Result<Option<()>, SniffError> {
+    pub async fn next_name(&mut self, name: &mut String) -> Result<Option<()>, Error> {
         if self.next == self.names_end {
             return Ok(None);
         }
 
-        let _ = self.address()?;
+        let _ = self.address().await?;
 
-        self.reader.read_strz_at(name, self.next)?;
+        self.reader.read_strz_at(name, self.next).await?;
         if name.is_empty() {
             self.next = self.names_end;
             return Ok(None);

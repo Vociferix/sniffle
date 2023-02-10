@@ -1,6 +1,8 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::{AnyPdu, Device, Dump, DumpValue, Dumper, Pdu, PduExt, Virtual, RawPacket, Error, LinkType};
+use super::{
+    AnyPdu, Device, Dump, DumpValue, Dumper, Error, LinkType, Pdu, PduExt, RawPacket, Virtual,
+};
 use sniffle_ende::encode::Encoder;
 use std::time::SystemTime;
 
@@ -135,7 +137,11 @@ impl Packet {
         self.make_raw_with_datalink(buf, link_type)
     }
 
-    pub fn make_raw_with_datalink<'a>(&self, buf: &'a mut Vec<u8>, datalink: LinkType) -> Result<RawPacket<'a>, Error> {
+    pub fn make_raw_with_datalink<'a>(
+        &self,
+        buf: &'a mut Vec<u8>,
+        datalink: LinkType,
+    ) -> Result<RawPacket<'a>, Error> {
         buf.clear();
         self.serialize(buf)?;
         Ok(RawPacket::new(
@@ -144,7 +150,7 @@ impl Packet {
             self.snaplen,
             Some(self.len),
             &buf[..],
-            self.dev.clone()
+            self.dev.clone(),
         ))
     }
 }

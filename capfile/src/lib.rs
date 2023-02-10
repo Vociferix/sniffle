@@ -3,7 +3,9 @@
 pub mod pcap;
 pub mod pcapng;
 
-use sniffle_core::{RawPacket, Session, SniffError, SniffRaw};
+use async_trait::async_trait;
+use sniffle_core::{Error, RawPacket, Session, SniffRaw};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 #[non_exhaustive]
 pub enum CapfileType {
@@ -13,20 +15,20 @@ pub enum CapfileType {
 }
 
 #[non_exhaustive]
-pub enum Sniffer<F: std::io::BufRead + std::io::Seek> {
+pub enum Sniffer<F: tokio::io::AsyncBufRead + tokio::io::AsyncSeek + Send + Unpin> {
     Pcap(pcap::Sniffer<F>),
     PcapNG(pcapng::Sniffer<F>),
 }
 
-pub type FileSniffer = Sniffer<std::io::BufReader<std::fs::File>>;
+pub type FileSniffer = Sniffer<tokio::io::BufReader<tokio::fs::File>>;
 
 impl CapfileType {
-    pub fn from_file<F: std::io::Read + std::io::Seek>(
+    pub async fn from_file<F: tokio::io::AsyncRead + tokio::io::AsyncSeek + Unpin>(
         file: &mut F,
     ) -> Result<Self, std::io::Error> {
         let mut magic = [0u8; 4];
-        file.read_exact(&mut magic[..])?;
-        file.seek(std::io::SeekFrom::Current(-4))?;
+        file.read_exact(&mut magic[..]).await?;
+        file.seek(std::io::SeekFrom::Current(-4)).await?;
         let magic = u32::from_le_bytes(magic);
         Ok(match magic {
             0x0A0D0D0A => Self::PcapNG,
@@ -51,48 +53,51 @@ impl CapfileType {
     }
 }
 
-impl<F: std::io::BufRead + std::io::Seek> Sniffer<F> {
-    pub fn new_raw(mut file: F) -> Result<Self, SniffError> {
-        let ft = CapfileType::from_file(&mut file)?;
+impl<F: tokio::io::AsyncBufRead + tokio::io::AsyncSeek + Send + Unpin> Sniffer<F> {
+    pub async fn new_raw(mut file: F) -> Result<Self, Error> {
+        let ft = CapfileType::from_file(&mut file).await?;
         Ok(match ft {
-            CapfileType::Pcap => Self::Pcap(pcap::Sniffer::new_raw(file)?),
-            CapfileType::PcapNG => Self::PcapNG(pcapng::Sniffer::new_raw(file)?),
+            CapfileType::Pcap => Self::Pcap(pcap::Sniffer::new_raw(file).await?),
+            CapfileType::PcapNG => Self::PcapNG(pcapng::Sniffer::new_raw(file).await?),
             CapfileType::Unknown => {
-                return Err(SniffError::MalformedCapture);
+                return Err(Error::MalformedCapture);
             }
         })
     }
 
-    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    pub async fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file).await?))
     }
 
-    pub fn new_with_session(
+    pub async fn new_with_session(
         file: F,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<Self>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::new_raw(file)?,
+            Self::new_raw(file).await?,
             session,
         ))
     }
 
-    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
-        FileSniffer::new_raw(std::io::BufReader::new(std::fs::File::open(path)?))
+    pub async fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, Error> {
+        FileSniffer::new_raw(tokio::io::BufReader::new(
+            tokio::fs::File::open(path).await?,
+        ))
+        .await
     }
 
-    pub fn open<P: AsRef<std::path::Path>>(
+    pub async fn open<P: AsRef<std::path::Path>>(
         path: P,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path).await?))
     }
 
-    pub fn open_with_session<P: AsRef<std::path::Path>>(
+    pub async fn open_with_session<P: AsRef<std::path::Path>>(
         path: P,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::open_raw(path)?,
+            Self::open_raw(path).await?,
             session,
         ))
     }
@@ -105,11 +110,12 @@ impl<F: std::io::BufRead + std::io::Seek> Sniffer<F> {
     }
 }
 
-impl<F: std::io::BufRead + std::io::Seek> SniffRaw for Sniffer<F> {
-    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+#[async_trait]
+impl<F: tokio::io::AsyncBufRead + tokio::io::AsyncSeek + Send + Unpin> SniffRaw for Sniffer<F> {
+    async fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, Error> {
         match self {
-            Self::Pcap(pcap) => pcap.sniff_raw(),
-            Self::PcapNG(pcapng) => pcapng.sniff_raw(),
+            Self::Pcap(pcap) => pcap.sniff_raw().await,
+            Self::PcapNG(pcapng) => pcapng.sniff_raw().await,
         }
     }
 }

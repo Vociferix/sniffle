@@ -1,4 +1,4 @@
-use super::{Device, LinkType, RawPacket, Session, Error, SniffRaw, Sniffer};
+use super::{Device, Error, LinkType, RawPacket, Session, SniffRaw, Sniffer};
 use async_trait::async_trait;
 use pcaprs::{AsyncCapture, Capture, Pcap, PcapConfig, TsPrecision, TsType};
 
@@ -54,7 +54,7 @@ impl DeviceSniffer {
 
 #[async_trait]
 impl SniffRaw for DeviceSniffer {
-    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, Error> {
+    async fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, Error> {
         let snaplen = self.pcap.snaplen()? as usize;
         match self.pcap.next_packet().await {
             Some(res) => match res {

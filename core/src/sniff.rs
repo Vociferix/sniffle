@@ -1,4 +1,4 @@
-use super::{AnyPdu, Device, LinkType, LinkTypeTable, Packet, RawPdu, Session, Error};
+use super::{AnyPdu, Device, Error, LinkType, LinkTypeTable, Packet, RawPdu, Session};
 use async_trait::async_trait;
 use std::time::SystemTime;
 
@@ -60,12 +60,12 @@ impl<'a> RawPacket<'a> {
 }
 
 #[async_trait]
-pub trait SniffRaw: Send + Sync {
-    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, Error>;
+pub trait SniffRaw: Send {
+    async fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, Error>;
 }
 
 #[async_trait]
-pub trait Sniff: Send + Sync {
+pub trait Sniff: Send {
     async fn sniff(&mut self) -> Result<Option<Packet>, Error>;
 }
 

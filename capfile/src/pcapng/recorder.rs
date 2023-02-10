@@ -1,10 +1,11 @@
 use super::writer::*;
 use super::*;
-use sniffle_core::{Device, LinkType, Packet, Pdu, Transmit, TransmitError};
+use async_trait::async_trait;
+use sniffle_core::{Device, Error, LinkType, RawPacket, Transmit};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::io::Write;
 use std::time::SystemTime;
+use tokio::io::{AsyncSeek, AsyncWrite, AsyncWriteExt};
 
 struct IfaceKey {
     iface: Option<Device>,
@@ -17,13 +18,13 @@ struct IfaceInfo {
     ts_offset: i64,
 }
 
-pub struct Recorder<F: std::io::Write + std::io::Seek> {
+pub struct Recorder<F: AsyncWrite + AsyncSeek + Send + Unpin> {
     writer: Writer<F>,
     ifaces: HashMap<IfaceKey, IfaceInfo>,
     buf: Vec<u8>,
 }
 
-pub type FileRecorder = Recorder<std::io::BufWriter<std::fs::File>>;
+pub type FileRecorder = Recorder<tokio::io::BufWriter<tokio::fs::File>>;
 
 impl Hash for IfaceKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -48,12 +49,14 @@ impl PartialEq for IfaceKey {
 
 impl Eq for IfaceKey {}
 
-impl<F: std::io::Write + std::io::Seek> Recorder<F> {
-    pub fn new(file: F) -> Result<Self, TransmitError> {
+impl<F: AsyncWrite + AsyncSeek + Send + Unpin> Recorder<F> {
+    pub async fn new(file: F) -> Result<Self, Error> {
         let mut writer = Writer::new(file);
         writer
-            .write_shb(0x01020304u32.to_ne_bytes() == [1, 2, 3, 4], 1, 0)?
-            .finish()?;
+            .write_shb(0x01020304u32.to_ne_bytes() == [1, 2, 3, 4], 1, 0)
+            .await?
+            .finish()
+            .await?;
         Ok(Self {
             writer,
             ifaces: HashMap::new(),
@@ -61,23 +64,22 @@ impl<F: std::io::Write + std::io::Seek> Recorder<F> {
         })
     }
 
-    pub fn create<P: AsRef<std::path::Path>>(path: P) -> Result<FileRecorder, TransmitError> {
-        FileRecorder::new(std::io::BufWriter::new(std::fs::File::create(path)?))
+    pub async fn create<P: AsRef<std::path::Path>>(path: P) -> Result<FileRecorder, Error> {
+        FileRecorder::new(tokio::io::BufWriter::new(
+            tokio::fs::File::create(path).await?,
+        ))
+        .await
     }
 
-    fn write_iface(
-        &mut self,
-        packet: &Packet,
-        link_type: LinkType,
-        ts_offset: i64,
-    ) -> Result<(), TransmitError> {
+    async fn write_iface(&mut self, packet: &RawPacket<'_>, ts_offset: i64) -> Result<(), Error> {
         let mut opts = self
             .writer
-            .write_idb(link_type.0, packet.snaplen() as u32)?;
+            .write_idb(packet.datalink().0, packet.snaplen() as u32)
+            .await?;
         if let Some(dev) = packet.device() {
-            opts.write_name(dev.name())?;
+            opts.write_name(dev.name()).await?;
             if let Some(desc) = dev.description() {
-                opts.write_description(desc)?;
+                opts.write_description(desc).await?;
             }
             for addr in dev.ipv4_addresses() {
                 opts.write_ipv4_address(
@@ -85,29 +87,27 @@ impl<F: std::io::Write + std::io::Seek> Recorder<F> {
                     addr.netmask()
                         .copied()
                         .unwrap_or_else(|| Ipv4Address::from([0xFF, 0xFF, 0xFF, 0xFF])),
-                )?;
+                )
+                .await?;
             }
             for addr in dev.ipv6_addresses() {
-                opts.write_ipv6_address(*addr.address(), addr.prefix_length().unwrap_or(0) as u8)?;
+                opts.write_ipv6_address(*addr.address(), addr.prefix_length().unwrap_or(0) as u8)
+                    .await?;
             }
             for addr in dev.mac_addresses() {
-                opts.write_mac_address(*addr)?;
+                opts.write_mac_address(*addr).await?;
             }
         }
-        opts.write_tsoffset(ts_offset)?;
-        opts.write_tsresol(9)?;
-        opts.finish()
+        opts.write_tsoffset(ts_offset).await?;
+        opts.write_tsresol(9).await?;
+        opts.finish().await
     }
 }
 
-impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
-    fn transmit(&mut self, packet: &Packet) -> Result<(), TransmitError> {
-        let link_type = match LinkType::from_pdu(packet.pdu()) {
-            Some(link) => link,
-            None => {
-                return Err(TransmitError::UnknownLinkType);
-            }
-        };
+#[async_trait]
+impl<F: AsyncWrite + AsyncSeek + Send + Unpin> Transmit for Recorder<F> {
+    async fn transmit_raw(&mut self, packet: RawPacket<'_>) -> Result<(), Error> {
+        let link_type = packet.datalink();
 
         let iface = IfaceKey {
             iface: packet.device().cloned(),
@@ -137,7 +137,7 @@ impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
             };
             iface_info.ts_offset = ts_offset;
             let _ = iface_info;
-            self.write_iface(packet, link_type, ts_offset)?;
+            self.write_iface(&packet, ts_offset).await?;
             ts
         } else {
             let ts = match packet.timestamp().duration_since(SystemTime::UNIX_EPOCH) {
@@ -160,12 +160,13 @@ impl<F: std::io::Write + std::io::Seek> Transmit for Recorder<F> {
             ts
         };
 
-        let mut buf = std::mem::take(&mut self.buf);
-        let mut data = self.writer.write_epb(id, ts)?;
-        packet.pdu().serialize(&mut buf)?;
-        data.write_all(&buf[..])?;
-        data.finish()?;
-        self.buf = buf;
+        let mut data = self.writer.write_epb(id, ts).await?;
+        data.write_all(packet.data()).await?;
+        data.finish().await?;
         Ok(())
+    }
+
+    fn transmission_buffer(&mut self) -> Option<&mut Vec<u8>> {
+        Some(&mut self.buf)
     }
 }

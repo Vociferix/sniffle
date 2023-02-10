@@ -1,56 +1,57 @@
 use super::reader::*;
 use super::*;
-use sniffle_core::{LinkType, RawPacket, Session, SniffError, SniffRaw};
+use async_trait::async_trait;
+use sniffle_core::{Error, LinkType, RawPacket, Session, SniffRaw};
 use std::time::{Duration, SystemTime};
 
-pub struct Sniffer<F: std::io::BufRead> {
+pub struct Sniffer<F: tokio::io::AsyncBufRead + Send + Unpin> {
     reader: Reader<F>,
     buf: Vec<u8>,
 }
 
-pub type FileSniffer = Sniffer<std::io::BufReader<std::fs::File>>;
+pub type FileSniffer = Sniffer<tokio::io::BufReader<tokio::fs::File>>;
 
-impl<F: std::io::BufRead> Sniffer<F> {
-    pub fn new_raw(file: F) -> Result<Self, SniffError> {
+impl<F: tokio::io::AsyncBufRead + Send + Unpin> Sniffer<F> {
+    pub async fn new_raw(file: F) -> Result<Self, Error> {
         Ok(Self {
-            reader: Reader::new(file)?,
+            reader: Reader::new(file).await?,
             buf: Vec::new(),
         })
     }
 
-    pub fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::new_raw(file)?))
+    pub async fn new(file: F) -> Result<sniffle_core::Sniffer<Self>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::new_raw(file).await?))
     }
 
-    pub fn new_with_session(
+    pub async fn new_with_session(
         file: F,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<Self>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<Self>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::new_raw(file)?,
+            Self::new_raw(file).await?,
             session,
         ))
     }
 
-    pub fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, SniffError> {
+    pub async fn open_raw<P: AsRef<std::path::Path>>(path: P) -> Result<FileSniffer, Error> {
         Ok(FileSniffer {
-            reader: FileReader::open(path)?,
+            reader: FileReader::open(path).await?,
             buf: Vec::new(),
         })
     }
 
-    pub fn open<P: AsRef<std::path::Path>>(
+    pub async fn open<P: AsRef<std::path::Path>>(
         path: P,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
-        Ok(sniffle_core::Sniffer::new(Self::open_raw(path)?))
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
+        Ok(sniffle_core::Sniffer::new(Self::open_raw(path).await?))
     }
 
-    pub fn open_with_session<P: AsRef<std::path::Path>>(
+    pub async fn open_with_session<P: AsRef<std::path::Path>>(
         path: P,
         session: Session,
-    ) -> Result<sniffle_core::Sniffer<FileSniffer>, SniffError> {
+    ) -> Result<sniffle_core::Sniffer<FileSniffer>, Error> {
         Ok(sniffle_core::Sniffer::with_session(
-            Self::open_raw(path)?,
+            Self::open_raw(path).await?,
             session,
         ))
     }
@@ -64,10 +65,11 @@ impl<F: std::io::BufRead> Sniffer<F> {
     }
 }
 
-impl<F: std::io::BufRead> SniffRaw for Sniffer<F> {
-    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+#[async_trait]
+impl<F: tokio::io::AsyncBufRead + Send + Unpin> SniffRaw for Sniffer<F> {
+    async fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, Error> {
         let mut buf = std::mem::take(&mut self.buf);
-        let hdr = match self.reader.next_record(&mut buf)? {
+        let hdr = match self.reader.next_record(&mut buf).await? {
             Some(hdr) => hdr,
             None => {
                 return Ok(None);
