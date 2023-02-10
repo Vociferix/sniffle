@@ -13,7 +13,7 @@ description = "Safe Rust API for libpcap functionality"
 libpcap-sys = { path = "../libpcap-sys", default-features = false }
 libc = "0.2"
 link-types = { path = "../link-types" }
-tokio = { version = "1.25", optional = true, default-features = false, features = ["rt"] }
+tokio = { version = "1.25", optional = true, default-features = false, features = ["rt", "net"] }
 
 [features]
 default = ["npcap", "tokio"]
