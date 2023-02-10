@@ -3,7 +3,6 @@ use super::{
     NodeDumper, Pdu, PduExt, Priority, RawPdu, TempPdu,
 };
 use lazy_static::*;
-use parking_lot::{Mutex, RwLock};
 use sniffle_ende::decode::Decode;
 use sniffle_ende::encode::Encoder;
 use sniffle_ende::nom::{combinator::map, Parser};
@@ -12,6 +11,7 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
+use tokio::sync::{Mutex, RwLock};
 
 pub(crate) struct LastInfo {
     pub(crate) ts: std::time::SystemTime,
@@ -145,25 +145,25 @@ impl Session {
             .parse(buffer)
     }
 
-    pub fn enqueue_virtual_packet<P: Pdu + Send + Sync + 'static>(&self, packet: P) {
+    pub async fn enqueue_virtual_packet<P: Pdu + Send + Sync + 'static>(&self, packet: P) {
         let mut virt = Virtual {
             base: Default::default(),
         };
         virt.set_inner_pdu(packet);
-        self.virt_packets.lock().push_back(virt);
+        self.virt_packets.lock().await.push_back(virt);
     }
 
-    pub fn next_virtual_packet(&self) -> Option<Virtual> {
-        self.virt_packets.lock().pop_front()
+    pub async fn next_virtual_packet(&self) -> Option<Virtual> {
+        self.virt_packets.lock().await.pop_front()
     }
 
-    pub(crate) fn last_info<R, F: FnOnce(&LastInfo) -> R>(&self, f: F) -> R {
-        let guard = self.last_info.read();
+    pub(crate) async fn last_info<R, F: FnOnce(&LastInfo) -> R>(&self, f: F) -> R {
+        let guard = self.last_info.read().await;
         f(&*guard)
     }
 
-    pub(crate) fn last_info_mut<R, F: FnOnce(&mut LastInfo) -> R>(&self, f: F) -> R {
-        let mut guard = self.last_info.write();
+    pub(crate) async fn last_info_mut<R, F: FnOnce(&mut LastInfo) -> R>(&self, f: F) -> R {
+        let mut guard = self.last_info.write().await;
         f(&mut *guard)
     }
 }
@@ -219,8 +219,10 @@ impl Clone for Virtual {
 }
 
 lazy_static! {
-    static ref TABLE_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
-    static ref DISSECT_SETUP: RwLock<Vec<fn(&mut Session)>> = RwLock::new(Vec::new());
+    static ref TABLE_SETUP: parking_lot::RwLock<Vec<fn(&mut Session)>> =
+        parking_lot::RwLock::new(Vec::new());
+    static ref DISSECT_SETUP: parking_lot::RwLock<Vec<fn(&mut Session)>> =
+        parking_lot::RwLock::new(Vec::new());
 }
 
 pub fn _register_dissector(cb: fn(&mut Session)) {

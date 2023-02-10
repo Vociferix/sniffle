@@ -5,6 +5,8 @@ pub struct OfflineFilter(bpf_program);
 
 unsafe impl Send for OfflineFilter {}
 
+unsafe impl Sync for OfflineFilter {}
+
 impl OfflineFilter {
     pub fn new(datalink: LinkType, snaplen: u32, filter: &str, optimize: bool) -> Result<Self> {
         Self::with_netmask(

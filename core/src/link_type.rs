@@ -1,6 +1,5 @@
 use super::{dissector_table, register_dissector_table, Pdu, PduExt, PduType};
 use lazy_static::*;
-use parking_lot::RwLock;
 #[cfg(feature = "pcaprs")]
 pub use pcaprs::ParseLinkTypeError;
 use std::collections::HashMap;
@@ -13,7 +12,8 @@ use std::str::FromStr;
 pub struct LinkType(pub u16);
 
 lazy_static! {
-    static ref LINK_TYPE_PDUS: RwLock<HashMap<PduType, LinkType>> = RwLock::new(HashMap::new());
+    static ref LINK_TYPE_PDUS: parking_lot::RwLock<HashMap<PduType, LinkType>> =
+        parking_lot::RwLock::new(HashMap::new());
 }
 
 macro_rules! link_type {

@@ -26,7 +26,11 @@ pub struct PcapConfig {
 
 unsafe impl Send for Pcap {}
 
+unsafe impl Sync for Pcap {}
+
 unsafe impl Send for FilteredPcap {}
+
+unsafe impl Sync for FilteredPcap {}
 
 impl Pcap {
     pub(crate) unsafe fn raw_handle(&self) -> NonNull<pcap_t> {

@@ -11,6 +11,8 @@ pub struct DumpFile {
 
 unsafe impl Send for DumpFile {}
 
+unsafe impl Sync for DumpFile {}
+
 impl DumpFile {
     pub fn create<P: AsRef<Path>>(
         filepath: P,

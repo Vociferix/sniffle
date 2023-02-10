@@ -62,6 +62,22 @@ impl WaitHandle {
     }
 }
 
+struct PktInfo {
+    data: *const u8,
+    hdr: *mut pcap_pkthdr,
+}
+
+unsafe impl Send for PktInfo {}
+
+impl PktInfo {
+    fn new() -> Self {
+        Self {
+            data: std::ptr::null_mut(),
+            hdr: std::ptr::null_mut(),
+        }
+    }
+}
+
 impl<C: Capture> AsyncCapture<C> {
     pub fn new(mut capture: C) -> Result<Self> {
         capture.pcap_mut().set_nonblocking(true)?;
@@ -96,8 +112,7 @@ impl<C: Capture> AsyncCapture<C> {
 
     pub async fn next_packet<'a>(&'a mut self) -> Option<Result<Packet<'a>>> {
         unsafe {
-            let mut data: *const u8 = std::ptr::null_mut();
-            let mut hdr: *mut pcap_pkthdr = std::ptr::null_mut();
+            let mut pkt_info = PktInfo::new();
             let datalink = pcap_datalink(self.0.pcap().raw_handle().as_ptr());
             if datalink < 0 {
                 return Some(Err(PcapError::NotActivated));
@@ -106,8 +121,8 @@ impl<C: Capture> AsyncCapture<C> {
             loop {
                 match pcap_next_ex(
                     self.0.pcap().raw_handle().as_ptr(),
-                    (&mut hdr) as *mut *mut pcap_pkthdr,
-                    (&mut data) as *mut *const libc::c_uchar,
+                    (&mut pkt_info.hdr) as *mut *mut pcap_pkthdr,
+                    (&mut pkt_info.data) as *mut *const libc::c_uchar,
                 ) {
                     0 => {}
                     1 => {
@@ -127,8 +142,8 @@ impl<C: Capture> AsyncCapture<C> {
                     return Some(Err(err));
                 }
             }
-            let hdr = &*hdr;
-            let data = std::slice::from_raw_parts(data, hdr.caplen as usize);
+            let hdr = &*pkt_info.hdr;
+            let data = std::slice::from_raw_parts(pkt_info.data, hdr.caplen as usize);
             let ts = match self.0.timestamp_precision() {
                 TsPrecision::Micro => {
                     std::time::UNIX_EPOCH

@@ -1,16 +1,17 @@
 use super::{Device, LinkType, RawPacket, Session, SniffError, SniffRaw, Sniffer};
-use pcaprs::Capture;
+use async_trait::async_trait;
+use pcaprs::{AsyncCapture, Capture, Pcap, PcapConfig, TsPrecision, TsType};
 
-pub type DeviceTsType = pcaprs::TsType;
-pub type DeviceTsPrecision = pcaprs::TsPrecision;
+pub type DeviceTsType = TsType;
+pub type DeviceTsPrecision = TsPrecision;
 
 pub struct DeviceSniffer {
-    pcap: pcaprs::Pcap,
+    pcap: AsyncCapture<Pcap>,
     dev: std::sync::Arc<Device>,
 }
 
 pub struct DeviceSnifferConfig {
-    config: pcaprs::PcapConfig,
+    config: PcapConfig,
     device: std::sync::Arc<Device>,
 }
 
@@ -18,7 +19,7 @@ impl DeviceSniffer {
     pub fn open_raw(config: DeviceSnifferConfig) -> Result<Self, SniffError> {
         let DeviceSnifferConfig { config, device } = config;
         Ok(Self {
-            pcap: config.activate()?,
+            pcap: config.activate()?.into_async()?,
             dev: device,
         })
     }
@@ -34,15 +35,7 @@ impl DeviceSniffer {
         Ok(Sniffer::with_session(Self::open_raw(config)?, session))
     }
 
-    pub fn pcap(&self) -> &pcaprs::Pcap {
-        &self.pcap
-    }
-
-    pub fn pcap_mut(&mut self) -> &mut pcaprs::Pcap {
-        &mut self.pcap
-    }
-
-    pub fn into_pcap(self) -> pcaprs::Pcap {
+    pub fn into_pcap(self) -> AsyncCapture<Pcap> {
         self.pcap
     }
 
@@ -59,10 +52,11 @@ impl DeviceSniffer {
     }
 }
 
+#[async_trait]
 impl SniffRaw for DeviceSniffer {
-    fn sniff_raw(&mut self) -> Result<Option<RawPacket<'_>>, SniffError> {
+    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, SniffError> {
         let snaplen = self.pcap.snaplen()? as usize;
-        match self.pcap.next_packet() {
+        match self.pcap.next_packet().await {
             Some(res) => match res {
                 Ok(pkt) => Ok(Some(RawPacket::new(
                     LinkType(pkt.datalink().0),
@@ -81,7 +75,7 @@ impl SniffRaw for DeviceSniffer {
 
 impl DeviceSnifferConfig {
     pub fn create(device: Device) -> Self {
-        let config = pcaprs::PcapConfig::create(device.name());
+        let config = PcapConfig::create(device.name());
         Self {
             config,
             device: std::sync::Arc::new(device),
