@@ -80,7 +80,7 @@ pub trait SniffRaw: Send + Sync {
 }
 
 #[async_trait]
-pub trait Sniff {
+pub trait Sniff: Send + Sync {
     async fn sniff(&mut self) -> Result<Option<Packet>, SniffError>;
 }
 

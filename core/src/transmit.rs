@@ -1,4 +1,5 @@
-use super::Packet;
+use super::{LinkType, Packet, Pdu, RawPacket};
+use async_trait::async_trait;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,6 +18,27 @@ pub enum TransmitError {
     User(#[from] Box<dyn std::error::Error + 'static>),
 }
 
+#[async_trait]
 pub trait Transmit {
-    fn transmit(&mut self, packet: &Packet) -> Result<(), TransmitError>;
+    async fn transmit_raw(&mut self, packet: RawPacket<'_>) -> Result<(), TransmitError>;
+
+    async fn transmit(&mut self, packet: &Packet) -> Result<(), TransmitError> {
+        let mut buf = Vec::new();
+        packet.pdu().serialize(&mut buf)?;
+        let link_type = match LinkType::from_pdu(packet.pdu()) {
+            Some(link_type) => link_type,
+            None => {
+                return Err(TransmitError::UnknownLinkType);
+            }
+        };
+        self.transmit_raw(RawPacket::new(
+            link_type,
+            packet.timestamp(),
+            packet.snaplen(),
+            Some(packet.len()),
+            &buf[..],
+            packet.share_device(),
+        ))
+        .await
+    }
 }
