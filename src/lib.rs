@@ -8,6 +8,10 @@ pub use sniffle_core::{_register_dissector, _register_dissector_table, _register
 #[doc(inline)]
 pub use sniffle_core::{Error, Packet};
 
+/// Type alias to prevent `use sniffle::prelude::*` from causing conflicts
+/// with other types or traits named `Error`.
+pub type SniffleError = Error;
+
 pub mod address {
     #[doc(inline)]
     pub use sniffle_core::{
@@ -32,13 +36,13 @@ pub mod dump {
 pub mod sniff {
     #[doc(inline)]
     pub use sniffle_core::{
-        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, Sniffer,
+        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, Sniffer, Error
     };
 }
 
 pub mod transmit {
     #[doc(inline)]
-    pub use sniffle_core::Transmit;
+    pub use sniffle_core::{Transmit, Error};
 }
 
 pub mod device {
@@ -87,7 +91,7 @@ pub mod prelude {
         capfile::pcap, capfile::pcapng, capfile::FileSniffer, device::ConnectionStatus,
         device::Device, dissect::register_dissector, dissect::Priority, dissect::Session,
         dump::Dump, dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos, protos::RawPdu,
-        sniff::Sniff, transmit::Transmit, Packet,
+        sniff::Sniff, transmit::Transmit, Packet, SniffleError,
     };
 
     #[cfg(feature = "libpcap")]
