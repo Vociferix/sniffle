@@ -6,7 +6,7 @@ pub use nom;
 pub use sniffle_core::{_register_dissector, _register_dissector_table, _register_link_layer_pdu};
 
 #[doc(inline)]
-pub use sniffle_core::Packet;
+pub use sniffle_core::{Error, Packet};
 
 pub mod address {
     #[doc(inline)]
@@ -32,14 +32,13 @@ pub mod dump {
 pub mod sniff {
     #[doc(inline)]
     pub use sniffle_core::{
-        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, SniffError, SniffIter,
-        Sniffer,
+        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, Sniffer,
     };
 }
 
 pub mod transmit {
     #[doc(inline)]
-    pub use sniffle_core::{Transmit, TransmitError};
+    pub use sniffle_core::Transmit;
 }
 
 pub mod device {
@@ -84,12 +83,11 @@ pub mod capfile {
 /// Re-exports commonly used sniffle types, functions, and macros.
 pub mod prelude {
     pub use crate::{
-        address::EuiAddress, address::EuiParseError, address::Ipv4Address, address::Ipv6Address,
-        address::MacAddress, capfile::pcap, capfile::pcapng, capfile::FileSniffer,
-        device::ConnectionStatus, device::Device, dissect::register_dissector, dissect::Priority,
-        dissect::Session, dump::Dump, dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos,
-        protos::RawPdu, sniff::Sniff, sniff::SniffError, transmit::Transmit,
-        transmit::TransmitError, Packet,
+        address::EuiAddress, address::Ipv4Address, address::Ipv6Address, address::MacAddress,
+        capfile::pcap, capfile::pcapng, capfile::FileSniffer, device::ConnectionStatus,
+        device::Device, dissect::register_dissector, dissect::Priority, dissect::Session,
+        dump::Dump, dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos, protos::RawPdu,
+        sniff::Sniff, transmit::Transmit, Packet,
     };
 
     #[cfg(feature = "libpcap")]
