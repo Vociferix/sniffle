@@ -64,6 +64,22 @@ pub use session::{Session, Virtual};
 #[doc(hidden)]
 pub use session::{_register_dissector, _register_dissector_table};
 
-pub use sniff::{RawPacket, Sniff, SniffError, SniffRaw, Sniffer};
+pub use sniff::{RawPacket, Sniff, SniffRaw, Sniffer};
 
-pub use transmit::{Transmit, TransmitError};
+pub use transmit::Transmit;
+
+#[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
+pub enum Error {
+    #[error("Malformed capture")]
+    MalformedCapture,
+    #[error("Packet does not have a valid link type")]
+    UnknownLinkType,
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[cfg(feature = "pcaprs")]
+    #[error(transparent)]
+    Pcap(#[from] pcaprs::PcapError),
+    #[error(transparent)]
+    User(#[from] Box<dyn std::error::Error + Send + 'static>),
+}

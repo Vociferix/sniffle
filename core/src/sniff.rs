@@ -1,7 +1,6 @@
-use super::{AnyPdu, Device, LinkType, LinkTypeTable, Packet, RawPdu, Session};
+use super::{AnyPdu, Device, LinkType, LinkTypeTable, Packet, RawPdu, Session, Error};
 use async_trait::async_trait;
 use std::time::SystemTime;
-use thiserror::Error;
 
 pub struct RawPacket<'a> {
     datalink: LinkType,
@@ -60,28 +59,14 @@ impl<'a> RawPacket<'a> {
     }
 }
 
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum SniffError {
-    #[error("Malformed capture")]
-    MalformedCapture,
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[cfg(feature = "pcaprs")]
-    #[error(transparent)]
-    Pcap(#[from] pcaprs::PcapError),
-    #[error(transparent)]
-    User(#[from] Box<dyn std::error::Error + Send + 'static>),
-}
-
 #[async_trait]
 pub trait SniffRaw: Send + Sync {
-    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, SniffError>;
+    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, Error>;
 }
 
 #[async_trait]
 pub trait Sniff: Send + Sync {
-    async fn sniff(&mut self) -> Result<Option<Packet>, SniffError>;
+    async fn sniff(&mut self) -> Result<Option<Packet>, Error>;
 }
 
 pub struct Sniffer<S: SniffRaw> {
@@ -121,7 +106,7 @@ async fn sniff_impl<S: SniffRaw>(
     sniffer: &mut Sniffer<S>,
     session: &Session,
     last_info: &mut super::session::LastInfo,
-) -> Result<Option<Packet>, SniffError> {
+) -> Result<Option<Packet>, Error> {
     if let Some(pkt) = sniffer.raw_sniffer.sniff_raw().await? {
         let RawPacket {
             datalink,
@@ -151,7 +136,7 @@ async fn sniff_impl<S: SniffRaw>(
 
 #[async_trait]
 impl<S: SniffRaw> Sniff for Sniffer<S> {
-    async fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
+    async fn sniff(&mut self) -> Result<Option<Packet>, Error> {
         let session = std::mem::replace(&mut self.session, Session::new_from_scratch());
         if let Some(pdu) = session.next_virtual_packet().await {
             let ret = Ok(Some(
@@ -183,7 +168,7 @@ impl<S: SniffRaw> Sniff for Sniffer<S> {
 
 #[async_trait]
 impl<S: SniffRaw> Sniff for S {
-    async fn sniff(&mut self) -> Result<Option<Packet>, SniffError> {
+    async fn sniff(&mut self) -> Result<Option<Packet>, Error> {
         Ok(self.sniff_raw().await?.map(|pkt| {
             Packet::new(
                 pkt.ts,

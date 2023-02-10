@@ -1,4 +1,4 @@
-use super::{Device, LinkType, RawPacket, Session, SniffError, SniffRaw, Sniffer};
+use super::{Device, LinkType, RawPacket, Session, Error, SniffRaw, Sniffer};
 use async_trait::async_trait;
 use pcaprs::{AsyncCapture, Capture, Pcap, PcapConfig, TsPrecision, TsType};
 
@@ -16,7 +16,7 @@ pub struct DeviceSnifferConfig {
 }
 
 impl DeviceSniffer {
-    pub fn open_raw(config: DeviceSnifferConfig) -> Result<Self, SniffError> {
+    pub fn open_raw(config: DeviceSnifferConfig) -> Result<Self, Error> {
         let DeviceSnifferConfig { config, device } = config;
         Ok(Self {
             pcap: config.activate()?.into_async()?,
@@ -24,14 +24,14 @@ impl DeviceSniffer {
         })
     }
 
-    pub fn open(config: DeviceSnifferConfig) -> Result<Sniffer<Self>, SniffError> {
+    pub fn open(config: DeviceSnifferConfig) -> Result<Sniffer<Self>, Error> {
         Ok(Sniffer::new(Self::open_raw(config)?))
     }
 
     pub fn open_with_session(
         config: DeviceSnifferConfig,
         session: Session,
-    ) -> Result<Sniffer<Self>, SniffError> {
+    ) -> Result<Sniffer<Self>, Error> {
         Ok(Sniffer::with_session(Self::open_raw(config)?, session))
     }
 
@@ -54,7 +54,7 @@ impl DeviceSniffer {
 
 #[async_trait]
 impl SniffRaw for DeviceSniffer {
-    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, SniffError> {
+    async fn sniff_raw<'a>(&'a mut self) -> Result<Option<RawPacket<'a>>, Error> {
         let snaplen = self.pcap.snaplen()? as usize;
         match self.pcap.next_packet().await {
             Some(res) => match res {
@@ -66,7 +66,7 @@ impl SniffRaw for DeviceSniffer {
                     pkt.data(),
                     Some(self.dev.clone()),
                 ))),
-                Err(e) => Err(SniffError::Pcap(e)),
+                Err(e) => Err(Error::Pcap(e)),
             },
             None => Ok(None),
         }
@@ -82,15 +82,15 @@ impl DeviceSnifferConfig {
         }
     }
 
-    pub fn open_raw(self) -> Result<DeviceSniffer, SniffError> {
+    pub fn open_raw(self) -> Result<DeviceSniffer, Error> {
         DeviceSniffer::open_raw(self)
     }
 
-    pub fn open(self) -> Result<Sniffer<DeviceSniffer>, SniffError> {
+    pub fn open(self) -> Result<Sniffer<DeviceSniffer>, Error> {
         DeviceSniffer::open(self)
     }
 
-    pub fn open_with_session(self, session: Session) -> Result<Sniffer<DeviceSniffer>, SniffError> {
+    pub fn open_with_session(self, session: Session) -> Result<Sniffer<DeviceSniffer>, Error> {
         DeviceSniffer::open_with_session(self, session)
     }
 

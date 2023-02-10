@@ -1,8 +1,10 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::{AnyPdu, Device, Dump, DumpValue, Dumper, Pdu, PduExt, Virtual};
+use super::{AnyPdu, Device, Dump, DumpValue, Dumper, Pdu, PduExt, Virtual, RawPacket, Error, LinkType};
+use sniffle_ende::encode::Encoder;
 use std::time::SystemTime;
 
+#[derive(Clone)]
 pub struct Packet {
     ts: SystemTime,
     pdu: AnyPdu,
@@ -61,6 +63,14 @@ impl Packet {
         self.pdu.is::<Virtual>()
     }
 
+    pub fn datalink(&self) -> Option<LinkType> {
+        LinkType::from_pdu(&self.pdu)
+    }
+
+    pub fn serialize<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
+        self.pdu.serialize(encoder)
+    }
+
     pub fn make_canonical(&mut self) {
         self.pdu.make_all_canonical();
     }
@@ -101,6 +111,41 @@ impl Packet {
                 }
             }
         }
+    }
+
+    pub fn find<P: Pdu>(&self) -> Option<&P> {
+        self.pdu.find::<P>()
+    }
+
+    pub fn find_mut<P: Pdu>(&mut self) -> Option<&mut P> {
+        self.pdu.find_mut::<P>()
+    }
+
+    pub fn into_pdu(self) -> AnyPdu {
+        self.pdu
+    }
+
+    pub fn make_raw<'a>(&self, buf: &'a mut Vec<u8>) -> Result<RawPacket<'a>, Error> {
+        let link_type = match self.datalink() {
+            Some(link_type) => link_type,
+            None => {
+                return Err(Error::UnknownLinkType);
+            }
+        };
+        self.make_raw_with_datalink(buf, link_type)
+    }
+
+    pub fn make_raw_with_datalink<'a>(&self, buf: &'a mut Vec<u8>, datalink: LinkType) -> Result<RawPacket<'a>, Error> {
+        buf.clear();
+        self.serialize(buf)?;
+        Ok(RawPacket::new(
+            datalink,
+            self.ts,
+            self.snaplen,
+            Some(self.len),
+            &buf[..],
+            self.dev.clone()
+        ))
     }
 }
 

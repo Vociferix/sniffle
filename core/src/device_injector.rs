@@ -1,4 +1,4 @@
-use super::{Device, Packet, Pdu, RawPacket, Transmit, TransmitError};
+use super::{Device, Packet, Pdu, RawPacket, Transmit, Error};
 use async_trait::async_trait;
 
 pub struct DeviceInjector {
@@ -8,7 +8,7 @@ pub struct DeviceInjector {
 }
 
 impl DeviceInjector {
-    pub fn new(dev: Device) -> Result<Self, TransmitError> {
+    pub fn new(dev: Device) -> Result<Self, Error> {
         let injector = pcaprs::AsyncInjector::new(dev.name())?;
         Ok(Self {
             dev: std::sync::Arc::new(dev),
@@ -29,12 +29,12 @@ impl DeviceInjector {
         self.dev.clone()
     }
 
-    pub async fn inject_raw(&mut self, data: &[u8]) -> Result<(), TransmitError> {
+    pub async fn inject_raw(&mut self, data: &[u8]) -> Result<(), Error> {
         self.injector.inject(data).await?;
         Ok(())
     }
 
-    pub async fn inject_pdu<P: Pdu>(&mut self, pdu: &P) -> Result<(), TransmitError> {
+    pub async fn inject_pdu<P: Pdu>(&mut self, pdu: &P) -> Result<(), Error> {
         let mut data = std::mem::take(&mut self.buf);
         data.clear();
         pdu.serialize(&mut data)?;
@@ -43,18 +43,18 @@ impl DeviceInjector {
         Ok(())
     }
 
-    pub async fn inject(&mut self, packet: &Packet) -> Result<(), TransmitError> {
+    pub async fn inject(&mut self, packet: &Packet) -> Result<(), Error> {
         self.inject_pdu(packet.pdu()).await
     }
 }
 
 #[async_trait]
 impl Transmit for DeviceInjector {
-    async fn transmit_raw(&mut self, packet: RawPacket<'_>) -> Result<(), TransmitError> {
+    async fn transmit_raw(&mut self, packet: RawPacket<'_>) -> Result<(), Error> {
         self.inject_raw(packet.data()).await
     }
 
-    async fn transmit(&mut self, packet: &Packet) -> Result<(), TransmitError> {
+    async fn transmit(&mut self, packet: &Packet) -> Result<(), Error> {
         self.inject(packet).await
     }
 }
