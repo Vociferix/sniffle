@@ -1,18 +1,17 @@
 use sniffle::prelude::*;
 use sniffle::Error;
-use std::io::Write;
+use tokio::io::AsyncWriteExt;
 
 async fn dump<S: Sniff>(mut sniffer: S) -> Result<(), Error> {
-    let stdout = std::io::stdout();
-    let mut dumper = LogDumper::new(stdout.lock());
+    let mut dumper = LogDumper::new(tokio::io::stdout());
     let mut first = true;
     while let Some(pkt) = sniffer.sniff().await? {
         if !first {
-            writeln!(dumper.as_inner_mut().as_inner_mut())?;
+            dumper.as_inner_mut().write_all(b"\n").await?;
         } else {
             first = false;
         }
-        pkt.dump(&mut dumper)?;
+        dumper.dump(&pkt).await?;
     }
     Ok(())
 }

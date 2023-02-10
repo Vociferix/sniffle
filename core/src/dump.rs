@@ -1,5 +1,8 @@
+use crate::Packet;
 use chrono::{offset::Utc, DateTime};
 use std::any::Any;
+use std::io::Write;
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -75,11 +78,12 @@ pub struct ListDumper<'a, D: Dump + ?Sized>(&'a mut D, ListKind);
 
 struct DynDumpWrapper<'a, D: Dump + ?Sized>(&'a mut D);
 
-pub struct LogDumper<W: std::io::Write> {
+pub struct LogDumper<W: tokio::io::AsyncWrite + Send + Unpin> {
     writer: W,
     depth: usize,
     count: u64,
     err: Option<std::io::Error>,
+    buf: Vec<u8>,
 }
 
 pub struct ByteDumpFormatter<'a>(pub &'a [u8]);
@@ -232,17 +236,23 @@ impl<D: Dump> Dumper<D> {
         Self(raw_dumper)
     }
 
-    pub fn as_inner(&self) -> &D {
-        &self.0
-    }
-
-    pub fn as_inner_mut(&mut self) -> &mut D {
-        &mut self.0
-    }
-
     pub fn add_packet(&mut self) -> Result<NodeDumper<'_, D>, D::Error> {
         self.0.start_packet()?;
         Ok(NodeDumper(&mut self.0, NodeKind::Packet))
+    }
+}
+
+impl<D: Dump> std::ops::Deref for Dumper<D> {
+    type Target = D;
+
+    fn deref(&self) -> &D {
+        &self.0
+    }
+}
+
+impl<D: Dump> std::ops::DerefMut for Dumper<D> {
+    fn deref_mut(&mut self) -> &mut D {
+        &mut self.0
     }
 }
 
@@ -390,14 +400,15 @@ impl<'a> std::fmt::Display for DumpValue<'a> {
     }
 }
 
-impl<W: std::io::Write> LogDumper<W> {
-    pub fn new(writer: W) -> Dumper<Self> {
-        Dumper::new(Self {
+impl<W: tokio::io::AsyncWrite + Send + Unpin> LogDumper<W> {
+    pub fn new(writer: W) -> Self {
+        Self {
             writer,
             depth: 0,
             count: 0,
             err: None,
-        })
+            buf: Vec::new(),
+        }
     }
 
     pub fn as_inner(&self) -> &W {
@@ -412,9 +423,23 @@ impl<W: std::io::Write> LogDumper<W> {
         self.count
     }
 
+    pub async fn flush(&mut self) -> std::io::Result<()> {
+        let buf = std::mem::replace(&mut self.buf, Vec::new());
+        let res = self.writer.write_all(&buf).await;
+        self.buf = buf;
+        self.buf.clear();
+        res
+    }
+
+    pub async fn dump(&mut self, pkt: &Packet) -> std::io::Result<()> {
+        let mut dumper = self;
+        pkt.dump(&mut Dumper::new(&mut dumper))?;
+        dumper.flush().await
+    }
+
     fn indent(&mut self) -> std::io::Result<()> {
         for _ in 0..self.depth {
-            write!(self.writer, "  ")?;
+            write!(self.buf, "  ")?;
         }
         Ok(())
     }
@@ -428,14 +453,14 @@ impl<W: std::io::Write> LogDumper<W> {
     }
 }
 
-impl<W: std::io::Write> Dump for LogDumper<W> {
+impl<W: tokio::io::AsyncWrite + Send + Unpin> Dump for LogDumper<W> {
     type Error = std::io::Error;
 
     fn start_packet(&mut self) -> Result<(), Self::Error> {
         self.check_err()?;
         self.depth += 1;
         self.count += 1;
-        writeln!(self.writer, "Packet {}", self.count)
+        writeln!(self.buf, "Packet {}", self.count)
     }
 
     fn end_packet(&mut self) {
@@ -449,8 +474,8 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.indent()?;
         self.depth += 1;
         match descr {
-            Some(descr) => writeln!(self.writer, "{}: {}", name, descr),
-            None => writeln!(self.writer, "{}", name),
+            Some(descr) => writeln!(self.buf, "{}: {}", name, descr),
+            None => writeln!(self.buf, "{}", name),
         }
     }
 
@@ -469,16 +494,16 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.check_err()?;
         self.indent()?;
         if let Some(descr) = descr {
-            writeln!(self.writer, "{}: {}", name, descr)
+            writeln!(self.buf, "{}: {}", name, descr)
         } else {
-            writeln!(self.writer, "{}: {}", name, value)
+            writeln!(self.buf, "{}: {}", name, value)
         }
     }
 
     fn add_info(&mut self, name: &str, descr: &str) -> Result<(), Self::Error> {
         self.check_err()?;
         self.indent()?;
-        writeln!(self.writer, "{}: {}", name, descr)
+        writeln!(self.buf, "{}: {}", name, descr)
     }
 
     fn start_list(&mut self, name: &str, descr: Option<&str>) -> Result<(), Self::Error> {
@@ -486,9 +511,9 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.indent()?;
         self.depth += 1;
         if let Some(descr) = descr {
-            writeln!(self.writer, "{}: {} => [", name, descr)
+            writeln!(self.buf, "{}: {} => [", name, descr)
         } else {
-            writeln!(self.writer, "{}: [", name)
+            writeln!(self.buf, "{}: [", name)
         }
     }
 
@@ -498,7 +523,7 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
                 self.err = Some(e);
                 return;
             }
-            if let Err(e) = write!(self.writer, "]") {
+            if let Err(e) = write!(self.buf, "]") {
                 self.err = Some(e);
             }
             self.depth -= 1;
@@ -513,9 +538,9 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.check_err()?;
         self.indent()?;
         if let Some(descr) = descr {
-            writeln!(self.writer, "{}", descr)
+            writeln!(self.buf, "{}", descr)
         } else {
-            writeln!(self.writer, "{}", value)
+            writeln!(self.buf, "{}", value)
         }
     }
 
@@ -524,9 +549,9 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.indent()?;
         self.depth += 1;
         if let Some(descr) = descr {
-            writeln!(self.writer, "{}", descr)
+            writeln!(self.buf, "{}", descr)
         } else {
-            writeln!(self.writer, "=>")
+            writeln!(self.buf, "=>")
         }
     }
 
@@ -541,9 +566,9 @@ impl<W: std::io::Write> Dump for LogDumper<W> {
         self.indent()?;
         self.depth += 1;
         if let Some(descr) = descr {
-            writeln!(self.writer, "{} => [", descr)
+            writeln!(self.buf, "{} => [", descr)
         } else {
-            writeln!(self.writer, "[")
+            writeln!(self.buf, "[")
         }
     }
 
