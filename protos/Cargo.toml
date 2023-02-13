@@ -13,7 +13,7 @@ sniffle-core = { path = "../core", default-features = false }
 sniffle-ende = { path = "../ende" }
 sniffle-uint = { path = "../uint" }
 sniffle-utils = { path = "../utils" }
-nom = "7"
+nom = "7.1"
 ctor = "0.1"
 chrono = "0.4"
 lazy_static = "1.4"

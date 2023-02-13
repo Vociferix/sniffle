@@ -14,7 +14,7 @@ sniffle-uint = { path = "uint" }
 sniffle-capfile = { path = "capfile", default-features = false }
 sniffle-utils = { path = "utils" }
 sniffle-protos = { path = "protos" }
-nom = "7"
+nom = "7.1"
 chrono = "0.4"
 
 [dev-dependencies]
