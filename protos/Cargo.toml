@@ -14,8 +14,8 @@ sniffle-ende = { path = "../ende" }
 sniffle-uint = { path = "../uint" }
 sniffle-utils = { path = "../utils" }
 nom = "7"
-concat-idents = "1.1"
 ctor = "0.1"
 chrono = "0.4"
 lazy_static = "1.4"
 parking_lot = "0.12"
+paste = "1.0"

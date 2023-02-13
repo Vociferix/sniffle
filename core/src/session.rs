@@ -240,15 +240,15 @@ pub fn _register_dissector_table(cb: fn(&mut Session)) {
 #[macro_export]
 macro_rules! register_dissector_table {
     ($table:ty) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_, $table {
+        $crate::paste::paste! {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
-            fn reg_name() {
+            fn [<__sniffle_registry_ $table>]() {
                 $crate::_register_dissector_table(|session| {
                     session.register($table::new());
                 });
             }
-        });
+        }
     };
 }
 
@@ -259,14 +259,14 @@ macro_rules! register_dissector_table {
 #[macro_export]
 macro_rules! register_dissector {
     ($name:ident, $table:ty, $param:expr, $pri:expr, $dissector:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_, $table, _, $name {
+        $crate::paste::paste! {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
-            fn reg_name() {
+            fn [<__sniffle_registry_ $table _ $name>]() {
                 $crate::_register_dissector(|session| {
                     session.load_dissector::<$table, _>($param, $pri, $dissector);
                 });
             }
-        });
+        }
     };
 }

@@ -14,13 +14,13 @@ link-types = { path = "../link-types" }
 pcaprs = { path = "../pcaprs", optional = true, default-features = false }
 sniffle-ende = { path = "../ende" }
 lazy_static = "1.4"
-concat-idents = "1.1"
 ctor = "0.1"
 thiserror = "1.0"
 chrono = "0.4"
 parking_lot = "0.12"
 async-trait = "0.1"
 tokio = { version = "1.25", default-features = false, features = ["rt", "sync", "io-util"] }
+paste = "1.0"
 
 [features]
 default = ["npcap"]

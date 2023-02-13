@@ -36,13 +36,13 @@ pub mod dump {
 pub mod sniff {
     #[doc(inline)]
     pub use sniffle_core::{
-        register_link_layer_pdu, LinkType, LinkTypeTable, RawPacket, Sniff, Sniffer, Error
+        register_link_layer_pdu, Error, LinkType, LinkTypeTable, RawPacket, Sniff, Sniffer,
     };
 }
 
 pub mod transmit {
     #[doc(inline)]
-    pub use sniffle_core::{Transmit, Error};
+    pub use sniffle_core::{Error, Transmit};
 }
 
 pub mod device {

@@ -19,8 +19,8 @@ mod session;
 mod sniff;
 mod transmit;
 
-pub use ::concat_idents;
 pub use ctor;
+pub use paste;
 
 pub use device::{ConnectionStatus, Device, DeviceBuilder, DeviceIpv4, DeviceIpv6};
 

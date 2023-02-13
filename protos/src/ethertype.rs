@@ -365,12 +365,12 @@ pub fn _register_ethertype_pdu<P: Pdu>(ethertype: Ethertype) {
 #[macro_export]
 macro_rules! register_ethertype_pdu {
     ($pdu:ty, $ethertype:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_ethertype_pdu_, $pdu {
+        $crate::paste::paste! {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
-            fn reg_name() {
+            fn [<__sniffle_registry_ethertype_pdu_ $pdu>]() {
                 $crate::ethertype::_register_ethertype_pdu::<$pdu>($ethertype);
             }
-        });
+        }
     };
 }

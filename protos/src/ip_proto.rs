@@ -198,12 +198,12 @@ pub fn _register_ip_proto_pdu<P: Pdu>(proto: IpProto) {
 #[macro_export]
 macro_rules! register_ip_proto_pdu {
     ($pdu:ty, $proto:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_ip_proto_pdu_, $pdu {
+        $crate::paste::paste! {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
-            fn reg_name() {
+            fn [<__sniffle_registry_ip_proto_pdu_ $pdu>]() {
                 $crate::ip_proto::_register_ip_proto_pdu::<$pdu>($proto);
             }
-        });
+        }
     };
 }

@@ -107,12 +107,12 @@ pub fn _register_link_layer_pdu<P: Pdu>(link_type: LinkType) {
 #[macro_export]
 macro_rules! register_link_layer_pdu {
     ($pdu:ty, $link:expr) => {
-        $crate::concat_idents::concat_idents!(reg_name = __sniffle_registry_link_layer_pdu_, $pdu {
+        $crate::paste::paste! {
             #[$crate::ctor::ctor]
             #[allow(non_snake_case)]
-            fn reg_name() {
+            fn [<__sniffle_registry_link_layer_pdu_ $pdu>]() {
                 $crate::_register_link_layer_pdu::<$pdu>($link);
             }
-        });
+        }
     };
 }

@@ -1,5 +1,5 @@
 #[doc(hidden)]
-pub use ::concat_idents;
+pub use paste;
 
 #[doc(hidden)]
 pub use ::ctor;
