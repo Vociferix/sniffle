@@ -108,7 +108,7 @@ impl Device {
     }
 
     #[cfg(feature = "pcaprs")]
-    pub fn default() -> Option<Device> {
+    pub fn try_default() -> Option<Device> {
         Self::all().next()
     }
 
@@ -154,6 +154,7 @@ impl Device {
     }
 
     #[cfg(feature = "pcaprs")]
+    #[allow(clippy::result_large_err)]
     pub fn try_refresh(self) -> Result<Self, Self> {
         let new = Self::lookup(self.name());
         match new {

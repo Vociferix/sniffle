@@ -424,7 +424,7 @@ impl<W: tokio::io::AsyncWrite + Send + Unpin> LogDumper<W> {
     }
 
     pub async fn flush(&mut self) -> std::io::Result<()> {
-        let buf = std::mem::replace(&mut self.buf, Vec::new());
+        let buf = std::mem::take(&mut self.buf);
         let res = self.writer.write_all(&buf).await;
         self.buf = buf;
         self.buf.clear();

@@ -16,7 +16,7 @@ sniffle-ende = { path = "../ende" }
 lazy_static = "1.4"
 ctor = "0.1"
 thiserror = "1.0"
-chrono = { version = "0.4", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 parking_lot = "0.12"
 async-trait = "0.1"
 tokio = { version = "1.25", default-features = false, features = ["rt", "sync", "io-util"] }

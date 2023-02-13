@@ -159,12 +159,12 @@ impl Session {
 
     pub(crate) async fn last_info<R, F: FnOnce(&LastInfo) -> R>(&self, f: F) -> R {
         let guard = self.last_info.read().await;
-        f(&*guard)
+        f(&guard)
     }
 
     pub(crate) async fn last_info_mut<R, F: FnOnce(&mut LastInfo) -> R>(&self, f: F) -> R {
         let mut guard = self.last_info.write().await;
-        f(&mut *guard)
+        f(&mut guard)
     }
 }
 

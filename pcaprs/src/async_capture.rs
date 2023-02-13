@@ -94,10 +94,13 @@ impl<C: Capture> AsyncCapture<C> {
         }
 
         #[cfg(not(windows))]
-        Ok(self.fd.readable().await?.retain_ready())
+        {
+            self.fd.readable().await?.retain_ready();
+            Ok(())
+        }
     }
 
-    pub async fn next_packet<'a>(&'a mut self) -> Option<Result<Packet<'a>>> {
+    pub async fn next_packet(&mut self) -> Option<Result<Packet<'_>>> {
         unsafe {
             let mut pkt_info = PktInfo::new();
             let datalink = pcap_datalink(self.cap.pcap().raw_handle().as_ptr());

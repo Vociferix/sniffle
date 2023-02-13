@@ -195,7 +195,7 @@ impl Device {
         ret
     }
 
-    pub fn default() -> Option<Device> {
+    pub fn try_default() -> Option<Device> {
         Self::all().next()
     }
 
@@ -243,6 +243,7 @@ impl Device {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn try_refresh(self) -> std::result::Result<Self, Self> {
         let new = Self::lookup(self.name());
         match new {
@@ -723,7 +724,7 @@ impl From<&pcap_if_t> for Device {
             addresses = addr.next;
         }
 
-        builder.device.flags = pcap_if.flags as u32;
+        builder.device.flags = pcap_if.flags;
 
         builder.into_device()
     }

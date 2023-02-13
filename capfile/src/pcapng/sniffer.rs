@@ -36,7 +36,7 @@ fn ts_calc(ts: u64, tsresol: u8, tsoffset: i64) -> SystemTime {
         let ts_frac = ts & !(u64::MAX << tsresol);
         (
             ts_secs,
-            (ts_frac * 1_000_000_000 / (1u64 << tsresol)) as u64,
+            ts_frac * 1_000_000_000 / (1u64 << tsresol),
         )
     };
     let secs = if tsoffset < 0 {

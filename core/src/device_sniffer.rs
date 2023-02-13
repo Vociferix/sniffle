@@ -40,7 +40,7 @@ impl DeviceSniffer {
     }
 
     pub fn device(&self) -> &Device {
-        &*self.dev
+        &self.dev
     }
 
     pub fn device_mut(&mut self) -> Option<&mut Device> {

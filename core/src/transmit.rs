@@ -15,7 +15,7 @@ pub trait Transmit: Send {
             Some(buf) => {
                 has_buffer = true;
                 buf.clear();
-                std::mem::replace(buf, Vec::new())
+                std::mem::take(buf)
             }
             None => Vec::new(),
         };
