@@ -1,0 +1,17 @@
+[package]
+name = "sniffle-python"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Jack Bernard <jack.a.bernard.jr@gmail.com>"]
+repository = "https://github.com/Vociferix/sniffle"
+description = "Packet sniffing and crafting library"
+
+[lib]
+name = "sniffle"
+crate-type = ["cdylib"]
+
+[dependencies]
+sniffle = { path = ".." }
+pyo3 = { version = "0.18", features = ["extension-module"] }
+parking_lot = "0.12"

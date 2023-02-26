@@ -27,13 +27,14 @@ npcap = ["libpcap", "sniffle-core/npcap"]
 
 [workspace]
 members = [
-   "link-types",
-   "libpcap-sys",
-   "pcaprs",
-   "ende",
-   "uint",
-   "core",
-   "capfile",
-   "utils",
-   "protos",
+    "link-types",
+    "libpcap-sys",
+    "pcaprs",
+    "ende",
+    "uint",
+    "core",
+    "capfile",
+    "utils",
+    "protos",
+    "python",
 ]
