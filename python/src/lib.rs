@@ -4,77 +4,104 @@ use sniffle::prelude::*;
 use std::io::Write;
 use std::sync::Arc;
 use parking_lot::RwLock;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
+pub struct PduHolder {
+    root: AnyPdu,
+    refs: HashMap<usize, Py<PyPdu>>,
+}
+
+pub struct PduRef {
+    holder: Arc<RwLock<PduHolder>>,
+    addr: usize,
+}
+
+impl PduRef {
+    pub unsafe fn unsafe_read<F, R>(&self, f: F) -> R
+        where F: for<'a> FnOnce(&'a AnyPdu) -> R,
+    {
+        f(&*(self.addr as *const AnyPdu))
+    }
+
+    pub fn read<F, R>(&self, f: F) -> R
+        where F: for<'a> FnOnce(&'a AnyPdu) -> R,
+    {
+        let _guard = self.holder.read();
+        unsafe { self.unsafe_read(f) }
+    }
+
+    pub unsafe fn unsafe_write<F, R>(&self, f: F) -> R
+        where F: for<'a> FnOnce(&'a mut AnyPdu) -> R,
+    {
+        f(&mut *(self.addr as *mut AnyPdu))
+    }
+
+    pub fn write<F, R>(&self, f: F) -> R
+        where F: for<'a> FnOnce(&'a mut AnyPdu) -> R,
+    {
+        let _guard = self.holder.write();
+        unsafe { self.unsafe_write(f) }
+    }
+}
 
 #[pyclass]
 #[pyo3(name = "Pdu")]
 #[repr(transparent)]
-pub struct PyPdu(AnyPdu);
-
-pub struct PyEncoder<'a>(&'a PyByteArray);
-
-impl<'a> PyEncoder<'a> {
-    fn new(array: &'a PyByteArray) -> Self {
-        Self(array)
-    }
-}
-
-impl<'a> Write for PyEncoder<'a> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        unsafe { self.0.as_bytes_mut().write(buf) }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
+pub struct PyPdu(PduRef);
 
 #[pymethods]
 impl PyPdu {
-    fn header_len(&self) -> usize {
-        self.0.header_len()
+    pub fn header_len(&self) -> usize {
+        self.0.read(|pdu| pdu.header_len())
     }
 
-    fn trailer_len(&self) -> usize {
-        self.0.trailer_len()
+    pub fn trailer_len(&self) -> usize {
+        self.0.read(|pdu| pdu.trailer_len())
     }
 
-    fn total_len(&self) -> usize {
-        self.0.total_len()
+    pub fn total_len(&self) -> usize {
+        self.0.read(|pdu| pdu.total_len())
     }
 
-    fn __len__(&self) -> usize {
+    pub fn __len__(&self) -> usize {
         self.total_len()
     }
 
-    fn make_canonical(&mut self) {
-        self.0.make_canonical()
+    pub fn inner_pdu(&self, py: Python<'_>) -> PyResult<Option<Py<Self>>> {
+        let mut holder = self.0.holder.write();
+        let Some(addr) = (unsafe { self.0.unsafe_read(|pdu| -> Option<usize> {
+            pdu.inner_pdu().map(|inner| inner as *const AnyPdu as usize)
+        }) }) else { return Ok(None); };
+        Ok(Some(match holder.refs.entry(addr) {
+            Entry::Vacant(entry) => {
+                entry.insert(Py::new(py, PyPdu(PduRef {
+                    holder: self.0.holder.clone(),
+                    addr,
+                }))?).clone()
+            },
+            Entry::Occupied(entry) => {
+                entry.get().clone()
+            },
+        }))
     }
 
-    fn canonicalize(&self) -> Self {
-        let mut copy = self.0.clone();
-        copy.make_canonical();
-        Self(copy)
-    }
-
-    fn serialize_header<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
-        let buf = buf.unwrap_or_else(|| PyByteArray::new(py, &[][..]));
-        buf.resize(buf.len() + self.header_len())?;
-        self.0.serialize_header(&mut PyEncoder::new(buf))?;
-        Ok(buf)
-    }
-
-    fn serialize_trailer<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
-        let buf = buf.unwrap_or_else(|| PyByteArray::new(py, &[][..]));
-        buf.resize(buf.len() + self.trailer_len())?;
-        self.0.serialize_trailer(&mut PyEncoder::new(buf))?;
-        Ok(buf)
-    }
-
-    fn serialize<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
-        let buf = buf.unwrap_or_else(|| PyByteArray::new(py, &[][..]));
-        buf.resize(buf.len() + self.total_len())?;
-        self.0.serialize(&mut PyEncoder::new(buf))?;
-        Ok(buf)
+    pub fn parent_pdu(&self, py: Python<'_>) -> PyResult<Option<Py<Self>>> {
+        let mut holder = self.0.holder.write();
+        let Some(addr) = (unsafe { self.0.unsafe_read(|pdu| -> Option<usize> {
+            pdu.parent_pdu().map(|inner| inner as *const AnyPdu as usize)
+        }) }) else { return Ok(None); };
+        Ok(Some(match holder.refs.entry(addr) {
+            Entry::Vacant(entry) => {
+                entry.insert(Py::new(py, PyPdu(PduRef {
+                    holder: self.0.holder.clone(),
+                    addr,
+                }))?).clone()
+            },
+            Entry::Occupied(entry) => {
+                entry.get().clone()
+            },
+        }))
     }
 }
 
