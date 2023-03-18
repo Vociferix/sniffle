@@ -1,14 +1,12 @@
 use pyo3::prelude::*;
 use pyo3::types::PyByteArray;
 use sniffle::prelude::*;
-use std::io::Write;
 use std::sync::Arc;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 pub struct PduHolder {
-    root: AnyPdu,
     refs: HashMap<usize, Py<PyPdu>>,
 }
 
@@ -102,6 +100,60 @@ impl PyPdu {
                 entry.get().clone()
             },
         }))
+    }
+
+    pub fn serialize_header<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
+        let _guard = self.0.holder.read();
+        let len = unsafe { self.0.unsafe_read(|pdu| pdu.header_len()) };
+        match buf {
+            Some(buf) => {
+                buf.resize(len)?;
+                unsafe { self.0.unsafe_read(|pdu| pdu.serialize_header(&mut buf.as_bytes_mut()))?; }
+                Ok(buf)
+            },
+            None => {
+                Ok(PyByteArray::new_with(py, len, |mut buf| {
+                    unsafe { self.0.unsafe_read(|pdu| pdu.serialize_header(&mut buf))?; }
+                    Ok(())
+                })?)
+            },
+        }
+    }
+
+    pub fn serialize_trailer<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
+        let _guard = self.0.holder.read();
+        let len = unsafe { self.0.unsafe_read(|pdu| pdu.trailer_len()) };
+        match buf {
+            Some(buf) => {
+                buf.resize(len)?;
+                unsafe { self.0.unsafe_read(|pdu| pdu.serialize_trailer(&mut buf.as_bytes_mut()))?; }
+                Ok(buf)
+            },
+            None => {
+                Ok(PyByteArray::new_with(py, len, |mut buf| {
+                    unsafe { self.0.unsafe_read(|pdu| pdu.serialize_trailer(&mut buf))?; }
+                    Ok(())
+                })?)
+            },
+        }
+    }
+
+    pub fn serialize<'a>(&self, py: Python<'a>, buf: Option<&'a PyByteArray>) -> PyResult<&'a PyByteArray> {
+        let _guard = self.0.holder.read();
+        let len = unsafe { self.0.unsafe_read(|pdu| pdu.total_len()) };
+        match buf {
+            Some(buf) => {
+                buf.resize(len)?;
+                unsafe { self.0.unsafe_read(|pdu| pdu.serialize(&mut buf.as_bytes_mut()))?; }
+                Ok(buf)
+            },
+            None => {
+                Ok(PyByteArray::new_with(py, len, |mut buf| {
+                    unsafe { self.0.unsafe_read(|pdu| pdu.serialize(&mut buf))?; }
+                    Ok(())
+                })?)
+            },
+        }
     }
 }
 
