@@ -129,11 +129,11 @@ impl Ipv4Address {
     }
 
     pub fn next(&self) -> Ipv4Address {
-        Ipv4Address::from(u32::from(*self).wrapping_add(1))
+        Ipv4Address::new(u32::from_be(self.0).wraping_add(1).to_be())
     }
 
     pub fn prev(&self) -> Ipv4Address {
-        Ipv4Address::from(u32::from(*self).wrapping_sub(1))
+        Ipv4Address::new(u32::from_be(self.0).wraping_sub(1).to_be())
     }
 }
 
