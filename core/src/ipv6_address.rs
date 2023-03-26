@@ -217,9 +217,13 @@ impl std::ops::DerefMut for Ipv6Address {
     }
 }
 
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum Ipv6ParseError {
+    #[error(transparent)]
     ParseInt(std::num::ParseIntError),
+    #[error("IPv6 address literal has incorrect byte length")]
     BadLength,
+    #[error("IPv6 address literal is invalid")]
     Invalid,
 }
 
@@ -234,44 +238,53 @@ impl std::str::FromStr for Ipv6Address {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut addr = [0u8; 16];
-        let mut iter = s.split(':');
-        let mut idx: usize = 0;
-        for word in iter.by_ref() {
-            if idx >= 16 {
-                return Err(Ipv6ParseError::BadLength);
-            }
+        let mut idx = 0usize;
 
-            if word.is_empty() {
-                break;
-            }
+        let mut iter = s.split("::");
+        let Some(first) = iter.next() else {
+            return Err(Ipv6ParseError::Invalid);
+        };
 
-            let w = u16::from_str_radix(word, 16)?.to_be_bytes();
-            addr[idx] = w[0];
-            idx += 1;
-            addr[idx] = w[1];
-            idx += 1;
+        if !first.is_empty() {
+            for word in first.split(':') {
+                if idx >= 16 {
+                    return Err(Ipv6ParseError::BadLength);
+                }
+
+                let w = u16::from_str_radix(word, 16)?.to_be_bytes();
+                addr[idx] = w[0];
+                idx += 1;
+                addr[idx] = w[1];
+                idx += 1;
+            }
         }
 
-        let mut iter = iter.rev();
-        let end = idx;
-        idx = 15;
-        for word in iter.by_ref() {
-            if idx < end {
-                return Err(Ipv6ParseError::BadLength);
-            }
-
-            if word.is_empty() {
+        if let Some(second) = iter.next() {
+            if let Some(_) = iter.next() {
                 return Err(Ipv6ParseError::Invalid);
             }
 
-            let w = u16::from_str_radix(word, 16)?.to_be_bytes();
-            addr[idx] = w[1];
-            idx -= 1;
-            addr[idx] = w[0];
-            idx -= 1;
+            let end = idx;
+            idx = 15;
+
+            if !second.is_empty() {
+                for word in second.split(':').rev() {
+                    if idx < end {
+                        return Err(Ipv6ParseError::BadLength);
+                    }
+
+                    let w = u16::from_str_radix(word, 16)?.to_be_bytes();
+                    addr[idx] = w[1];
+                    idx -= 1;
+                    addr[idx] = w[0];
+                    idx -= 1;
+                }
+            }
+        } else if idx < 16 {
+            return Err(Ipv6ParseError::BadLength);
         }
 
-        Ok(Self(addr))
+        Ok(Self::new(addr))
     }
 }
 
@@ -384,5 +397,31 @@ impl PartialOrd for Ipv6Address {
 impl Ord for Ipv6Address {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         u128::from_be_bytes(self.0).cmp(&u128::from_be_bytes(other.0))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn from_string() {
+        assert!(Ipv6Address::from_str("").is_err());
+        assert!(Ipv6Address::from_str("1").is_err());
+        assert!(Ipv6Address::from_str("1:1").is_err());
+        assert_eq!(Ipv6Address::from_str("::").unwrap(), Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(Ipv6Address::from_str("1::").unwrap(), Ipv6Address::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(Ipv6Address::from_str("::1").unwrap(), Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+        assert_eq!(Ipv6Address::from_str("1::1").unwrap(), Ipv6Address::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+        assert_eq!(Ipv6Address::from_str("1:1:1:1:1:1:1:1").unwrap(), Ipv6Address::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]));
+        assert!(Ipv6Address::from_str(":::").is_err());
+        assert!(Ipv6Address::from_str("::::").is_err());
+        assert!(Ipv6Address::from_str("1::1::1").is_err());
+        assert!(Ipv6Address::from_str("::1::").is_err());
+        assert_eq!(Ipv6Address::from_str("1:1::1:1").unwrap(), Ipv6Address::new([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]));
+        assert!(Ipv6Address::from_str("::fffff").is_err());
+        assert!(Ipv6Address::from_str("::defg").is_err());
+        assert_eq!(Ipv6Address::from_str("::ffff").unwrap(), Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF]));
     }
 }
