@@ -1,9 +1,9 @@
+use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::exceptions::{PyValueError, PyIndexError};
-use pyo3::types::{PyBytes, PyByteArray};
+use pyo3::types::{PyByteArray, PyBytes};
 
-use std::str::FromStr;
 use sniffle::prelude::*;
+use std::str::FromStr;
 
 #[pyclass]
 #[pyo3(name = "Ipv6Address")]
@@ -35,28 +35,43 @@ impl PyIpv6Address {
             Ipv6AddressInit::UInt(val) => Ok(Self(Ipv6Address::from(val))),
             Ipv6AddressInit::String(s) => match Ipv6Address::from_str(s) {
                 Ok(addr) => Ok(Self(addr)),
-                Err(_) => Err(PyValueError::new_err(format!("invalid IPv6 address literal: '{s}'"))),
+                Err(_) => Err(PyValueError::new_err(format!(
+                    "invalid IPv6 address literal: '{s}'"
+                ))),
             },
             Ipv6AddressInit::Bytes(bytes) => {
                 let bytes = bytes.as_bytes();
                 Ok(Self(Ipv6Address::new(match bytes.try_into() {
                     Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv6 address bytes: expected 16 bytes, received {}", bytes.len()))); }
+                    Err(_) => {
+                        return Err(PyValueError::new_err(format!(
+                            "invalid IPv6 address bytes: expected 16 bytes, received {}",
+                            bytes.len()
+                        )));
+                    }
                 })))
-            },
+            }
             Ipv6AddressInit::ByteArray(bytes) => unsafe {
                 let bytes = bytes.as_bytes();
                 Ok(Self(Ipv6Address::new(match bytes.try_into() {
                     Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv6 address bytes: expected 16 bytes, received {}", bytes.len()))); }
+                    Err(_) => {
+                        return Err(PyValueError::new_err(format!(
+                            "invalid IPv6 address bytes: expected 16 bytes, received {}",
+                            bytes.len()
+                        )));
+                    }
                 })))
             },
-            Ipv6AddressInit::List(bytes) => {
-                Ok(Self(Ipv6Address::new(match bytes.try_into() {
-                    Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv6 address bytes: expected 16 bytes, received {}", bytes.len()))); }
-                })))
-            },
+            Ipv6AddressInit::List(bytes) => Ok(Self(Ipv6Address::new(match bytes.try_into() {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    return Err(PyValueError::new_err(format!(
+                        "invalid IPv6 address bytes: expected 16 bytes, received {}",
+                        bytes.len()
+                    )));
+                }
+            }))),
         }
     }
 
@@ -66,19 +81,19 @@ impl PyIpv6Address {
     }
 
     fn is_unspecified(&self) -> bool {
-        return self.0.is_local_unicast()
+        return self.0.is_local_unicast();
     }
 
     fn is_loopback(&self) -> bool {
-        return self.0.is_loopback()
+        return self.0.is_loopback();
     }
 
     fn is_local_unicast(&self) -> bool {
-        return self.0.is_local_unicast()
+        return self.0.is_local_unicast();
     }
 
     fn is_multicast(&self) -> bool {
-        return self.0.is_multicast()
+        return self.0.is_multicast();
     }
 
     fn next(&self) -> Self {
@@ -95,7 +110,9 @@ impl PyIpv6Address {
 
     fn __getitem__(&self, idx: usize) -> PyResult<u8> {
         if idx >= 16 {
-            Err(PyIndexError::new_err("IPv6 address byte index out of range"))
+            Err(PyIndexError::new_err(
+                "IPv6 address byte index out of range",
+            ))
         } else {
             Ok(self.0[idx])
         }
@@ -103,7 +120,9 @@ impl PyIpv6Address {
 
     fn __setitem__(&mut self, idx: usize, value: u8) -> PyResult<()> {
         if idx >= 16 {
-            Err(PyIndexError::new_err("IPv6 address byte index out of range"))
+            Err(PyIndexError::new_err(
+                "IPv6 address byte index out of range",
+            ))
         } else {
             self.0[idx] = value;
             Ok(())

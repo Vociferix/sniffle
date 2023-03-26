@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 
-pub mod pdu;
 pub mod addrs;
+pub mod pdu;
 
 /// This module is implemented in Rust.
 #[pymodule]

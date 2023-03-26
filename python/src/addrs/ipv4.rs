@@ -1,9 +1,9 @@
-use pyo3::exceptions::{PyValueError, PyIndexError};
+use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyByteArray};
+use pyo3::types::{PyByteArray, PyBytes};
 
-use std::str::FromStr;
 use sniffle::prelude::*;
+use std::str::FromStr;
 
 #[pyclass]
 #[pyo3(name = "Ipv4Address")]
@@ -35,28 +35,43 @@ impl PyIpv4Address {
             Ipv4AddressInit::UInt(val) => Ok(Self(Ipv4Address::from(val))),
             Ipv4AddressInit::String(s) => match Ipv4Address::from_str(s) {
                 Ok(addr) => Ok(Self(addr)),
-                Err(_) => Err(PyValueError::new_err(format!("invalid IPv4 address literal: '{s}'"))),
+                Err(_) => Err(PyValueError::new_err(format!(
+                    "invalid IPv4 address literal: '{s}'"
+                ))),
             },
             Ipv4AddressInit::Bytes(bytes) => {
                 let bytes = bytes.as_bytes();
                 Ok(Self(Ipv4Address::new(match bytes.try_into() {
                     Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
+                    Err(_) => {
+                        return Err(PyValueError::new_err(format!(
+                            "invalid IPv4 address bytes: expected 4 bytes, received {}",
+                            bytes.len()
+                        )));
+                    }
                 })))
-            },
+            }
             Ipv4AddressInit::ByteArray(bytes) => unsafe {
                 let bytes = bytes.as_bytes();
                 Ok(Self(Ipv4Address::new(match bytes.try_into() {
                     Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
+                    Err(_) => {
+                        return Err(PyValueError::new_err(format!(
+                            "invalid IPv4 address bytes: expected 4 bytes, received {}",
+                            bytes.len()
+                        )));
+                    }
                 })))
             },
-            Ipv4AddressInit::List(bytes) => {
-                Ok(Self(Ipv4Address::new(match bytes.try_into() {
-                    Ok(bytes) => bytes,
-                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
-                })))
-            },
+            Ipv4AddressInit::List(bytes) => Ok(Self(Ipv4Address::new(match bytes.try_into() {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    return Err(PyValueError::new_err(format!(
+                        "invalid IPv4 address bytes: expected 4 bytes, received {}",
+                        bytes.len()
+                    )));
+                }
+            }))),
         }
     }
 
@@ -95,7 +110,9 @@ impl PyIpv4Address {
 
     fn __getitem__(&self, idx: usize) -> PyResult<u8> {
         if idx >= 4 {
-            Err(PyIndexError::new_err("IPv4 address byte index out of range"))
+            Err(PyIndexError::new_err(
+                "IPv4 address byte index out of range",
+            ))
         } else {
             Ok(self.0[idx])
         }
@@ -103,7 +120,9 @@ impl PyIpv4Address {
 
     fn __setitem__(&mut self, idx: usize, value: u8) -> PyResult<()> {
         if idx >= 4 {
-            Err(PyIndexError::new_err("IPv4 address byte index out of range"))
+            Err(PyIndexError::new_err(
+                "IPv4 address byte index out of range",
+            ))
         } else {
             self.0[idx] = value;
             Ok(())
