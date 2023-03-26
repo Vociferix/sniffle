@@ -311,11 +311,11 @@ impl std::fmt::Display for Ipv6Address {
             } else if tmp_end - tmp_start > end - start {
                 start = tmp_start;
                 end = tmp_end;
-                tmp_start = n;
-                tmp_end = n;
+                tmp_start = n + 1;
+                tmp_end = n + 1;
             } else {
-                tmp_start = n;
-                tmp_end = n;
+                tmp_start = n + 1;
+                tmp_end = n + 1;
             }
         }
         if tmp_end - tmp_start > end - start {
@@ -330,9 +330,13 @@ impl std::fmt::Display for Ipv6Address {
                 disp[0], disp[1], disp[2], disp[3], disp[4], disp[5], disp[6], disp[7],
             )
         } else if start == 0 {
-            write!(f, ":")?;
-            for word in disp[end..].iter() {
-                write!(f, ":{:x}", word)?;
+            if end == 8 {
+                write!(f, "::")?;
+            } else {
+                write!(f, ":")?;
+                for word in disp[end..].iter() {
+                    write!(f, ":{:x}", word)?;
+                }
             }
             Ok(())
         } else if end == 8 {
@@ -423,5 +427,16 @@ mod test {
         assert!(Ipv6Address::from_str("::fffff").is_err());
         assert!(Ipv6Address::from_str("::defg").is_err());
         assert_eq!(Ipv6Address::from_str("::ffff").unwrap(), Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF]));
+    }
+
+    #[test]
+    fn to_string() {
+        assert_eq!(Ipv6Address::from_str("::").unwrap().to_string(), "::");
+        assert_eq!(Ipv6Address::from_str("1::").unwrap().to_string(), "1::");
+        assert_eq!(Ipv6Address::from_str("1::1").unwrap().to_string(), "1::1");
+        assert_eq!(Ipv6Address::from_str("::1:1").unwrap().to_string(), "::1:1");
+        assert_eq!(Ipv6Address::from_str("1:1::").unwrap().to_string(), "1:1::");
+        assert_eq!(Ipv6Address::from_str("1:1::1:1").unwrap().to_string(), "1:1::1:1");
+        assert_eq!(Ipv6Address::from_str("1:1:1:1:1:1:1:1").unwrap().to_string(), "1:1:1:1:1:1:1:1");
     }
 }
