@@ -39,26 +39,23 @@ impl PyIpv4Address {
             },
             Ipv4AddressInit::Bytes(bytes) => {
                 let bytes = bytes.as_bytes();
-                if bytes.len() != 4 {
-                    Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len())))
-                } else {
-                    Ok(Self(Ipv4Address::new([bytes[0], bytes[1], bytes[2], bytes[3]])))
-                }
+                Ok(Self(Ipv4Address::new(match bytes.try_into() {
+                    Ok(bytes) => bytes,
+                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
+                })))
             },
             Ipv4AddressInit::ByteArray(bytes) => unsafe {
                 let bytes = bytes.as_bytes();
-                if bytes.len() != 4 {
-                    Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len())))
-                } else {
-                    Ok(Self(Ipv4Address::new([bytes[0], bytes[1], bytes[2], bytes[3]])))
-                }
+                Ok(Self(Ipv4Address::new(match bytes.try_into() {
+                    Ok(bytes) => bytes,
+                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
+                })))
             },
             Ipv4AddressInit::List(bytes) => {
-                if bytes.len() != 4 {
-                    Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len())))
-                } else {
-                    Ok(Self(Ipv4Address::new([bytes[0], bytes[1], bytes[2], bytes[3]])))
-                }
+                Ok(Self(Ipv4Address::new(match bytes.try_into() {
+                    Ok(bytes) => bytes,
+                    Err(_) => { return Err(PyValueError::new_err(format!("invalid IPv4 address bytes: expected 4 bytes, received {}", bytes.len()))); }
+                })))
             },
         }
     }
