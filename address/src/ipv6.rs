@@ -12,6 +12,8 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
+use bytemuck;
+
 use crate::{Address, Subnet, AddressParseError};
 
 /// Representation of an IPv4 address
@@ -31,9 +33,105 @@ impl Ipv6Address {
         Self(val.to_be_bytes())
     }
 
+    pub const UNSPECIFIED: Ipv6Address = Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+    pub const LOCALHOST: Ipv6Address = Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+    pub const UNIQUE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 7);
+
+    pub const MULTICAST_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 8);
+
+    pub const UNICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 10);
+
+    pub const DOCUMENTATION_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 32);
+
+    pub const BENCHMARKING_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0x20, 0x01, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 48);
+
+    pub const MULTICAST_INTERFACE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_REALM_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_ADMIN_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x04, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_SITE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_ORGANIZATION_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const MULTICAST_GLOBAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x0e, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+
+    pub const IPV4_MAPPED_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0, 0]), 96);
+
+    pub const IPV4_COMPAT_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 96);
+
     /// Creates an IPv6 address from a raw bytes representation
     pub const fn new(bytes: [u8; 16]) -> Self {
         Self(bytes)
+    }
+
+    pub fn is_loopback(&self) -> bool {
+        return *self == Self::LOCALHOST;
+    }
+
+    pub fn is_unique_local(&self) -> bool {
+        Self::UNIQUE_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast(&self) -> bool {
+        Self::MULTICAST_SUBNET.contains(self)
+    }
+
+    pub fn is_unicast_link_local(&self) -> bool {
+        Self::UNICAST_LINK_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_documentation(&self) -> bool {
+        Self::DOCUMENTATION_SUBNET.contains(self)
+    }
+
+    pub fn is_benchmarking(&self) -> bool {
+        Self::BENCHMARKING_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_interface_local(&self) -> bool {
+        Self::MULTICAST_INTERFACE_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_link_local(&self) -> bool {
+        Self::MULTICAST_LINK_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_realm_local(&self) -> bool {
+        Self::MULTICAST_REALM_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_admin_local(&self) -> bool {
+        Self::MULTICAST_ADMIN_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_site_local(&self) -> bool {
+        Self::MULTICAST_SITE_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_organization_local(&self) -> bool {
+        Self::MULTICAST_ORGANIZATION_LOCAL_SUBNET.contains(self)
+    }
+
+    pub fn is_multicast_global(&self) -> bool {
+        Self::MULTICAST_GLOBAL_SUBNET.contains(self)
+    }
+
+    pub fn is_ipv4_mapped(&self) -> bool {
+        Self::IPV4_MAPPED_SUBNET.contains(self)
+    }
+
+    pub fn is_ipv4_compatible(&self) -> bool {
+        Self::IPV4_COMPAT_SUBNET.contains(self)
+    }
+
+    pub fn is_unicast(&self) -> bool {
+        !self.is_multicast()
     }
 }
 
@@ -58,6 +156,18 @@ impl From<[u8; 16]> for Ipv6Address {
 impl From<Ipv6Address> for [u8; 16] {
     fn from(addr: Ipv6Address) -> Self {
         addr.0
+    }
+}
+
+impl From<[u16; 8]> for Ipv6Address {
+    fn from(raw: [u16; 8]) -> Self {
+        Self(bytemuck::cast(raw))
+    }
+}
+
+impl From<Ipv6Address> for [u16; 8] {
+    fn from(addr: Ipv6Address) -> Self {
+        bytemuck::cast(addr.0)
     }
 }
 
