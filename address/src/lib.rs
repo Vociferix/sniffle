@@ -1,27 +1,136 @@
 use std::{
     fmt::{self, Debug, Display},
     hash::Hash,
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, DerefMut, Not, RangeBounds, Bound},
+    ops::{
+        BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Bound, Deref, DerefMut,
+        Not, RangeBounds,
+    },
     str::FromStr,
 };
 
-use sniffle_ende::{
-    decode::Decode,
-    encode::Encode,
+use sniffle_ende::{decode::Decode, encode::Encode};
+
+use sniffle_address_parse::parse_subnet;
+
+#[doc(hidden)]
+pub use sniffle_address_macros::{
+    raw_hw, raw_ipv4, raw_ipv4_subnet, raw_ipv6, raw_ipv6_subnet, raw_mac,
 };
 
-use thiserror::Error;
-
+mod hw;
 mod ipv4;
 mod ipv6;
+mod mac;
 
+pub use hw::*;
 pub use ipv4::*;
 pub use ipv6::*;
+pub use mac::oui;
+pub use mac::MacAddress;
+
+/// Macro that supports compile time evaluated `MacAddress` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{mac, MacAddress};
+/// const CONST_MAC: MacAddress = mac!("01:02:03:04:05:06");
+/// assert_eq!(CONST_MAC, MacAddress::new([1, 2, 3, 4, 5, 6]));
+/// assert_eq!(mac!("01-02-03-04-05-06"), MacAddress::new([1, 2, 3, 4, 5, 6]));
+/// ```
+#[macro_export]
+macro_rules! mac {
+    ($s:literal) => {{
+        $crate::MacAddress::new($crate::raw_mac!($s))
+    }};
+}
+
+/// Macro that supports compile time evaluated `HwAddress` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{hw, HwAddress};
+/// const CONST_HW: HwAddress<4> = hw!("01:02:03:04");
+/// assert_eq!(CONST_HW, HwAddress::new([1, 2, 3, 4]));
+/// assert_eq!(hw!("01-02-03-04-05-06-07-08"), HwAddress::new([1, 2, 3, 4, 5, 6, 7, 8]));
+/// ```
+#[macro_export]
+macro_rules! hw {
+    ($s:literal) => {{
+        $crate::HwAddress::new($crate::raw_hw!($s))
+    }};
+}
+
+/// Macro that supports compile time evaluated `Ipv4Address` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{ipv4, Ipv4Address};
+/// const CONST_IP: Ipv4Address = ipv4!("1.2.3.4");
+/// assert_eq!(CONST_IP, Ipv4Address::new([1, 2, 3, 4]));
+/// assert_eq!(ipv4!("192.168.0.1"), Ipv4Address::new([192, 168, 0, 1]));
+/// ```
+#[macro_export]
+macro_rules! ipv4 {
+    ($s:literal) => {{
+        $crate::Ipv4Address::new($crate::raw_ipv4!($s))
+    }};
+}
+
+/// Macro that supports compile time evaluated `Ipv4Subnet` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{ipv4, ipv4_subnet, Ipv4Subnet};
+/// const CONST_SUBNET: Ipv4Subnet = ipv4_subnet!("192.168.0.0/16");
+/// assert_eq!(CONST_SUBNET, Ipv4Subnet::new(ipv4!("192.168.0.0"), 16));
+/// assert_eq!(ipv4_subnet!("10.0.0.0/8"), Ipv4Subnet::new(ipv4!("10.0.0.0"), 8));
+/// ```
+#[macro_export]
+macro_rules! ipv4_subnet {
+    ($s:literal) => {{
+        let (addr, prefix_len) = $crate::raw_ipv4_subnet!($s);
+        $crate::Ipv4Subnet::new($crate::Ipv4Address::new(addr), prefix_len)
+    }};
+}
+
+/// Macro that supports compile time evaluated `Ipv6Address` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{ipv6, Ipv6Address};
+/// const CONST_IP: Ipv6Address = ipv6!("fe80::1");
+/// assert_eq!(CONST_IP, Ipv6Address::from_words([0xfe80, 0, 0, 0, 0, 0, 0, 1]));
+/// assert_eq!(ipv6!("::1"), Ipv6Address::from_words([0, 0, 0, 0, 0, 0, 0, 1]));
+/// assert_eq!(ipv6!("::1.2.3.4"), Ipv6Address::from_words([0, 0, 0, 0, 0, 0, 0x0102, 0x0304]));
+/// ```
+#[macro_export]
+macro_rules! ipv6 {
+    ($s:literal) => {{
+        $crate::Ipv6Address::new($crate::raw_ipv6!($s))
+    }};
+}
+
+/// Macro that supports compile time evaluated `Ipv6Subnet` literals.
+///
+/// ## Example
+/// ```
+/// # use sniffle_address::{ipv6, ipv6_subnet, Ipv6Subnet};
+/// const CONST_SUBNET: Ipv6Subnet = ipv6_subnet!("fe80::/10");
+/// assert_eq!(CONST_SUBNET, Ipv6Subnet::new(ipv6!("fe80::"), 10));
+/// assert_eq!(ipv6_subnet!("ff00::/8"), Ipv6Subnet::new(ipv6!("ff00::"), 8));
+/// ```
+#[macro_export]
+macro_rules! ipv6_subnet {
+    ($s:literal) => {{
+        let (addr, prefix_len) = $crate::raw_ipv6_subnet!($s);
+        $crate::Ipv6Subnet::new($crate::Ipv6Address::new(addr), prefix_len)
+    }};
+}
 
 mod private {
-    pub trait Sealed { }
+    pub trait Sealed {}
 
-    impl<const SZ: usize> Sealed for [u8; SZ] { }
+    impl<const SZ: usize> Sealed for [u8; SZ] {}
 }
 
 /// A trait for the raw representation of an address.
@@ -46,7 +155,7 @@ pub trait Address:
     + Copy
     + Debug
     + Display
-    + FromStr<Err=AddressParseError>
+    + FromStr<Err = AddressParseError>
     + Default
     + Deref<Target = [u8]>
     + DerefMut
@@ -55,13 +164,13 @@ pub trait Address:
     + PartialOrd
     + Ord
     + Hash
-    + BitAnd<Output=Self>
+    + BitAnd<Output = Self>
     + BitAndAssign
-    + BitOr<Output=Self>
+    + BitOr<Output = Self>
     + BitOrAssign
-    + BitXor<Output=Self>
+    + BitXor<Output = Self>
     + BitXorAssign
-    + Not<Output=Self>
+    + Not<Output = Self>
     + From<Self::Raw>
     + Into<Self::Raw>
     + Encode
@@ -105,36 +214,13 @@ pub struct AddressIter<A: Address> {
     last: A,
 }
 
-#[derive(Debug, Clone, Error)]
-pub enum AddressParseError {
-    #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
-    #[error("Invalid address length")]
-    InvalidLength,
-}
+pub use sniffle_address_parse::AddressParseError;
 
-#[derive(Debug, Clone, Error)]
-pub enum SubnetParseError {
-    #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
-    #[error("Invalid address length")]
-    InvalidLength,
-    #[error("Invalid subnet prefix length")]
-    InvalidPrefixLen,
-}
-
-impl From<AddressParseError> for SubnetParseError {
-    fn from(e: AddressParseError) -> Self {
-        match e {
-            AddressParseError::ParseInt(e) => Self::from(e),
-            AddressParseError::InvalidLength => Self::InvalidLength,
-        }
-    }
-}
+pub use sniffle_address_parse::SubnetParseError;
 
 impl<A: Address> Subnet<A> {
     /// Creates a subnet from a base address and a prefix length.
-    /// 
+    ///
     /// The prefix length is a simpler representation of a netmask,
     /// which is the number of leading bits that are fixed.
     pub const fn new(base: A, prefix_len: u32) -> Self {
@@ -186,20 +272,8 @@ impl<A: Address> FromStr for Subnet<A> {
     type Err = SubnetParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.rfind('/') {
-            Some(pos) => {
-                let addr: A = s[..pos].parse()?;
-                let prefix_len: u32 = s[(pos + 1)..].parse()?;
-                if prefix_len > A::Raw::BIT_WIDTH as u32 {
-                    Err(SubnetParseError::InvalidPrefixLen)
-                } else {
-                    Ok(Self::new(addr, prefix_len))
-                }
-            },
-            None => {
-                Ok(Self::new(s.parse()?, A::Raw::BIT_WIDTH as u32))
-            }
-        }
+        let (addr, prefix_len) = parse_subnet(s, A::from_str, A::Raw::BIT_WIDTH as u32)?;
+        Ok(Self::new(addr, prefix_len))
     }
 }
 

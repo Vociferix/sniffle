@@ -33,6 +33,8 @@ members = [
     "ende",
     "uint",
     "address",
+    "address/parse",
+    "address/macros",
     "core",
     "capfile",
     "utils",

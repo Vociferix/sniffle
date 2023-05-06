@@ -1,9 +1,9 @@
 use std::{
+    cmp::Ordering,
     fmt::{self, Display},
+    hash::{Hash, Hasher},
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, DerefMut, Not},
     str::FromStr,
-    cmp::Ordering,
-    hash::{Hash, Hasher},
 };
 
 use sniffle_ende::{
@@ -12,7 +12,9 @@ use sniffle_ende::{
     nom::combinator::map,
 };
 
-use crate::{Address, Subnet, AddressParseError};
+use crate::{ipv4, ipv4_subnet, Address, AddressParseError, Subnet};
+
+use sniffle_address_parse::parse_ipv4;
 
 /// Representation of an IPv4 address
 #[derive(Clone, Copy, Debug, Default)]
@@ -34,17 +36,17 @@ impl Ipv4Address {
     /// IPv4 address commonly used to represent an unspecified (or any) address
     ///
     /// `0.0.0.0`
-    pub const UNSPECIFIED: Self = Self::new([0, 0, 0, 0]);
+    pub const UNSPECIFIED: Self = ipv4!("0.0.0.0");
 
     /// The IPv4 localhost address
     ///
     /// `127.0.0.1`
-    pub const LOCALHOST: Self = Self::new([127, 0, 0, 1]);
+    pub const LOCALHOST: Self = ipv4!("127.0.0.1");
 
     /// The IPv4 broadcast address
     ///
     /// `255.255.255.255`
-    pub const BROADCAST: Self = Self::new([255, 255, 255, 255]);
+    pub const BROADCAST: Self = ipv4!("255.255.255.255");
 
     /// Set of subnets reserved for private networks
     ///
@@ -52,55 +54,55 @@ impl Ipv4Address {
     /// * `172.16.0.0/12`
     /// * `192.168.0.0/16`
     pub const PRIVATE_SUBNETS: [Ipv4Subnet; 3] = [
-        Ipv4Subnet::new(Ipv4Address([10, 0, 0, 0]), 8),
-        Ipv4Subnet::new(Ipv4Address([172, 16, 0, 0]), 12),
-        Ipv4Subnet::new(Ipv4Address([192, 168, 0, 0]), 16),
+        ipv4_subnet!("10.0.0.0/8"),
+        ipv4_subnet!("172.16.0.0/12"),
+        ipv4_subnet!("192.168.0.0/16"),
     ];
 
     /// Addresses reserved for loopback
     ///
     /// `127.0.0.0/8`
-    pub const LOOPBACK_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([127, 0, 0, 0]), 8);
+    pub const LOOPBACK_SUBNET: Ipv4Subnet = ipv4_subnet!("127.0.0.0/8");
 
     /// Addresses reserved for multicast
     ///
     /// `224.0.0.0/4`
-    pub const MULTICAST_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([224, 0, 0, 0]), 4);
+    pub const MULTICAST_SUBNET: Ipv4Subnet = ipv4_subnet!("224.0.0.0/4");
 
     /// Addresses reserved for link local
     ///
     /// `169.254.0.0/16`
-    pub const LINK_LOCAL_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([169, 254, 0, 0]), 16);
+    pub const LINK_LOCAL_SUBNET: Ipv4Subnet = ipv4_subnet!("169.254.0.0/16");
 
     /// Shared address space
     ///
     /// `100.64.0.0/10`
-    pub const SHARED_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([100, 64, 0, 0]), 10);
+    pub const SHARED_SUBNET: Ipv4Subnet = ipv4_subnet!("100.64.0.0/10");
 
     /// Addresses reserved for benchmarking
     ///
     /// `198.18.0.0/15`
-    pub const BENCHMARKING_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([198, 18, 0, 0]), 15);
+    pub const BENCHMARKING_SUBNET: Ipv4Subnet = ipv4_subnet!("198.18.0.0/15");
 
     /// Addresses reserved for future use
     ///
     /// `240.0.0.0/4`
-    pub const RESERVED_SUBNET: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([240, 0, 0, 0]), 4);
+    pub const RESERVED_SUBNET: Ipv4Subnet = ipv4_subnet!("240.0.0.0/4");
 
     /// Addresses reserved for documentation purposes (TEST-NET-1)
     ///
     /// `192.0.2.0/24`
-    pub const TEST_NET_1: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([192, 0, 2, 0]), 24);
+    pub const TEST_NET_1: Ipv4Subnet = ipv4_subnet!("192.0.2.0/24");
 
     /// Addresses reserved for documentation purposes (TEST-NET-2)
     ///
     /// `198.51.100.0/24`
-    pub const TEST_NET_2: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([198, 51, 100, 0]), 24);
+    pub const TEST_NET_2: Ipv4Subnet = ipv4_subnet!("198.51.100.0/24");
 
     /// Addresses reserved for documentation purposes (TEST-NET-3)
     ///
     /// `203.0.113.0/24`
-    pub const TEST_NET_3: Ipv4Subnet = Ipv4Subnet::new(Ipv4Address::new([203, 0, 113, 0]), 24);
+    pub const TEST_NET_3: Ipv4Subnet = ipv4_subnet!("203.0.113.0/24");
 
     /// Address ranges reserved for documentation purposes
     ///
@@ -109,9 +111,9 @@ impl Ipv4Address {
     /// * `198.51.100.0/24`
     /// * `203.0.113.0/24`
     pub const DOCUMENTATION_SUBNETS: [Ipv4Subnet; 3] = [
-        Ipv4Subnet::new(Ipv4Address::new([192, 0, 2, 0]), 24),
-        Ipv4Subnet::new(Ipv4Address::new([198, 51, 100, 0]), 24),
-        Ipv4Subnet::new(Ipv4Address::new([203, 0, 113, 0]), 24),
+        ipv4_subnet!("192.0.2.0/24"),
+        ipv4_subnet!("198.51.100.0/24"),
+        ipv4_subnet!("203.0.113.0/24"),
     ];
 
     /// Creates an IPv4 address from a raw bytes representation
@@ -245,7 +247,7 @@ impl PartialEq for Ipv4Address {
     }
 }
 
-impl Eq for Ipv4Address { }
+impl Eq for Ipv4Address {}
 
 impl PartialOrd for Ipv4Address {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -289,7 +291,8 @@ impl Ord for Ipv4Address {
 
 impl Hash for Ipv4Address {
     fn hash<H>(&self, state: &mut H)
-        where H: Hasher
+    where
+        H: Hasher,
     {
         self.value().hash(state)
     }
@@ -447,17 +450,7 @@ impl FromStr for Ipv4Address {
     type Err = AddressParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut addr = [0u8; 4];
-        let mut iter = s.split('.');
-        addr[0] = iter.next().ok_or(AddressParseError::InvalidLength)?.parse()?;
-        addr[1] = iter.next().ok_or(AddressParseError::InvalidLength)?.parse()?;
-        addr[2] = iter.next().ok_or(AddressParseError::InvalidLength)?.parse()?;
-        addr[3] = iter.next().ok_or(AddressParseError::InvalidLength)?.parse()?;
-        iter.next()
-            .ok_or(())
-            .err()
-            .ok_or(AddressParseError::InvalidLength)?;
-        Ok(Self(addr))
+        Ok(Self(parse_ipv4(s)?))
     }
 }
 
@@ -482,13 +475,17 @@ impl Encode for Ipv4Address {
         encoder.encode(&self[..]).map(|_| ())
     }
 
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> std::io::Result<()> {
+    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
+        slice: &[Self],
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         unsafe {
-            encoder.encode(std::slice::from_raw_parts(
-                slice.as_ptr() as *const u8,
-                slice.len() * 4,
-            ))
-            .map(|_| ())
+            encoder
+                .encode(std::slice::from_raw_parts(
+                    slice.as_ptr() as *const u8,
+                    slice.len() * 4,
+                ))
+                .map(|_| ())
         }
     }
 }
@@ -520,11 +517,28 @@ impl Address for Ipv4Address {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{ipv4, ipv4_subnet, AddressParseError, SubnetParseError};
     use std::str::FromStr;
-    use crate::{SubnetParseError, AddressParseError};
 
     type Addr = Ipv4Address;
     type Subnet = Ipv4Subnet;
+
+    #[test]
+    fn from_macro() {
+        const ADDR1: Addr = ipv4!("127.0.0.1");
+        assert_eq!(ADDR1, Addr::new([127, 0, 0, 1]));
+
+        const ADDR2: Addr = ipv4!("0.0.0.0");
+        assert_eq!(ADDR2, Addr::new([0, 0, 0, 0]));
+
+        const ADDR3: Addr = ipv4!("255.255.255.255");
+        assert_eq!(ADDR3, Addr::new([255, 255, 255, 255]));
+
+        const SUBNET: Subnet = ipv4_subnet!("127.0.0.1/8");
+        assert_eq!(SUBNET.base_addr(), Addr::new([127, 0, 0, 0]));
+        assert_eq!(SUBNET.prefix_len(), 8);
+        assert_eq!(SUBNET.mask(), Addr::new([255, 0, 0, 0]));
+    }
 
     #[test]
     fn addr_from_str() -> Result<(), AddressParseError> {
@@ -535,7 +549,10 @@ mod test {
         assert_eq!(Addr::from_str("1.1.1.1")?, Addr::new([1, 1, 1, 1]));
         assert!(Addr::from_str("1.1.1.1.1").is_err());
         assert_eq!(Addr::from_str("0.0.0.0")?, Addr::new([0, 0, 0, 0]));
-        assert_eq!(Addr::from_str("255.255.255.255")?, Addr::new([255, 255, 255, 255]));
+        assert_eq!(
+            Addr::from_str("255.255.255.255")?,
+            Addr::new([255, 255, 255, 255])
+        );
         assert!(Addr::from_str("...").is_err());
         assert!(Addr::from_str(".0.0.").is_err());
         assert!(Addr::from_str("..").is_err());
@@ -550,7 +567,10 @@ mod test {
     #[test]
     fn addr_to_str() {
         assert_eq!(Addr::new([0, 0, 0, 0]).to_string(), "0.0.0.0");
-        assert_eq!(Addr::new([255, 255, 255, 255]).to_string(), "255.255.255.255");
+        assert_eq!(
+            Addr::new([255, 255, 255, 255]).to_string(),
+            "255.255.255.255"
+        );
     }
 
     #[test]
@@ -583,9 +603,18 @@ mod test {
 
     #[test]
     fn subnet_to_str() {
-        assert_eq!(Subnet::new(Addr::new([1, 1, 1, 1]), 0).to_string(), "0.0.0.0/0");
-        assert_eq!(Subnet::new(Addr::new([1, 1, 1, 1]), 32).to_string(), "1.1.1.1/32");
-        assert_eq!(Subnet::new(Addr::new([1, 1, 1, 1]), 16).to_string(), "1.1.0.0/16");
+        assert_eq!(
+            Subnet::new(Addr::new([1, 1, 1, 1]), 0).to_string(),
+            "0.0.0.0/0"
+        );
+        assert_eq!(
+            Subnet::new(Addr::new([1, 1, 1, 1]), 32).to_string(),
+            "1.1.1.1/32"
+        );
+        assert_eq!(
+            Subnet::new(Addr::new([1, 1, 1, 1]), 16).to_string(),
+            "1.1.0.0/16"
+        );
     }
 
     #[test]
@@ -597,9 +626,18 @@ mod test {
         assert_eq!(Addr::from_prefix_len(16), Addr::new([0xFF, 0xFF, 0, 0]));
         assert_eq!(Addr::from_prefix_len(20), Addr::new([0xFF, 0xFF, 0xF0, 0]));
         assert_eq!(Addr::from_prefix_len(24), Addr::new([0xFF, 0xFF, 0xFF, 0]));
-        assert_eq!(Addr::from_prefix_len(28), Addr::new([0xFF, 0xFF, 0xFF, 0xF0]));
-        assert_eq!(Addr::from_prefix_len(32), Addr::new([0xFF, 0xFF, 0xFF, 0xFF]));
-        assert_eq!(Addr::from_prefix_len(36), Addr::new([0xFF, 0xFF, 0xFF, 0xFF]));
+        assert_eq!(
+            Addr::from_prefix_len(28),
+            Addr::new([0xFF, 0xFF, 0xFF, 0xF0])
+        );
+        assert_eq!(
+            Addr::from_prefix_len(32),
+            Addr::new([0xFF, 0xFF, 0xFF, 0xFF])
+        );
+        assert_eq!(
+            Addr::from_prefix_len(36),
+            Addr::new([0xFF, 0xFF, 0xFF, 0xFF])
+        );
     }
 
     #[test]

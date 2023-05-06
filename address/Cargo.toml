@@ -1,5 +1,5 @@
 [package]
-name = "address"
+name = "sniffle-address"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,11 @@ edition = "2021"
 thiserror = "1.0"
 bytemuck = "1.13"
 sniffle-ende = { path = "../ende" }
+sniffle-address-parse = { path = "parse" }
+sniffle-address-macros = { path = "macros" }
+sniffle-uint = { path = "../uint" }
+
+[build-dependencies]
+csv = "1.2"
+regex = "1"
+serde = { version = "1.0", features = ["derive"] }

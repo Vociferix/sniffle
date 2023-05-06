@@ -1,9 +1,9 @@
 use std::{
+    cmp::Ordering,
     fmt::{self, Display},
+    hash::{Hash, Hasher},
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, DerefMut, Not},
     str::FromStr,
-    cmp::Ordering,
-    hash::{Hash, Hasher},
 };
 
 use sniffle_ende::{
@@ -14,7 +14,9 @@ use sniffle_ende::{
 
 use bytemuck;
 
-use crate::{Address, Subnet, AddressParseError};
+use crate::{ipv6, ipv6_subnet, Address, AddressParseError, Subnet};
+
+use sniffle_address_parse::parse_ipv6;
 
 /// Representation of an IPv4 address
 #[derive(Clone, Copy, Debug, Default)]
@@ -33,105 +35,206 @@ impl Ipv6Address {
         Self(val.to_be_bytes())
     }
 
-    pub const UNSPECIFIED: Ipv6Address = Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    /// IPv6 address commonly used to represent an unspecified (or any) address
+    ///
+    /// `::`
+    pub const UNSPECIFIED: Ipv6Address = ipv6!("::");
 
-    pub const LOCALHOST: Ipv6Address = Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    /// The IPv6 localhost address
+    ///
+    /// `::1`
+    pub const LOCALHOST: Ipv6Address = ipv6!("::1");
 
-    pub const UNIQUE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 7);
+    /// Address reserved for unique local use
+    ///
+    /// `fc00::/7`
+    pub const UNIQUE_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("fc00::/7");
 
-    pub const MULTICAST_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 8);
+    /// Addresses reserved for multicast
+    ///
+    /// `ff00::/8`
+    pub const MULTICAST_SUBNET: Ipv6Subnet = ipv6_subnet!("ff00::/8");
 
-    pub const UNICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 10);
+    /// Addresses reserved for link-local scoped unicast
+    ///
+    /// `fe80::/10`
+    pub const UNICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("fe80::/10");
 
-    pub const DOCUMENTATION_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 32);
+    /// Addresses reserved for documentation
+    ///
+    /// `2001:db8::/32`
+    pub const DOCUMENTATION_SUBNET: Ipv6Subnet = ipv6_subnet!("2001:db8::/32");
 
-    pub const BENCHMARKING_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0x20, 0x01, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 48);
+    /// Addresses reserved for benchmarking
+    ///
+    /// `2001:2::/48`
+    pub const BENCHMARKING_SUBNET: Ipv6Subnet = ipv6_subnet!("2001:2::/48");
 
-    pub const MULTICAST_INTERFACE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with interface-local scope
+    ///
+    /// `ff01::/16`
+    pub const MULTICAST_INTERFACE_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff01::/16");
 
-    pub const MULTICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with link local scope
+    ///
+    /// `ff02::/16`
+    pub const MULTICAST_LINK_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff02::/16");
 
-    pub const MULTICAST_REALM_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with realm-local scope
+    ///
+    /// `ff03::/16`
+    pub const MULTICAST_REALM_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff03::/16");
 
-    pub const MULTICAST_ADMIN_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x04, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with admin-local scope
+    ///
+    /// `ff04::/16`
+    pub const MULTICAST_ADMIN_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff04::/16");
 
-    pub const MULTICAST_SITE_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with site-local scope
+    ///
+    /// `ff05::/16`
+    pub const MULTICAST_SITE_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff05::/16");
 
-    pub const MULTICAST_ORGANIZATION_LOCAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with organization-local scope
+    ///
+    /// `ff08::/16`
+    pub const MULTICAST_ORGANIZATION_LOCAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff08::/16");
 
-    pub const MULTICAST_GLOBAL_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0xff, 0x0e, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 16);
+    /// Multicast addresses with global scope
+    ///
+    /// `ff0e::/16`
+    pub const MULTICAST_GLOBAL_SUBNET: Ipv6Subnet = ipv6_subnet!("ff0e::/16");
 
-    pub const IPV4_MAPPED_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0, 0]), 96);
+    /// Addresses reserved for IPv4 mapped addresses
+    ///
+    /// `::ffff:0:0`
+    pub const IPV4_MAPPED_SUBNET: Ipv6Subnet = ipv6_subnet!("::ffff:0:0/96");
 
-    pub const IPV4_COMPAT_SUBNET: Ipv6Subnet = Ipv6Subnet::new(Ipv6Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 96);
+    /// Addresses reserved for IPv4 compatibility
+    ///
+    /// `::/96`
+    pub const IPV4_COMPAT_SUBNET: Ipv6Subnet = ipv6_subnet!("::/96");
 
     /// Creates an IPv6 address from a raw bytes representation
     pub const fn new(bytes: [u8; 16]) -> Self {
         Self(bytes)
     }
 
+    /// Creates an IPv6 address from raw 16-bit words
+    pub const fn from_words(words: [u16; 8]) -> Self {
+        let segs = [
+            words[0].to_be_bytes(),
+            words[1].to_be_bytes(),
+            words[2].to_be_bytes(),
+            words[3].to_be_bytes(),
+            words[4].to_be_bytes(),
+            words[5].to_be_bytes(),
+            words[6].to_be_bytes(),
+            words[7].to_be_bytes(),
+        ];
+        Self([
+            segs[0][0], segs[0][1], segs[1][0], segs[1][1], segs[2][0], segs[2][1], segs[3][0],
+            segs[3][1], segs[4][0], segs[4][1], segs[5][0], segs[5][1], segs[6][0], segs[6][1],
+            segs[7][0], segs[7][1],
+        ])
+    }
+
+    /// Returns true if this address is the loopback address, `::1`
     pub fn is_loopback(&self) -> bool {
         return *self == Self::LOCALHOST;
     }
 
+    /// Returns true if this is a unique local address
     pub fn is_unique_local(&self) -> bool {
         Self::UNIQUE_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a multicast address
     pub fn is_multicast(&self) -> bool {
         Self::MULTICAST_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a unicast link-local address
     pub fn is_unicast_link_local(&self) -> bool {
         Self::UNICAST_LINK_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a reserved for documentation address
     pub fn is_documentation(&self) -> bool {
         Self::DOCUMENTATION_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a reserved for benchmarking address
     pub fn is_benchmarking(&self) -> bool {
         Self::BENCHMARKING_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a interface-local scoped multicast address
     pub fn is_multicast_interface_local(&self) -> bool {
         Self::MULTICAST_INTERFACE_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a link-local scoped multicast address
     pub fn is_multicast_link_local(&self) -> bool {
         Self::MULTICAST_LINK_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a realm-local scoped multicast address
     pub fn is_multicast_realm_local(&self) -> bool {
         Self::MULTICAST_REALM_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a admin-local scoped multicast address
     pub fn is_multicast_admin_local(&self) -> bool {
         Self::MULTICAST_ADMIN_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a site-local scoped multicast address
     pub fn is_multicast_site_local(&self) -> bool {
         Self::MULTICAST_SITE_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a organization-local scoped multicast address
     pub fn is_multicast_organization_local(&self) -> bool {
         Self::MULTICAST_ORGANIZATION_LOCAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a global scoped multicast address
     pub fn is_multicast_global(&self) -> bool {
         Self::MULTICAST_GLOBAL_SUBNET.contains(self)
     }
 
+    /// Returns true if this is an IPv4 mapped address
     pub fn is_ipv4_mapped(&self) -> bool {
         Self::IPV4_MAPPED_SUBNET.contains(self)
     }
 
+    /// Returns true if this is an IPv4 compatible address
     pub fn is_ipv4_compatible(&self) -> bool {
         Self::IPV4_COMPAT_SUBNET.contains(self)
     }
 
+    /// Returns true if this is a unicast address
     pub fn is_unicast(&self) -> bool {
         !self.is_multicast()
+    }
+}
+
+impl From<crate::Ipv4Address> for Ipv6Address {
+    fn from(v4: crate::Ipv4Address) -> Self {
+        let v4: [u8; 4] = v4.into();
+        Self([
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, v4[0], v4[1], v4[2], v4[3],
+        ])
+    }
+}
+
+impl From<std::net::Ipv4Addr> for Ipv6Address {
+    fn from(v4: std::net::Ipv4Addr) -> Self {
+        let v4 = v4.octets();
+        Self([
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, v4[0], v4[1], v4[2], v4[3],
+        ])
     }
 }
 
@@ -215,7 +318,7 @@ impl PartialEq for Ipv6Address {
     }
 }
 
-impl Eq for Ipv6Address { }
+impl Eq for Ipv6Address {}
 
 impl PartialOrd for Ipv6Address {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -259,7 +362,8 @@ impl Ord for Ipv6Address {
 
 impl Hash for Ipv6Address {
     fn hash<H>(&self, state: &mut H)
-        where H: Hasher
+    where
+        H: Hasher,
     {
         self.value().hash(state)
     }
@@ -417,54 +521,7 @@ impl FromStr for Ipv6Address {
     type Err = AddressParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut addr = [0u8; 16];
-        let mut idx = 0usize;
-
-        let mut iter = s.split("::");
-        let Some(first) = iter.next() else {
-            return Err(AddressParseError::InvalidLength);
-        };
-
-        if !first.is_empty() {
-            for word in first.split(':') {
-                if idx >= 16 {
-                    return Err(AddressParseError::InvalidLength);
-                }
-
-                let w = u16::from_str_radix(word, 16)?.to_be_bytes();
-                addr[idx] = w[0];
-                idx += 1;
-                addr[idx] = w[1];
-                idx += 1;
-            }
-        }
-
-        if let Some(second) = iter.next() {
-            if let Some(_) = iter.next() {
-                return Err(AddressParseError::InvalidLength);
-            }
-
-            let end = idx;
-            idx = 15;
-
-            if !second.is_empty() {
-                for word in second.split(':').rev() {
-                    if idx < end {
-                        return Err(AddressParseError::InvalidLength);
-                    }
-
-                    let w = u16::from_str_radix(word, 16)?.to_be_bytes();
-                    addr[idx] = w[1];
-                    idx -= 1;
-                    addr[idx] = w[0];
-                    idx -= 1;
-                }
-            }
-        } else if idx < 16 {
-            return Err(AddressParseError::InvalidLength);
-        }
-
-        Ok(Self::new(addr))
+        Ok(Self(parse_ipv6(s)?))
     }
 }
 
@@ -551,13 +608,17 @@ impl Encode for Ipv6Address {
         encoder.encode(&self[..]).map(|_| ())
     }
 
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(slice: &[Self], encoder: &mut W) -> std::io::Result<()> {
+    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
+        slice: &[Self],
+        encoder: &mut W,
+    ) -> std::io::Result<()> {
         unsafe {
-            encoder.encode(std::slice::from_raw_parts(
-                slice.as_ptr() as *const u8,
-                slice.len() * 16,
-            ))
-            .map(|_| ())
+            encoder
+                .encode(std::slice::from_raw_parts(
+                    slice.as_ptr() as *const u8,
+                    slice.len() * 16,
+                ))
+                .map(|_| ())
         }
     }
 }
@@ -589,7 +650,7 @@ impl Address for Ipv6Address {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{SubnetParseError, AddressParseError};
+    use crate::{AddressParseError, SubnetParseError};
 
     type Addr = Ipv6Address;
     type Subnet = Ipv6Subnet;
@@ -639,37 +700,89 @@ mod test {
 
     #[test]
     fn addr_to_str() {
-        assert_eq!(Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(), "::");
-        assert_eq!(Addr::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(), "1::");
-        assert_eq!(Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]).to_string(), "::1");
-        assert_eq!(Addr::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]).to_string(), "1::1");
-        assert_eq!(Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]).to_string(), "::1:1");
-        assert_eq!(Addr::new([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(), "1:1::");
-        assert_eq!(Addr::new([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]).to_string(), "1:1::1:1");
-        assert_eq!(Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]).to_string(), "1:1:1:1:1:1:1:1");
+        assert_eq!(
+            Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(),
+            "::"
+        );
+        assert_eq!(
+            Addr::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(),
+            "1::"
+        );
+        assert_eq!(
+            Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]).to_string(),
+            "::1"
+        );
+        assert_eq!(
+            Addr::new([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]).to_string(),
+            "1::1"
+        );
+        assert_eq!(
+            Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]).to_string(),
+            "::1:1"
+        );
+        assert_eq!(
+            Addr::new([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string(),
+            "1:1::"
+        );
+        assert_eq!(
+            Addr::new([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]).to_string(),
+            "1:1::1:1"
+        );
+        assert_eq!(
+            Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]).to_string(),
+            "1:1:1:1:1:1:1:1"
+        );
     }
 
     #[test]
     fn subnet_from_str() -> Result<(), SubnetParseError> {
         let subnet: Subnet = "fe80::1".parse()?;
-        assert_eq!(subnet.base_addr(), Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+        assert_eq!(
+            subnet.base_addr(),
+            Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+        );
         assert_eq!(subnet.prefix_len(), 128);
-        assert_eq!(subnet.mask(), Addr::new([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]));
+        assert_eq!(
+            subnet.mask(),
+            Addr::new([
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+            ])
+        );
 
         let subnet: Subnet = "fe80::1/128".parse()?;
-        assert_eq!(subnet.base_addr(), Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+        assert_eq!(
+            subnet.base_addr(),
+            Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+        );
         assert_eq!(subnet.prefix_len(), 128);
-        assert_eq!(subnet.mask(), Addr::new([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]));
+        assert_eq!(
+            subnet.mask(),
+            Addr::new([
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+            ])
+        );
 
         let subnet: Subnet = "fe80::1/0".parse()?;
-        assert_eq!(subnet.base_addr(), Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(
+            subnet.base_addr(),
+            Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
         assert_eq!(subnet.prefix_len(), 0);
-        assert_eq!(subnet.mask(), Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(
+            subnet.mask(),
+            Addr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
 
         let subnet: Subnet = "fe80::1/64".parse()?;
-        assert_eq!(subnet.base_addr(), Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(
+            subnet.base_addr(),
+            Addr::new([0xFE, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
         assert_eq!(subnet.prefix_len(), 64);
-        assert_eq!(subnet.mask(), Addr::new([255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(
+            subnet.mask(),
+            Addr::new([255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
 
         assert!(Subnet::from_str("fe80::1/").is_err());
         assert!(Subnet::from_str("fe80::1/129").is_err());
@@ -679,8 +792,29 @@ mod test {
 
     #[test]
     fn subnet_to_str() {
-        assert_eq!(Subnet::new(Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), 0).to_string(), "::/0");
-        assert_eq!(Subnet::new(Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), 128).to_string(), "1:1:1:1:1:1:1:1/128");
-        assert_eq!(Subnet::new(Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), 64).to_string(), "1:1:1:1::/64");
+        assert_eq!(
+            Subnet::new(
+                Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+                0
+            )
+            .to_string(),
+            "::/0"
+        );
+        assert_eq!(
+            Subnet::new(
+                Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+                128
+            )
+            .to_string(),
+            "1:1:1:1:1:1:1:1/128"
+        );
+        assert_eq!(
+            Subnet::new(
+                Addr::new([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+                64
+            )
+            .to_string(),
+            "1:1:1:1::/64"
+        );
     }
 }
