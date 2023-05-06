@@ -777,7 +777,7 @@ impl<'a, F: AsyncWrite + AsyncSeek + Send + Unpin> IdbOptionWriter<'a, F> {
         opt.finish().await
     }
 
-    pub async fn write_eui_address(&mut self, addr: EuiAddress) -> Result<(), Error> {
+    pub async fn write_eui_address(&mut self, addr: HwAddress<8>) -> Result<(), Error> {
         let buf: [u8; 8] = addr.into();
         let mut opt = self.write_raw_option(IF_EUIADDR).await?;
         opt.write_all(&buf[..]).await?;

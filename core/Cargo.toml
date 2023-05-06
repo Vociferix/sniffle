@@ -13,6 +13,7 @@ description = "Sniffle library core functionality"
 link-types = { path = "../link-types" }
 pcaprs = { path = "../pcaprs", optional = true, default-features = false }
 sniffle-ende = { path = "../ende" }
+sniffle-address = { path = "../address" }
 lazy_static = "1.4"
 ctor = "0.1"
 thiserror = "1.0"

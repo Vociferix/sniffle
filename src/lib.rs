@@ -15,8 +15,9 @@ pub type SniffleError = Error;
 pub mod address {
     #[doc(inline)]
     pub use sniffle_core::{
-        EuiAddress, EuiParseError, Ipv4Address, Ipv4NetworkIter, Ipv6Address, Ipv6NetworkIter,
-        MacAddress,
+        hw, ipv4, ipv4_subnet, ipv6, ipv6_subnet, mac, oui, Address, AddressIter,
+        AddressParseError, HwAddress, Ipv4Address, Ipv4Subnet, Ipv6Address, Ipv6Subnet, MacAddress,
+        RawAddress, Subnet, SubnetParseError,
     };
 }
 
@@ -87,11 +88,12 @@ pub mod capfile {
 /// Re-exports commonly used sniffle types, functions, and macros.
 pub mod prelude {
     pub use crate::{
-        address::EuiAddress, address::Ipv4Address, address::Ipv6Address, address::MacAddress,
-        capfile::pcap, capfile::pcapng, capfile::FileSniffer, device::ConnectionStatus,
-        device::Device, dissect::register_dissector, dissect::Priority, dissect::Session,
-        dump::Dump, dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos, protos::RawPdu,
-        sniff::Sniff, transmit::Transmit, Packet, SniffleError,
+        address::hw, address::ipv4, address::ipv6, address::mac, address::HwAddress,
+        address::Ipv4Address, address::Ipv6Address, address::MacAddress, capfile::pcap,
+        capfile::pcapng, capfile::FileSniffer, device::ConnectionStatus, device::Device,
+        dissect::register_dissector, dissect::Priority, dissect::Session, dump::Dump,
+        dump::LogDumper, pdu::AnyPdu, pdu::Pdu, pdu::PduExt, protos, protos::RawPdu, sniff::Sniff,
+        transmit::Transmit, Packet, SniffleError,
     };
 
     #[cfg(feature = "libpcap")]

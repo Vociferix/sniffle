@@ -6,7 +6,7 @@ pub mod writer;
 pub use recorder::{FileRecorder, Recorder};
 pub use sniffer::{FileSniffer, Sniffer};
 
-use sniffle_core::EuiAddress;
+use sniffle_core::HwAddress;
 use sniffle_core::Ipv4Address;
 use sniffle_core::Ipv6Address;
 use sniffle_core::MacAddress;

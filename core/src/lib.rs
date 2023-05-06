@@ -7,11 +7,7 @@ mod device_injector;
 mod device_sniffer;
 mod dissection;
 pub(crate) mod dump;
-mod eui_address;
-mod ipv4_address;
-mod ipv6_address;
 mod link_type;
-mod mac_address;
 mod packet;
 mod pdu;
 mod raw_pdu;
@@ -40,13 +36,7 @@ pub use dissection::{
 
 pub use dump::{Dump, DumpValue, Dumper, ListDumper, LogDumper, NodeDumper};
 
-pub use eui_address::{EuiAddress, EuiParseError};
-
-pub use mac_address::MacAddress;
-
-pub use ipv4_address::{Ipv4Address, Ipv4Network, Ipv4NetworkIter};
-
-pub use ipv6_address::{Ipv6Address, Ipv6Network, Ipv6NetworkIter};
+pub use sniffle_address::*;
 
 pub use link_type::{LinkType, LinkTypeTable};
 

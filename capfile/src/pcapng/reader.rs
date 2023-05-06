@@ -90,7 +90,7 @@ pub struct MacOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
 
 pub struct EuiOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
     reader: &'a mut Reader<F>,
-    addr: Option<EuiAddress>,
+    addr: Option<HwAddress<8>>,
 }
 
 pub struct TimestampOpt<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> {
@@ -1530,12 +1530,12 @@ impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> MacOpt<'a, F> {
 }
 
 impl<'a, F: AsyncBufRead + AsyncSeek + Send + Unpin> EuiOpt<'a, F> {
-    pub async fn address(&mut self) -> Result<EuiAddress, Error> {
+    pub async fn address(&mut self) -> Result<HwAddress<8>, Error> {
         let ready = self.addr.is_some();
         if !ready {
             let mut addr = [0u8; 8];
             self.reader.read_buf(&mut addr[..]).await?;
-            let addr = EuiAddress::from(addr);
+            let addr = HwAddress::from(addr);
             self.addr = Some(addr);
             Ok(addr)
         } else {
