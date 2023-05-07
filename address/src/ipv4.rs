@@ -6,11 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_ende::{
-    decode::{cast, DResult, Decode},
-    encode::{Encode, Encoder},
-    nom::combinator::map,
-};
+use sniffle_decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_encode::{Encodable, Encode, EncodeBuf};
 
 use crate::{ipv4, ipv4_subnet, Address, AddressParseError, Subnet};
 
@@ -460,33 +457,39 @@ impl Display for Ipv4Address {
     }
 }
 
+unsafe impl bytemuck::Zeroable for Ipv4Address {}
+
+unsafe impl bytemuck::Pod for Ipv4Address {}
+
 impl Decode for Ipv4Address {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 4]>::decode, Self::from)(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode(buf)
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe { cast(buf) }
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+        let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
+        bytes.decode(buf)
+    }
+}
+
+impl Encodable for Ipv4Address {
+    fn encoded_size(&self) -> usize {
+        4
+    }
+
+    fn encoded_slice_size(slice: &[Self]) -> usize {
+        4 * slice.len()
     }
 }
 
 impl Encode for Ipv4Address {
-    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
-        encoder.encode(&self[..]).map(|_| ())
+    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+        self.0.encode(buf)
     }
 
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
-        slice: &[Self],
-        encoder: &mut W,
-    ) -> std::io::Result<()> {
-        unsafe {
-            encoder
-                .encode(std::slice::from_raw_parts(
-                    slice.as_ptr() as *const u8,
-                    slice.len() * 4,
-                ))
-                .map(|_| ())
-        }
+    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+        let bytes: &[u8] = bytemuck::cast_slice(slice);
+        bytes.encode(buf)
     }
 }
 

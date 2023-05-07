@@ -8,7 +8,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_ende::{decode::Decode, encode::Encode};
+use sniffle_decode::Decode;
+use sniffle_encode::Encode;
 
 use sniffle_address_parse::parse_subnet;
 
@@ -173,6 +174,7 @@ pub trait Address:
     + Not<Output = Self>
     + From<Self::Raw>
     + Into<Self::Raw>
+    + bytemuck::Pod
     + Encode
     + Decode
     + Send

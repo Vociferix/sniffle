@@ -6,11 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_ende::{
-    decode::{cast, DResult, Decode},
-    encode::{Encode, Encoder},
-    nom::combinator::map,
-};
+use sniffle_decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_encode::{Encodable, Encode, EncodeBuf};
 
 use bytemuck;
 
@@ -593,33 +590,39 @@ impl Display for Ipv6Address {
     }
 }
 
+unsafe impl bytemuck::Zeroable for Ipv6Address {}
+
+unsafe impl bytemuck::Pod for Ipv6Address {}
+
 impl Decode for Ipv6Address {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 16]>::decode, Self::from)(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode(buf)
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe { cast(buf) }
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+        let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
+        bytes.decode(buf)
+    }
+}
+
+impl Encodable for Ipv6Address {
+    fn encoded_size(&self) -> usize {
+        16
+    }
+
+    fn encoded_slice_size(slice: &[Self]) -> usize {
+        16 * slice.len()
     }
 }
 
 impl Encode for Ipv6Address {
-    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
-        encoder.encode(&self[..]).map(|_| ())
+    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+        self.0.encode(buf);
     }
 
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
-        slice: &[Self],
-        encoder: &mut W,
-    ) -> std::io::Result<()> {
-        unsafe {
-            encoder
-                .encode(std::slice::from_raw_parts(
-                    slice.as_ptr() as *const u8,
-                    slice.len() * 16,
-                ))
-                .map(|_| ())
-        }
+    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+        let bytes: &[u8] = bytemuck::cast_slice(slice);
+        bytes.encode(buf);
     }
 }
 

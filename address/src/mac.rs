@@ -8,11 +8,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_ende::{
-    decode::{cast, DResult, Decode},
-    encode::{Encode, Encoder},
-    nom::combinator::map,
-};
+use sniffle_decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_encode::{Encodable, Encode, EncodeBuf};
 
 use sniffle_uint::{IntoMasked, U48};
 
@@ -408,33 +405,29 @@ impl Display for MacAddress {
     }
 }
 
+unsafe impl bytemuck::Zeroable for MacAddress {}
+
+unsafe impl bytemuck::Pod for MacAddress {}
+
 impl Decode for MacAddress {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; 6]>::decode, Self::from)(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0[2..].decode(buf)
+    }
+}
+
+impl Encodable for MacAddress {
+    fn encoded_size(&self) -> usize {
+        6
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe { cast(buf) }
+    fn encoded_slice_size(slice: &[Self]) -> usize {
+        6 * slice.len()
     }
 }
 
 impl Encode for MacAddress {
-    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
-        encoder.encode(&self.0[2..]).map(|_| ())
-    }
-
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
-        slice: &[Self],
-        encoder: &mut W,
-    ) -> std::io::Result<()> {
-        unsafe {
-            encoder
-                .encode(std::slice::from_raw_parts(
-                    slice.as_ptr() as *const u8,
-                    slice.len() * 4,
-                ))
-                .map(|_| ())
-        }
+    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+        buf.encode(&self[..])
     }
 }
 

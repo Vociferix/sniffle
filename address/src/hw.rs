@@ -4,11 +4,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_ende::{
-    decode::{cast, DResult, Decode},
-    encode::{Encode, Encoder},
-    nom::combinator::map,
-};
+use sniffle_decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_encode::{Encodable, Encode, EncodeBuf};
 
 use crate::{Address, AddressParseError};
 
@@ -317,33 +314,39 @@ impl<const LEN: usize> Display for HwAddress<LEN> {
     }
 }
 
+unsafe impl<const LEN: usize> bytemuck::Zeroable for HwAddress<LEN> {}
+
+unsafe impl<const LEN: usize> bytemuck::Pod for HwAddress<LEN> {}
+
 impl<const LEN: usize> Decode for HwAddress<LEN> {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        map(<[u8; LEN]>::decode, Self::from)(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode(buf)
     }
 
-    fn decode_many<const LENLEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LENLEN]> {
-        unsafe { cast(buf) }
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+        let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
+        bytes.decode(buf)
+    }
+}
+
+impl<const LEN: usize> Encodable for HwAddress<LEN> {
+    fn encoded_size(&self) -> usize {
+        LEN
+    }
+
+    fn encoded_slice_size(slice: &[Self]) -> usize {
+        LEN * slice.len()
     }
 }
 
 impl<const LEN: usize> Encode for HwAddress<LEN> {
-    fn encode<'a, W: Encoder<'a> + ?Sized>(&self, encoder: &mut W) -> std::io::Result<()> {
-        encoder.encode(&self[..]).map(|_| ())
+    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+        self.0.encode(buf);
     }
 
-    fn encode_many<'a, W: Encoder<'a> + ?Sized>(
-        slice: &[Self],
-        encoder: &mut W,
-    ) -> std::io::Result<()> {
-        unsafe {
-            encoder
-                .encode(std::slice::from_raw_parts(
-                    slice.as_ptr() as *const u8,
-                    slice.len() * 4,
-                ))
-                .map(|_| ())
-        }
+    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+        let bytes: &[u8] = bytemuck::cast_slice(slice);
+        bytes.encode(buf);
     }
 }
 
