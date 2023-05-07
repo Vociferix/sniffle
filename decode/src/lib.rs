@@ -620,3 +620,52 @@ impl DecodeLe for f64 {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[derive(Decode, Debug, Default, PartialEq, Eq)]
+    struct Struct {
+        a: u8,
+        b: i8,
+        #[big]
+        c: u32,
+        #[little]
+        d: i32,
+        e: [u8; 4],
+        f: [i8; 4],
+        #[little]
+        g: [u16; 2],
+        #[big]
+        h: [i16; 2],
+    }
+
+    #[test]
+    fn do_decode() {
+        let mut buf: &[u8] = &[
+            0x82, // a == 130
+            0x82, // b == -126
+            1, 2, 3, 4, // c == 16909060
+            4, 3, 2, 0x80, // d == -2147351804
+            1, 2, 3, 4, // f == [1, 2, 3, 4]
+            0xfe, 0xff, 0, 1, // g == [-2, -1, 0, 1]
+            1, 2, 3, 4, // h == [513, 1027]
+            1, 2, 3, 4, // i == [258, 772]
+        ];
+
+        assert_eq!(
+            buf.decode(),
+            Ok(Struct {
+                a: 130,
+                b: -126,
+                c: 16909060,
+                d: -2147351804,
+                e: [1, 2, 3, 4],
+                f: [-2, -1, 0, 1],
+                g: [513, 1027],
+                h: [258, 772],
+            })
+        );
+    }
+}
