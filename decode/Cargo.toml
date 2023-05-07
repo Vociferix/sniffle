@@ -10,3 +10,6 @@ bytes = "1"
 bytemuck = "1"
 thiserror = "1"
 sniffle-decode-derive = { path = "derive" }
+
+[dev-dependencies]
+sniffle-bytes = { path = "../bytes" }

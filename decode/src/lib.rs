@@ -624,6 +624,7 @@ impl DecodeLe for f64 {
 #[cfg(test)]
 mod test {
     use super::*;
+    use sniffle_bytes::bytes;
 
     #[derive(Decode, Debug, Default, PartialEq, Eq)]
     struct Struct {
@@ -643,16 +644,18 @@ mod test {
 
     #[test]
     fn do_decode() {
-        let mut buf: &[u8] = &[
-            0x82, // a == 130
-            0x82, // b == -126
-            1, 2, 3, 4, // c == 16909060
-            4, 3, 2, 0x80, // d == -2147351804
-            1, 2, 3, 4, // f == [1, 2, 3, 4]
-            0xfe, 0xff, 0, 1, // g == [-2, -1, 0, 1]
-            1, 2, 3, 4, // h == [513, 1027]
-            1, 2, 3, 4, // i == [258, 772]
-        ];
+        let mut buf: &[u8] = &bytes!(
+            "
+            82       # a == 130
+            82       # b == -126
+            01020304 # c == 16909060
+            04030280 # d == -2147351804
+            01020304 # f == [1, 2, 3, 4]
+            feff0001 # g == [-2, -1, 0, 1]
+            01020304 # h == [513, 1027]
+            01020304 # i == [258, 772]
+        "
+        );
 
         assert_eq!(
             buf.decode(),

@@ -27,6 +27,7 @@ npcap = ["libpcap", "sniffle-core/npcap"]
 
 [workspace]
 members = [
+    "bytes",
     "link-types",
     "libpcap-sys",
     "pcaprs",

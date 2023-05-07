@@ -13,25 +13,28 @@ fn get_str(input: TokenStream) -> String {
         panic!("Expected an address string literal");
     };
 
-    let TokenTree::Group(grp) = grp  else {
-        panic!("Expected an address string literal");
-    };
-
-    let mut subiter = grp.stream().into_iter();
-    let Some(tok) = subiter.next() else {
-        panic!("Expected an address string literal");
-    };
-
-    let TokenTree::Literal(lit) = tok else {
-        panic!("Expected an address string literal");
+    let lit = match grp {
+        TokenTree::Group(grp) => {
+            let mut subiter = grp.stream().into_iter();
+            let Some(tok) = subiter.next() else {
+                panic!("Expected an address string literal");
+            };
+            let TokenTree::Literal(lit) = tok else {
+                panic!("Expected an address string literal");
+            };
+            if let Some(_) = subiter.next() {
+                panic!("Unexpected token after address string literal");
+            }
+            lit
+        }
+        TokenTree::Literal(lit) => lit,
+        _ => {
+            panic!("Expected an address string literal");
+        }
     };
 
     let Ok(lit) = StringLit::try_from(lit) else {
         panic!("Expected an address string literal");
-    };
-
-    if let Some(_) = subiter.next() {
-        panic!("Unexpected token after address string literal");
     };
 
     if let Some(_) = iter.next() {
