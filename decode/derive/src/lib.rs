@@ -66,15 +66,15 @@ pub fn decode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::DecodeBe::decode_be(&mut self.#name, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::DecodeBe::decode_be(&mut self.#name, __sniffle_decode_decode_buf_value)?;
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::DecodeLe::decode_le(&mut self.#name, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::DecodeLe::decode_le(&mut self.#name, __sniffle_decode_decode_buf_value)?;
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::Decode::decode(&mut self.#name, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::Decode::decode(&mut self.#name, __sniffle_decode_decode_buf_value)?;
                         }
                     }
                 });
@@ -109,15 +109,15 @@ pub fn decode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::DecodeBe::decode_be(&mut self.#index, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::DecodeBe::decode_be(&mut self.#index, __sniffle_decode_decode_buf_value)?;
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::DecodeLe::decode_le(&mut self.#index, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::DecodeLe::decode_le(&mut self.#index, __sniffle_decode_decode_buf_value)?;
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::Decode::decode(&mut self.#index, __sniffle_decode_DecodeBuf_value)?;
+                            #crate_name::Decode::decode(&mut self.#index, __sniffle_decode_decode_buf_value)?;
                         }
                     }
                 });
@@ -137,7 +137,7 @@ pub fn decode(input: TokenStream) -> TokenStream {
 
     quote! {
         impl #impl_generics #crate_name::Decode for #name #ty_generics #where_clause {
-            fn decode<__sniffle_decode_DecodeBuf_type: #crate_name::DecodeBuf>(&mut self, __sniffle_decode_DecodeBuf_value: &mut __sniffle_decode_DecodeBuf_type) -> ::std::result::Result<(), #crate_name::DecodeError> {
+            fn decode<__sniffle_decode_decode_buf_type: #crate_name::DecodeBuf>(&mut self, __sniffle_decode_decode_buf_value: &mut __sniffle_decode_decode_buf_type) -> ::std::result::Result<(), #crate_name::DecodeError> {
                 #steps
             }
         }
