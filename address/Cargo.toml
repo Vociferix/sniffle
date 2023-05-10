@@ -10,8 +10,7 @@ thiserror = "1.0"
 bytemuck = "1"
 sniffle-address-parse = { path = "parse" }
 sniffle-address-macros = { path = "macros" }
-sniffle-encode = { path = "../encode" }
-sniffle-decode = { path = "../decode" }
+sniffle-ende = { path = "../ende" }
 sniffle-uint = { path = "../uint" }
 
 [build-dependencies]

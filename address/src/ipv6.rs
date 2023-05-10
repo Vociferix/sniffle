@@ -6,8 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_decode::{Decode, DecodeBuf, DecodeError};
-use sniffle_encode::{Encodable, Encode, EncodeBuf};
+use sniffle_ende::decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_ende::encode::{Encodable, Encode, EncodeBuf};
 
 use bytemuck;
 

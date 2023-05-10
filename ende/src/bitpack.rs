@@ -1,4 +1,4 @@
-use super::*;
+use sniffle_uint::*;
 
 /// A trait that defines how to pack and unpack uints.
 ///

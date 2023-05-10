@@ -1,862 +1,1092 @@
-use nom::number::streaming as num;
-use nom::{error::ParseError, IResult};
-use std::mem::MaybeUninit;
+use bytes::Buf;
+use crate::BitPack;
 
-#[derive(Debug, PartialEq)]
-#[non_exhaustive]
-pub enum DecodeError<'a> {
-    Nom(nom::error::Error<&'a [u8]>),
+use sniffle_uint::*;
+
+pub use sniffle_ende_derive::Decode;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum DecodeError {
+    #[error("Not enough data to decode")]
+    NeedMore,
+    #[error("Data is malformed")]
     Malformed,
 }
 
-pub type DResult<'a, T> = IResult<&'a [u8], T, DecodeError<'a>>;
+pub type Result<T> = std::result::Result<T, DecodeError>;
 
-pub trait Decode: Sized {
-    fn decode(buf: &[u8]) -> DResult<'_, Self>;
-
-    fn decode_many<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe {
-            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
-            for (i, elem) in ret.iter_mut().enumerate() {
-                let (rem, val) = match Self::decode(buf) {
-                    Ok(res) => res,
-                    Err(e) => {
-                        return match e {
-                            nom::Err::Incomplete(needed) => {
-                                if i == LEN - 1 {
-                                    Err(nom::Err::Incomplete(needed))
-                                } else {
-                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
-                                }
-                            }
-                            _ => Err(e),
-                        };
-                    }
-                };
-                buf = rem;
-                *elem = MaybeUninit::new(val);
-            }
-            Ok((buf, transmute(ret)))
+pub trait DecodeBuf: Buf + Sized {
+    fn skip(&mut self, num_bytes: usize) -> Result<()> {
+        if num_bytes > self.remaining() {
+            Err(DecodeError::NeedMore)
+        } else {
+            self.advance(num_bytes);
+            Ok(())
         }
     }
+
+    fn decode_to<D: Decode>(&mut self, item: &mut D) -> Result<()> {
+        item.decode(self)
+    }
+
+    fn decode_be_to<D: DecodeBe>(&mut self, item: &mut D) -> Result<()> {
+        item.decode_be(self)
+    }
+
+    fn decode_le_to<D: DecodeLe>(&mut self, item: &mut D) -> Result<()> {
+        item.decode_le(self)
+    }
+
+    fn decode_with<D>(&mut self, mut init: D) -> Result<D>
+    where
+        D: Decode + Sized,
+    {
+        init.decode(self)?;
+        Ok(init)
+    }
+
+    fn decode_be_with<D>(&mut self, mut init: D) -> Result<D>
+    where
+        D: DecodeBe + Sized,
+    {
+        init.decode_be(self)?;
+        Ok(init)
+    }
+
+    fn decode_le_with<D>(&mut self, mut init: D) -> Result<D>
+    where
+        D: DecodeLe + Sized,
+    {
+        init.decode_le(self)?;
+        Ok(init)
+    }
+
+    fn decode<D>(&mut self) -> Result<D>
+    where
+        D: Decode + Sized + Default,
+    {
+        self.decode_with(D::default())
+    }
+
+    fn decode_be<D>(&mut self) -> Result<D>
+    where
+        D: DecodeBe + Sized + Default,
+    {
+        self.decode_be_with(D::default())
+    }
+
+    fn decode_le<D>(&mut self) -> Result<D>
+    where
+        D: DecodeLe + Sized + Default,
+    {
+        self.decode_le_with(D::default())
+    }
 }
 
-pub trait DecodeBe: Sized {
-    fn decode_be(buf: &[u8]) -> DResult<'_, Self>;
+impl<B: Buf + Sized> DecodeBuf for B {}
 
-    fn decode_many_be<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe {
-            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
-            for (i, elem) in ret.iter_mut().enumerate() {
-                let (rem, val) = match Self::decode_be(buf) {
-                    Ok(res) => res,
-                    Err(e) => {
-                        return match e {
-                            nom::Err::Incomplete(needed) => {
-                                if i == LEN - 1 {
-                                    Err(nom::Err::Incomplete(needed))
-                                } else {
-                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
-                                }
-                            }
-                            _ => Err(e),
-                        };
-                    }
-                };
-                buf = rem;
-                *elem = MaybeUninit::new(val);
-            }
-            Ok((buf, transmute(ret)))
+pub trait Decode {
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
+
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    where
+        Self: Sized,
+    {
+        for item in slice.iter_mut() {
+            item.decode(buf)?;
         }
+        Ok(())
     }
 }
 
-pub trait DecodeLe: Sized {
-    fn decode_le(buf: &[u8]) -> DResult<'_, Self>;
+pub trait DecodeBe {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
-    fn decode_many_le<const LEN: usize>(mut buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe {
-            let mut ret: [MaybeUninit<Self>; LEN] = MaybeUninit::uninit().assume_init();
-            for (i, elem) in ret.iter_mut().enumerate() {
-                let (rem, val) = match Self::decode_le(buf) {
-                    Ok(res) => res,
-                    Err(e) => {
-                        return match e {
-                            nom::Err::Incomplete(needed) => {
-                                if i == LEN - 1 {
-                                    Err(nom::Err::Incomplete(needed))
-                                } else {
-                                    Err(nom::Err::Incomplete(nom::Needed::Unknown))
-                                }
-                            }
-                            _ => Err(e),
-                        };
-                    }
-                };
-                buf = rem;
-                *elem = MaybeUninit::new(val);
-            }
-            Ok((buf, transmute(ret)))
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    where
+        Self: Sized,
+    {
+        for item in slice.iter_mut() {
+            item.decode_be(buf)?;
         }
+        Ok(())
     }
 }
 
-pub fn decode<D: Decode>(buf: &[u8]) -> DResult<'_, D> {
-    D::decode(buf)
-}
+pub trait DecodeLe {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
-pub fn decode_be<D: DecodeBe>(buf: &[u8]) -> DResult<'_, D> {
-    D::decode_be(buf)
-}
-
-pub fn decode_le<D: DecodeLe>(buf: &[u8]) -> DResult<'_, D> {
-    D::decode_le(buf)
-}
-
-impl<'a> ParseError<&'a [u8]> for DecodeError<'a> {
-    fn from_error_kind(input: &'a [u8], kind: nom::error::ErrorKind) -> Self {
-        Self::Nom(nom::error::Error::from_error_kind(input, kind))
-    }
-
-    fn append(_: &'a [u8], _: nom::error::ErrorKind, other: Self) -> Self {
-        other
-    }
-}
-
-impl<'a> From<nom::error::Error<&'a [u8]>> for DecodeError<'a> {
-    fn from(e: nom::error::Error<&'a [u8]>) -> Self {
-        Self::Nom(e)
-    }
-}
-
-impl<D: Decode, const LEN: usize> Decode for [D; LEN] {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        D::decode_many(buf)
-    }
-}
-
-impl<D: DecodeBe, const LEN: usize> DecodeBe for [D; LEN] {
-    fn decode_be(buf: &[u8]) -> DResult<'_, Self> {
-        D::decode_many_be(buf)
-    }
-}
-
-impl<D: DecodeLe, const LEN: usize> DecodeLe for [D; LEN] {
-    fn decode_le(buf: &[u8]) -> DResult<'_, Self> {
-        D::decode_many_le(buf)
-    }
-}
-
-/// Decodes a type, T, by directly filling the memory it occupies with
-/// the bytes contained in the in the byte slice, up to the size of the
-/// resulting type.
-///
-/// # Safety
-/// Great care must be taken to ensure this function is safe to use on
-/// any given type, T. In general, it is unsound to decode any arbitrary
-/// type with this function, but the only necessary condition is that the
-/// first `std::mem::size_of::<T>()` bytes (agnostic of alignment) are
-/// guaranteed to constitute a valid instance of type T. Although it is
-/// possible for this function to be sound in more exotic scenarios, most
-/// uses of this function should be for built in types, such as integers
-/// and floating point types (not references!), and arrays,
-/// `repr(transparent)` types, and `repr(C)` types, consisting entirely
-/// of built in types; in short, types with well defined layout and which
-/// have no invalid representations.
-pub unsafe fn cast<T>(buf: &[u8]) -> DResult<'_, T> {
-    let mut ret: MaybeUninit<T> = MaybeUninit::uninit();
-
-    if std::mem::size_of::<T>() != 0 {
-        if buf.len() < std::mem::size_of::<T>() {
-            return Err(nom::Err::Incomplete(nom::Needed::Size(
-                std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>() - buf.len()),
-            )));
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    where
+        Self: Sized,
+    {
+        for item in slice.iter_mut() {
+            item.decode_le(buf)?;
         }
-        let mut buf: &[u8] = &buf[..std::mem::size_of::<T>()];
-        if std::io::copy(
-            &mut buf,
-            &mut (std::slice::from_raw_parts_mut(
-                std::ptr::addr_of_mut!(ret) as *mut u8,
-                std::mem::size_of::<T>(),
-            )),
-        )
-        .is_err()
-        {
-            return Err(nom::Err::Incomplete(nom::Needed::Size(
-                std::num::NonZeroUsize::new_unchecked(std::mem::size_of::<T>()),
-            )));
-        };
+        Ok(())
     }
-    Ok((&buf[std::mem::size_of::<T>()..], transmute(ret)))
+}
+
+impl<D: Decode + Sized> Decode for [D] {
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_slice(self, buf)
+    }
+}
+
+impl<D: DecodeBe + Sized> DecodeBe for [D] {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_be_slice(self, buf)
+    }
+}
+
+impl<D: DecodeLe + Sized> DecodeLe for [D] {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_le_slice(self, buf)
+    }
+}
+
+impl<D: Decode + Sized, const LEN: usize> Decode for [D; LEN] {
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_slice(self, buf)
+    }
+}
+
+impl<D: DecodeBe + Sized, const LEN: usize> DecodeBe for [D; LEN] {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_be_slice(self, buf)
+    }
+}
+
+impl<D: DecodeLe + Sized, const LEN: usize> DecodeLe for [D; LEN] {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_le_slice(self, buf)
+    }
+}
+
+impl Decode for () {
+    fn decode<B: DecodeBuf>(&mut self, _buf: &mut B) -> Result<()> {
+        Ok(())
+    }
+
+    fn decode_slice<B: DecodeBuf>(_slice: &mut [Self], _buf: &mut B) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Decode for u8 {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        num::u8(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if !buf.has_remaining() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u8();
+            Ok(())
+        }
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe { cast(buf) }
+    fn decode_slice<B: DecodeBuf>(slice: &mut [u8], buf: &mut B) -> Result<()> {
+        if buf.remaining() < slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(slice);
+            Ok(())
+        }
     }
 }
 
 impl Decode for i8 {
-    fn decode(buf: &[u8]) -> DResult<'_, Self> {
-        num::i8(buf)
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if !buf.has_remaining() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i8();
+            Ok(())
+        }
     }
 
-    fn decode_many<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-        unsafe { cast(buf) }
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
     }
 }
 
-macro_rules! make_decode {
-    ($t:ty, $be_func:ident, $le_func:ident) => {
-        impl DecodeBe for $t {
-            fn decode_be(buf: &[u8]) -> DResult<'_, Self> {
-                num::$be_func(buf)
-            }
-
-            fn decode_many_be<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-                unsafe {
-                    match cast::<[Self; LEN]>(buf) {
-                        Ok((rem, mut ret)) => {
-                            if !cfg!(target_endian = "big") {
-                                for elem in ret.iter_mut() {
-                                    *elem = Self::from_be_bytes(elem.to_ne_bytes());
-                                }
-                            }
-                            Ok((rem, ret))
-                        }
-                        Err(e) => Err(e),
-                    }
-                }
-            }
+impl DecodeBe for u16 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u16();
+            Ok(())
         }
+    }
 
-        impl DecodeLe for $t {
-            fn decode_le(buf: &[u8]) -> DResult<'_, Self> {
-                num::$le_func(buf)
-            }
-
-            fn decode_many_le<const LEN: usize>(buf: &[u8]) -> DResult<'_, [Self; LEN]> {
-                unsafe {
-                    match cast::<[Self; LEN]>(buf) {
-                        Ok((rem, mut ret)) => {
-                            if !cfg!(target_endian = "little") {
-                                for elem in ret.iter_mut() {
-                                    *elem = Self::from_le_bytes(elem.to_ne_bytes());
-                                }
-                            }
-                            Ok((rem, ret))
-                        }
-                        Err(e) => Err(e),
-                    }
-                }
-            }
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
         }
-    };
+    }
 }
 
-unsafe fn transmute<T, U>(x: T) -> U {
-    std::ptr::read(std::mem::transmute::<_, *const U>(std::ptr::addr_of!(x)))
+impl DecodeLe for u16 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u16_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
 }
 
-make_decode!(u16, be_u16, le_u16);
-make_decode!(u32, be_u32, le_u32);
-make_decode!(u64, be_u64, le_u64);
-make_decode!(u128, be_u128, le_u128);
-make_decode!(i16, be_i16, le_i16);
-make_decode!(i32, be_i32, le_i32);
-make_decode!(i64, be_i64, le_i64);
-make_decode!(i128, be_i128, le_i128);
-make_decode!(f32, be_f32, le_f32);
-make_decode!(f64, be_f64, le_f64);
+impl DecodeBe for i16 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i16();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for i16 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i16_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for u32 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u32();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for u32 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u32_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for i32 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i32();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for i32 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i32_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for u64 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u64();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for u64 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u64_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for i64 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i64();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for i64 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i64_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for u128 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u128();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for u128 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_u128_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for i128 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i128();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for i128 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_i128_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for f32 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_f32();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for f32 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_f32_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for f64 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_f64();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "big")]
+    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for f64 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() {
+            Err(DecodeError::NeedMore)
+        } else {
+            *self = buf.get_f64_le();
+            Ok(())
+        }
+    }
+
+    #[cfg(target_endian = "little")]
+    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+        if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
+            Err(DecodeError::NeedMore)
+        } else {
+            buf.copy_to_slice(bytemuck::cast_slice_mut(slice));
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for U24 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 3 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 4];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u32::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for U24 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 3 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 4];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u32::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for U40 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 5 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[3..]);
+            *self = u64::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for U40 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 5 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[3..]);
+            *self = u64::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for U48 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 6 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[2..]);
+            *self = u64::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for U48 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 8 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[2..]);
+            *self = u64::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeBe for U56 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 7 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u64::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl DecodeLe for U56 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 7 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 8];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u64::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U72 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 9 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[7..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U72 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 9 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[7..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U80 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 10 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[6..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U80 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 10 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[6..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U88 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 11 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[5..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U88 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 11 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[5..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U96 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 12 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[4..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U96 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 12 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[4..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U104 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 13 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[3..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U104 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 13 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[3..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U112 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 14 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[2..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U112 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 14 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[2..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeBe for U120 {
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 15 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u128::from_be_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+#[cfg(feature = "u128")]
+impl DecodeLe for U120 {
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        if buf.remaining() < 15 {
+            Err(DecodeError::NeedMore)
+        } else {
+            let mut tmp = [0u8; 16];
+            buf.copy_to_slice(&mut tmp[1..]);
+            *self = u128::from_le_bytes(tmp).into_masked();
+            Ok(())
+        }
+    }
+}
+
+impl<T> Decode for T
+    where T: BitPack,
+          <T as BitPack>::Packed: Decode + Default,
+{
+    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        *self = Self::unpack(buf.decode()?);
+        Ok(())
+    }
+}
+
+impl<T> DecodeBe for T
+    where T: BitPack,
+          <T as BitPack>::Packed: DecodeBe + Default,
+{
+    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        *self = Self::unpack(buf.decode_be()?);
+        Ok(())
+    }
+}
+
+impl<T> DecodeLe for T
+    where T: BitPack,
+          <T as BitPack>::Packed: DecodeLe + Default,
+{
+    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        *self = Self::unpack(buf.decode_le()?);
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::BitPack;
+    use sniffle_bytes::bytes;
 
-    macro_rules! incomplete {
-        () => {
-            nom::Err::Incomplete(nom::Needed::Unknown)
-        };
-        ($size:expr) => {
-            nom::Err::Incomplete(nom::Needed::Size(
-                std::num::NonZeroUsize::new($size).unwrap(),
-            ))
-        };
+    #[derive(Decode, Debug, Default, PartialEq, Eq)]
+    struct Struct {
+        a: u8,
+        b: i8,
+        #[big]
+        c: u32,
+        #[little]
+        d: i32,
+        e: [u8; 4],
+        f: [i8; 4],
+        #[little]
+        g: [u16; 2],
+        #[big]
+        h: [i16; 2],
     }
 
     #[test]
-    fn u8_decode() {
-        let buf = &[1, 2, 3, 4][..];
-        assert_eq!(u8::decode(buf), Ok((&[2, 3, 4][..], 1)));
-        assert_eq!(u8::decode(&buf[1..]), Ok((&[3, 4][..], 2)));
-        assert_eq!(u8::decode(&buf[2..]), Ok((&[4][..], 3)));
-        assert_eq!(u8::decode(&buf[3..]), Ok((&[][..], 4)));
-        assert_eq!(u8::decode(&buf[4..]), Err(incomplete!(1)));
+    fn decode_derive() {
+        let mut buf: &[u8] = &bytes!("
+            82       # a == 130
+            82       # b == -126
+            01020304 # c == 16909060
+            04030280 # d == -2147351804
+            01020304 # f == [1, 2, 3, 4]
+            feff0001 # g == [-2, -1, 0, 1]
+            01020304 # h == [513, 1027]
+            01020304 # i == [258, 772]
+        ");
+
+        assert_eq!(
+            buf.decode(),
+            Ok(Struct {
+                a: 130,
+                b: -126,
+                c: 16909060,
+                d: -2147351804,
+                e: [1, 2, 3, 4],
+                f: [-2, -1, 0, 1],
+                g: [513, 1027],
+                h: [258, 772],
+            })
+        );
+    }
+
+    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    struct Ipv4VerLen {
+        version: U4,
+        length: U4,
+    }
+
+    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    struct Ipv4DscpEcn {
+        dscp: U6,
+        ecn: U2,
+    }
+
+    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    struct Ipv4FlagsFragOff {
+        flags: U3,
+        frag_offset: U13,
+    }
+
+    #[derive(Decode, Debug, Default, PartialEq, Eq)]
+    struct Ipv4Header {
+        ver_len: Ipv4VerLen,
+        dscp_ecn: Ipv4DscpEcn,
+        #[big]
+        total_len: u16,
+        #[big]
+        ident: u16,
+        #[big]
+        flags_frag_offset: Ipv4FlagsFragOff,
+        ttl: u8,
+        protocol: u8,
+        #[big]
+        chksum: u16,
+        src_addr: [u8; 4],
+        dst_addr: [u8; 4],
     }
 
     #[test]
-    fn u8_array_decode() {
-        let buf = &[1, 2, 3, 4][..];
-        assert_eq!(<[u8; 2]>::decode(buf), Ok((&[3, 4][..], [1, 2])));
-        assert_eq!(<[u8; 2]>::decode(&buf[1..]), Ok((&[4][..], [2, 3])));
-        assert_eq!(<[u8; 2]>::decode(&buf[2..]), Ok((&[][..], [3, 4])));
-        assert_eq!(<[u8; 2]>::decode(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u8; 2]>::decode(&buf[4..]), Err(incomplete!(2)));
-    }
+    fn decode_derive_bitpack() {
+        let mut buf: &[u8] = &bytes!("
+            45       # version == 4, length == 5 (5 * 4 == 20)
+            00       # dscp == 0, ecn == 0
+            0014     # total_len == 20
+            1234     # ident == 0x1234
+            4000     # flags == 3, frag_offset == 0
+            80       # ttl == 128
+            fe       # protocol == 0xfe
+            4321     # chksum == 0x4321
+            c0a80001 # src_addr == 192.168.0.1
+            c0a80002 # dst_addr == 192.168.0.2
+        ");
 
-    #[test]
-    fn u16_decode_be() {
-        let buf = &[1, 2, 3, 4][..];
-        assert_eq!(u16::decode_be(buf), Ok((&[3, 4][..], 0x0102)));
-        assert_eq!(u16::decode_be(&buf[1..]), Ok((&[4][..], 0x0203)));
-        assert_eq!(u16::decode_be(&buf[2..]), Ok((&[][..], 0x0304)));
-        assert_eq!(u16::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u16::decode_be(&buf[4..]), Err(incomplete!(2)));
-    }
-
-    #[test]
-    fn u16_array_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8][..];
         assert_eq!(
-            <[u16; 2]>::decode_be(buf),
-            Ok((&[5, 6, 7, 8][..], [0x0102, 0x0304]))
+            buf.decode(),
+            Ok(Ipv4Header {
+                ver_len: Ipv4VerLen {
+                    version: 4.into_masked(),
+                    length: 5.into_masked(),
+                },
+                dscp_ecn: Ipv4DscpEcn {
+                    dscp: 0.into_masked(),
+                    ecn: 0.into_masked(),
+                },
+                total_len: 20,
+                ident: 0x1234,
+                flags_frag_offset: Ipv4FlagsFragOff {
+                    flags: 2.into_masked(),
+                    frag_offset: 0.into_masked(),
+                },
+                ttl: 128,
+                protocol: 0xfe,
+                chksum: 0x4321,
+                src_addr: [192, 168, 0, 1],
+                dst_addr: [192, 168, 0, 2],
+            })
         );
-        assert_eq!(
-            <[u16; 2]>::decode_be(&buf[1..]),
-            Ok((&[6, 7, 8][..], [0x0203, 0x0405]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_be(&buf[2..]),
-            Ok((&[7, 8][..], [0x0304, 0x0506]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_be(&buf[3..]),
-            Ok((&[8][..], [0x0405, 0x0607]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_be(&buf[4..]),
-            Ok((&[][..], [0x0506, 0x0708]))
-        );
-        assert_eq!(<[u16; 2]>::decode_be(&buf[5..]), Err(incomplete!(1)));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[6..]), Err(incomplete!(2)));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[7..]), Err(incomplete!(3)));
-        assert_eq!(<[u16; 2]>::decode_be(&buf[8..]), Err(incomplete!(4)));
-    }
-
-    #[test]
-    fn u16_decode_le() {
-        let buf = &[1, 2, 3, 4][..];
-        assert_eq!(u16::decode_le(buf), Ok((&[3, 4][..], 0x0201)));
-        assert_eq!(u16::decode_le(&buf[1..]), Ok((&[4][..], 0x0302)));
-        assert_eq!(u16::decode_le(&buf[2..]), Ok((&[][..], 0x0403)));
-        assert_eq!(u16::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u16::decode_le(&buf[4..]), Err(incomplete!(2)));
-    }
-
-    #[test]
-    fn u16_array_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8][..];
-        assert_eq!(
-            <[u16; 2]>::decode_le(buf),
-            Ok((&[5, 6, 7, 8][..], [0x0201, 0x0403]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_le(&buf[1..]),
-            Ok((&[6, 7, 8][..], [0x0302, 0x0504]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_le(&buf[2..]),
-            Ok((&[7, 8][..], [0x0403, 0x0605]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_le(&buf[3..]),
-            Ok((&[8][..], [0x0504, 0x0706]))
-        );
-        assert_eq!(
-            <[u16; 2]>::decode_le(&buf[4..]),
-            Ok((&[][..], [0x0605, 0x0807]))
-        );
-        assert_eq!(<[u16; 2]>::decode_le(&buf[5..]), Err(incomplete!(1)));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[6..]), Err(incomplete!(2)));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[7..]), Err(incomplete!(3)));
-        assert_eq!(<[u16; 2]>::decode_le(&buf[8..]), Err(incomplete!(4)));
-    }
-
-    #[test]
-    fn u32_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6][..];
-        assert_eq!(u32::decode_be(buf), Ok((&[5, 6][..], 0x01020304)));
-        assert_eq!(u32::decode_be(&buf[1..]), Ok((&[6][..], 0x02030405)));
-        assert_eq!(u32::decode_be(&buf[2..]), Ok((&[][..], 0x03040506)));
-        assert_eq!(u32::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u32::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u32::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u32::decode_be(&buf[6..]), Err(incomplete!(4)));
-    }
-
-    #[test]
-    fn u32_array_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(
-            <[u32; 2]>::decode_be(buf),
-            Ok((&[9, 10][..], [0x01020304, 0x05060708]))
-        );
-        assert_eq!(
-            <[u32; 2]>::decode_be(&buf[1..]),
-            Ok((&[10][..], [0x02030405, 0x06070809]))
-        );
-        assert_eq!(
-            <[u32; 2]>::decode_be(&buf[2..]),
-            Ok((&[][..], [0x03040506, 0x0708090A]))
-        );
-        assert_eq!(<[u32; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u32; 2]>::decode_be(&buf[10..]), Err(incomplete!(8)));
-    }
-
-    #[test]
-    fn u32_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6][..];
-        assert_eq!(u32::decode_le(buf), Ok((&[5, 6][..], 0x04030201)));
-        assert_eq!(u32::decode_le(&buf[1..]), Ok((&[6][..], 0x05040302)));
-        assert_eq!(u32::decode_le(&buf[2..]), Ok((&[][..], 0x06050403)));
-        assert_eq!(u32::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u32::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u32::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u32::decode_le(&buf[6..]), Err(incomplete!(4)));
-    }
-
-    #[test]
-    fn u32_array_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(
-            <[u32; 2]>::decode_le(buf),
-            Ok((&[9, 10][..], [0x04030201, 0x08070605]))
-        );
-        assert_eq!(
-            <[u32; 2]>::decode_le(&buf[1..]),
-            Ok((&[10][..], [0x05040302, 0x09080706]))
-        );
-        assert_eq!(
-            <[u32; 2]>::decode_le(&buf[2..]),
-            Ok((&[][..], [0x06050403, 0x0A090807]))
-        );
-        assert_eq!(<[u32; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u32; 2]>::decode_le(&buf[10..]), Err(incomplete!(8)));
-    }
-
-    #[test]
-    fn u64_decode_be() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(u64::decode_be(buf), Ok((&[9, 10][..], 0x0102030405060708)));
-        assert_eq!(
-            u64::decode_be(&buf[1..]),
-            Ok((&[10][..], 0x0203040506070809))
-        );
-        assert_eq!(u64::decode_be(&buf[2..]), Ok((&[][..], 0x030405060708090A)));
-        assert_eq!(u64::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u64::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u64::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u64::decode_be(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(u64::decode_be(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(u64::decode_be(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(u64::decode_be(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(u64::decode_be(&buf[10..]), Err(incomplete!(8)));
-    }
-
-    #[test]
-    fn u64_array_decode_be() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ][..];
-        assert_eq!(
-            <[u64; 2]>::decode_be(buf),
-            Ok((&[17, 18][..], [0x0102030405060708, 0x090A0B0C0D0E0F10]))
-        );
-        assert_eq!(
-            <[u64; 2]>::decode_be(&buf[1..]),
-            Ok((&[18][..], [0x0203040506070809, 0x0A0B0C0D0E0F1011]))
-        );
-        assert_eq!(
-            <[u64; 2]>::decode_be(&buf[2..]),
-            Ok((&[][..], [0x030405060708090A, 0x0B0C0D0E0F101112]))
-        );
-        assert_eq!(<[u64; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(<[u64; 2]>::decode_be(&buf[18..]), Err(incomplete!(16)));
-    }
-
-    #[test]
-    fn u64_decode_le() {
-        let buf = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10][..];
-        assert_eq!(u64::decode_le(buf), Ok((&[9, 10][..], 0x0807060504030201)));
-        assert_eq!(
-            u64::decode_le(&buf[1..]),
-            Ok((&[10][..], 0x0908070605040302))
-        );
-        assert_eq!(u64::decode_le(&buf[2..]), Ok((&[][..], 0x0A09080706050403)));
-        assert_eq!(u64::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u64::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u64::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u64::decode_le(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(u64::decode_le(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(u64::decode_le(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(u64::decode_le(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(u64::decode_le(&buf[10..]), Err(incomplete!(8)));
-    }
-
-    #[test]
-    fn u64_array_decode_le() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ][..];
-        assert_eq!(
-            <[u64; 2]>::decode_le(buf),
-            Ok((&[17, 18][..], [0x0807060504030201, 0x100F0E0D0C0B0A09]))
-        );
-        assert_eq!(
-            <[u64; 2]>::decode_le(&buf[1..]),
-            Ok((&[18][..], [0x0908070605040302, 0x11100F0E0D0C0B0A]))
-        );
-        assert_eq!(
-            <[u64; 2]>::decode_le(&buf[2..]),
-            Ok((&[][..], [0x0A09080706050403, 0x1211100F0E0D0C0B]))
-        );
-        assert_eq!(<[u64; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(<[u64; 2]>::decode_le(&buf[18..]), Err(incomplete!(16)));
-    }
-
-    #[test]
-    fn u128_decode_be() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ][..];
-        assert_eq!(
-            u128::decode_be(buf),
-            Ok((&[17, 18][..], 0x0102030405060708090A0B0C0D0E0F10))
-        );
-        assert_eq!(
-            u128::decode_be(&buf[1..]),
-            Ok((&[18][..], 0x02030405060708090A0B0C0D0E0F1011))
-        );
-        assert_eq!(
-            u128::decode_be(&buf[2..]),
-            Ok((&[][..], 0x030405060708090A0B0C0D0E0F101112))
-        );
-        assert_eq!(u128::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u128::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u128::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u128::decode_be(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(u128::decode_be(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(u128::decode_be(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(u128::decode_be(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(u128::decode_be(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(u128::decode_be(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(u128::decode_be(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(u128::decode_be(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(u128::decode_be(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(u128::decode_be(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(u128::decode_be(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(u128::decode_be(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(u128::decode_be(&buf[18..]), Err(incomplete!(16)));
-    }
-
-    #[test]
-    fn u128_array_decode_be() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
-        ][..];
-        assert_eq!(
-            <[u128; 2]>::decode_be(buf),
-            Ok((
-                &[33, 34][..],
-                [
-                    0x0102030405060708090A0B0C0D0E0F10,
-                    0x1112131415161718191A1B1C1D1E1F20
-                ]
-            ))
-        );
-        assert_eq!(
-            <[u128; 2]>::decode_be(&buf[1..]),
-            Ok((
-                &[34][..],
-                [
-                    0x02030405060708090A0B0C0D0E0F1011,
-                    0x12131415161718191A1B1C1D1E1F2021
-                ]
-            ))
-        );
-        assert_eq!(
-            <[u128; 2]>::decode_be(&buf[2..]),
-            Ok((
-                &[][..],
-                [
-                    0x030405060708090A0B0C0D0E0F101112,
-                    0x131415161718191A1B1C1D1E1F202122
-                ]
-            ))
-        );
-        assert_eq!(<[u128; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[18..]), Err(incomplete!(16)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[19..]), Err(incomplete!(17)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[20..]), Err(incomplete!(18)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[21..]), Err(incomplete!(19)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[22..]), Err(incomplete!(20)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[23..]), Err(incomplete!(21)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[24..]), Err(incomplete!(22)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[25..]), Err(incomplete!(23)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[26..]), Err(incomplete!(24)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[27..]), Err(incomplete!(25)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[28..]), Err(incomplete!(26)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[29..]), Err(incomplete!(27)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[30..]), Err(incomplete!(28)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[31..]), Err(incomplete!(29)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[32..]), Err(incomplete!(30)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[33..]), Err(incomplete!(31)));
-        assert_eq!(<[u128; 2]>::decode_be(&buf[34..]), Err(incomplete!(32)));
-    }
-
-    #[test]
-    fn u128_decode_le() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ][..];
-        assert_eq!(
-            u128::decode_le(buf),
-            Ok((&[17, 18][..], 0x100F0E0D0C0B0A090807060504030201))
-        );
-        assert_eq!(
-            u128::decode_le(&buf[1..]),
-            Ok((&[18][..], 0x11100F0E0D0C0B0A0908070605040302))
-        );
-        assert_eq!(
-            u128::decode_le(&buf[2..]),
-            Ok((&[][..], 0x1211100F0E0D0C0B0A09080706050403))
-        );
-        assert_eq!(u128::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(u128::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(u128::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(u128::decode_le(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(u128::decode_le(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(u128::decode_le(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(u128::decode_le(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(u128::decode_le(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(u128::decode_le(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(u128::decode_le(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(u128::decode_le(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(u128::decode_le(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(u128::decode_le(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(u128::decode_le(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(u128::decode_le(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(u128::decode_le(&buf[18..]), Err(incomplete!(16)));
-    }
-
-    #[test]
-    fn u128_array_decode_le() {
-        let buf = &[
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
-        ][..];
-        assert_eq!(
-            <[u128; 2]>::decode_le(buf),
-            Ok((
-                &[33, 34][..],
-                [
-                    0x100F0E0D0C0B0A090807060504030201,
-                    0x201F1E1D1C1B1A191817161514131211
-                ]
-            ))
-        );
-        assert_eq!(
-            <[u128; 2]>::decode_le(&buf[1..]),
-            Ok((
-                &[34][..],
-                [
-                    0x11100F0E0D0C0B0A0908070605040302,
-                    0x21201F1E1D1C1B1A1918171615141312
-                ]
-            ))
-        );
-        assert_eq!(
-            <[u128; 2]>::decode_le(&buf[2..]),
-            Ok((
-                &[][..],
-                [
-                    0x1211100F0E0D0C0B0A09080706050403,
-                    0x2221201F1E1D1C1B1A19181716151413
-                ]
-            ))
-        );
-        assert_eq!(<[u128; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[6..]), Err(incomplete!(4)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[7..]), Err(incomplete!(5)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[8..]), Err(incomplete!(6)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[9..]), Err(incomplete!(7)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[10..]), Err(incomplete!(8)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[11..]), Err(incomplete!(9)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[12..]), Err(incomplete!(10)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[13..]), Err(incomplete!(11)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[14..]), Err(incomplete!(12)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[15..]), Err(incomplete!(13)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[16..]), Err(incomplete!(14)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[17..]), Err(incomplete!(15)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[18..]), Err(incomplete!(16)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[19..]), Err(incomplete!(17)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[20..]), Err(incomplete!(18)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[21..]), Err(incomplete!(19)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[22..]), Err(incomplete!(20)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[23..]), Err(incomplete!(21)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[24..]), Err(incomplete!(22)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[25..]), Err(incomplete!(23)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[26..]), Err(incomplete!(24)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[27..]), Err(incomplete!(25)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[28..]), Err(incomplete!(26)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[29..]), Err(incomplete!(27)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[30..]), Err(incomplete!(28)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[31..]), Err(incomplete!(29)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[32..]), Err(incomplete!(30)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[33..]), Err(incomplete!(31)));
-        assert_eq!(<[u128; 2]>::decode_le(&buf[34..]), Err(incomplete!(32)));
-    }
-
-    #[test]
-    fn i8_decode() {
-        let buf = &[1, 2, 0xFF, 0x80][..];
-        assert_eq!(i8::decode(buf), Ok((&[2, 0xFF, 0x80][..], 1)));
-        assert_eq!(i8::decode(&buf[1..]), Ok((&[0xFF, 0x80][..], 2)));
-        assert_eq!(i8::decode(&buf[2..]), Ok((&[0x80][..], -1)));
-        assert_eq!(i8::decode(&buf[3..]), Ok((&[][..], -128)));
-        assert_eq!(i8::decode(&buf[4..]), Err(incomplete!(1)));
-    }
-
-    #[test]
-    fn i8_array_decode() {
-        let buf = &[1, 2, 0xFF, 0x80][..];
-        assert_eq!(<[i8; 2]>::decode(buf), Ok((&[0xFF, 0x80][..], [1, 2])));
-        assert_eq!(<[i8; 2]>::decode(&buf[1..]), Ok((&[0x80][..], [2, -1])));
-        assert_eq!(<[i8; 2]>::decode(&buf[2..]), Ok((&[][..], [-1, -128])));
-        assert_eq!(<[i8; 2]>::decode(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[i8; 2]>::decode(&buf[4..]), Err(incomplete!(2)));
-    }
-
-    #[test]
-    fn i16_decode_be() {
-        let buf = &[1, 2, 0xFF, 0][..];
-        assert_eq!(i16::decode_be(buf), Ok((&[0xFF, 0][..], 0x0102)));
-        assert_eq!(i16::decode_be(&buf[1..]), Ok((&[0][..], 0x02FF)));
-        assert_eq!(i16::decode_be(&buf[2..]), Ok((&[][..], -256)));
-        assert_eq!(i16::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(i16::decode_be(&buf[4..]), Err(incomplete!(2)));
-    }
-
-    #[test]
-    fn i16_array_decode_be() {
-        let buf = &[1, 2, 0xFF, 0, 0x80, 1][..];
-        assert_eq!(
-            <[i16; 2]>::decode_be(buf),
-            Ok((&[0x80, 1][..], [0x0102, -256]))
-        );
-        assert_eq!(
-            <[i16; 2]>::decode_be(&buf[1..]),
-            Ok((&[1][..], [0x02FF, 0x80]))
-        );
-        assert_eq!(
-            <[i16; 2]>::decode_be(&buf[2..]),
-            Ok((&[][..], [-256, -32767]))
-        );
-        assert_eq!(<[i16; 2]>::decode_be(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[i16; 2]>::decode_be(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[i16; 2]>::decode_be(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[i16; 2]>::decode_be(&buf[6..]), Err(incomplete!(4)));
-    }
-
-    #[test]
-    fn i16_decode_le() {
-        let buf = &[1, 2, 0, 0xFF][..];
-        assert_eq!(i16::decode_le(buf), Ok((&[0, 0xFF][..], 0x0201)));
-        assert_eq!(i16::decode_le(&buf[1..]), Ok((&[0xFF][..], 2)));
-        assert_eq!(i16::decode_le(&buf[2..]), Ok((&[][..], -256)));
-        assert_eq!(i16::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(i16::decode_le(&buf[4..]), Err(incomplete!(2)));
-    }
-
-    #[test]
-    fn i16_array_decode_le() {
-        let buf = &[1, 2, 0, 0xFF, 1, 0x80][..];
-        assert_eq!(
-            <[i16; 2]>::decode_le(buf),
-            Ok((&[1, 0x80][..], [0x0201, -256]))
-        );
-        assert_eq!(
-            <[i16; 2]>::decode_le(&buf[1..]),
-            Ok((&[0x80][..], [2, 0x1FF]))
-        );
-        assert_eq!(
-            <[i16; 2]>::decode_le(&buf[2..]),
-            Ok((&[][..], [-256, -32767]))
-        );
-        assert_eq!(<[i16; 2]>::decode_le(&buf[3..]), Err(incomplete!(1)));
-        assert_eq!(<[i16; 2]>::decode_le(&buf[4..]), Err(incomplete!(2)));
-        assert_eq!(<[i16; 2]>::decode_le(&buf[5..]), Err(incomplete!(3)));
-        assert_eq!(<[i16; 2]>::decode_le(&buf[6..]), Err(incomplete!(4)));
     }
 }

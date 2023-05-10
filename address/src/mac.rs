@@ -8,8 +8,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_decode::{Decode, DecodeBuf, DecodeError};
-use sniffle_encode::{Encodable, Encode, EncodeBuf};
+use sniffle_ende::decode::{Decode, DecodeBuf, DecodeError};
+use sniffle_ende::encode::{Encodable, Encode, EncodeBuf};
 
 use sniffle_uint::{IntoMasked, U48};
 
@@ -25,27 +25,19 @@ use sniffle_address_parse::parse_hw;
 /// does not. HwAddress is intended for use with generic addresses, and MacAddress is
 /// specifically for MAC addresses. MacAddress and HwAddress<6> can be infallibly
 /// converted from one to the other if desired.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Default, Hash)]
 #[repr(transparent)]
-pub struct MacAddress([u8; 8]);
+pub struct MacAddress(HwAddress<6>);
 
 impl MacAddress {
     /// The MAC broadcast address
     ///
     /// `ff:ff:ff:ff:ff:ff`
-    pub const BROADCAST: Self = Self([0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
-
-    fn value(&self) -> u64 {
-        u64::from_be_bytes(self.0)
-    }
-
-    fn from_value(val: u64) -> Self {
-        Self(val.to_be_bytes())
-    }
+    pub const BROADCAST: Self = Self(HwAddress::new([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]));
 
     /// Creates a MAC address from a raw bytes representation
     pub const fn new(raw: [u8; 6]) -> Self {
-        Self([0, 0, raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]])
+        Self(HwAddress::new([raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]]))
     }
 
     /// Attempts to convert an IPv6 EUI-64 address to a MAC address
@@ -66,16 +58,14 @@ impl MacAddress {
         if eui[3] != 0xff || eui[4] != 0xfe {
             Err(eui)
         } else {
-            Ok(MacAddress([
-                0,
-                0,
+            Ok(MacAddress(HwAddress::new([
                 eui[0] ^ 2,
                 eui[1],
                 eui[2],
                 eui[5],
                 eui[6],
                 eui[7],
-            ]))
+            ])))
         }
     }
 
@@ -91,14 +81,14 @@ impl MacAddress {
     /// ```
     pub fn to_eui(&self) -> HwAddress<8> {
         HwAddress::new([
-            self.0[2] ^ 2,
-            self.0[3],
-            self.0[4],
+            self.0[0] ^ 2,
+            self.0[1],
+            self.0[2],
             0xff,
             0xfe,
+            self.0[3],
+            self.0[4],
             self.0[5],
-            self.0[6],
-            self.0[7],
         ])
     }
 
@@ -121,12 +111,6 @@ impl MacAddress {
     }
 }
 
-impl Default for MacAddress {
-    fn default() -> Self {
-        Self([0u8; 8])
-    }
-}
-
 impl From<[u8; 6]> for MacAddress {
     fn from(raw: [u8; 6]) -> Self {
         Self::new(raw)
@@ -135,34 +119,34 @@ impl From<[u8; 6]> for MacAddress {
 
 impl From<MacAddress> for [u8; 6] {
     fn from(addr: MacAddress) -> Self {
-        [
-            addr.0[2], addr.0[3], addr.0[4], addr.0[5], addr.0[6], addr.0[7],
-        ]
+        addr.0.into()
     }
 }
 
 impl From<HwAddress<6>> for MacAddress {
     fn from(addr: HwAddress<6>) -> Self {
-        <[u8; 6]>::from(addr).into()
+        Self(addr)
     }
 }
 
 impl From<MacAddress> for HwAddress<6> {
     fn from(addr: MacAddress) -> Self {
-        <[u8; 6]>::from(addr).into()
+        addr.0
     }
 }
 
 impl From<U48> for MacAddress {
     fn from(addr: U48) -> Self {
         let addr: u64 = addr.into();
-        Self(addr.to_be_bytes())
+        let [_, _, b0, b1, b2, b3, b4, b5] = addr.to_be_bytes();
+        Self::new([b0, b1, b2, b3, b4, b5])
     }
 }
 
 impl From<MacAddress> for U48 {
     fn from(addr: MacAddress) -> Self {
-        u64::from_be_bytes(addr.0).into_masked()
+        let [b0, b1, b2, b3, b4, b5]: [u8; 6] = addr.into();
+        u64::from_be_bytes([0, 0, b0, b1, b2, b3, b4, b5]).into_masked()
     }
 }
 
@@ -170,70 +154,13 @@ impl Deref for MacAddress {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        &self.0[2..]
+        &self.0[..]
     }
 }
 
 impl DerefMut for MacAddress {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0[2..]
-    }
-}
-
-impl PartialEq for MacAddress {
-    fn eq(&self, other: &Self) -> bool {
-        self.value().eq(&other.value())
-    }
-}
-
-impl Eq for MacAddress {}
-
-impl PartialOrd for MacAddress {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.value().partial_cmp(&other.value())
-    }
-
-    fn lt(&self, other: &Self) -> bool {
-        self.value().lt(&other.value())
-    }
-
-    fn le(&self, other: &Self) -> bool {
-        self.value().le(&other.value())
-    }
-
-    fn gt(&self, other: &Self) -> bool {
-        self.value().gt(&other.value())
-    }
-
-    fn ge(&self, other: &Self) -> bool {
-        self.value().ge(&other.value())
-    }
-}
-
-impl Ord for MacAddress {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.value().cmp(&other.value())
-    }
-
-    fn max(self, other: Self) -> Self {
-        Self::from_value(self.value().max(other.value()))
-    }
-
-    fn min(self, other: Self) -> Self {
-        Self::from_value(self.value().min(other.value()))
-    }
-
-    fn clamp(self, min: Self, max: Self) -> Self {
-        Self::from_value(self.value().clamp(min.value(), max.value()))
-    }
-}
-
-impl Hash for MacAddress {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: Hasher,
-    {
-        self.value().hash(state)
+        &mut self.0[..]
     }
 }
 
@@ -241,7 +168,7 @@ impl BitAnd for &MacAddress {
     type Output = MacAddress;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        MacAddress::from_value(self.value() & rhs.value())
+        MacAddress(&self.0 & &rhs.0)
     }
 }
 
@@ -249,7 +176,7 @@ impl BitAnd<MacAddress> for &MacAddress {
     type Output = MacAddress;
 
     fn bitand(self, rhs: MacAddress) -> Self::Output {
-        self.bitand(&rhs)
+        MacAddress(&self.0 & &rhs.0)
     }
 }
 
@@ -257,7 +184,7 @@ impl BitAnd<&MacAddress> for MacAddress {
     type Output = Self;
 
     fn bitand(self, rhs: &Self) -> Self::Output {
-        BitAnd::bitand(&self, rhs)
+        Self(&self.0 & &rhs.0)
     }
 }
 
@@ -265,19 +192,19 @@ impl BitAnd for MacAddress {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        self.bitand(&rhs)
+        Self(&self.0 & &rhs.0)
     }
 }
 
 impl BitAndAssign<&MacAddress> for MacAddress {
     fn bitand_assign(&mut self, rhs: &Self) {
-        *self = &*self & rhs;
+        self.0 &= &rhs.0;
     }
 }
 
 impl BitAndAssign for MacAddress {
     fn bitand_assign(&mut self, rhs: Self) {
-        self.bitand_assign(&rhs)
+        self.0 &= &rhs.0;
     }
 }
 
@@ -285,7 +212,7 @@ impl BitOr for &MacAddress {
     type Output = MacAddress;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        MacAddress::from_value(self.value() | rhs.value())
+        MacAddress(&self.0 | &rhs.0)
     }
 }
 
@@ -293,7 +220,7 @@ impl BitOr<MacAddress> for &MacAddress {
     type Output = MacAddress;
 
     fn bitor(self, rhs: MacAddress) -> Self::Output {
-        self.bitor(&rhs)
+        MacAddress(&self.0 | &rhs.0)
     }
 }
 
@@ -301,7 +228,7 @@ impl BitOr<&MacAddress> for MacAddress {
     type Output = Self;
 
     fn bitor(self, rhs: &Self) -> Self::Output {
-        BitOr::bitor(&self, rhs)
+        Self(&self.0 | &rhs.0)
     }
 }
 
@@ -309,19 +236,19 @@ impl BitOr for MacAddress {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        self.bitor(&rhs)
+        Self(&self.0 | &rhs.0)
     }
 }
 
 impl BitOrAssign<&MacAddress> for MacAddress {
     fn bitor_assign(&mut self, rhs: &Self) {
-        *self = &*self | rhs;
+        self.0 |= &rhs.0;
     }
 }
 
 impl BitOrAssign for MacAddress {
     fn bitor_assign(&mut self, rhs: Self) {
-        self.bitor_assign(&rhs)
+        self.0 |= &rhs.0;
     }
 }
 
@@ -329,7 +256,7 @@ impl BitXor for &MacAddress {
     type Output = MacAddress;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        MacAddress::from_value(self.value() ^ rhs.value())
+        MacAddress(&self.0 ^ &rhs.0)
     }
 }
 
@@ -337,7 +264,7 @@ impl BitXor<MacAddress> for &MacAddress {
     type Output = MacAddress;
 
     fn bitxor(self, rhs: MacAddress) -> Self::Output {
-        self.bitxor(&rhs)
+        MacAddress(&self.0 ^ &rhs.0)
     }
 }
 
@@ -345,7 +272,7 @@ impl BitXor<&MacAddress> for MacAddress {
     type Output = Self;
 
     fn bitxor(self, rhs: &Self) -> Self::Output {
-        BitXor::bitxor(&self, rhs)
+        Self(&self.0 ^ &rhs.0)
     }
 }
 
@@ -353,19 +280,19 @@ impl BitXor for MacAddress {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        self.bitxor(&rhs)
+        Self(&self.0 ^ &rhs.0)
     }
 }
 
 impl BitXorAssign<&MacAddress> for MacAddress {
     fn bitxor_assign(&mut self, rhs: &Self) {
-        *self = &*self ^ rhs;
+        self.0 ^= &rhs.0
     }
 }
 
 impl BitXorAssign for MacAddress {
     fn bitxor_assign(&mut self, rhs: Self) {
-        self.bitxor_assign(&rhs)
+        self.0 ^= &rhs.0
     }
 }
 
@@ -373,7 +300,7 @@ impl Not for &MacAddress {
     type Output = MacAddress;
 
     fn not(self) -> Self::Output {
-        MacAddress::from_value(!self.value())
+        MacAddress(!&self.0)
     }
 }
 
@@ -381,7 +308,7 @@ impl Not for MacAddress {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Not::not(&self)
+        Self(!&self.0)
     }
 }
 
@@ -389,19 +316,13 @@ impl FromStr for MacAddress {
     type Err = AddressParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut addr = [0u8; 8];
-        parse_hw(s, &mut addr[2..])?;
-        Ok(Self(addr))
+        Ok(Self(s.parse()?))
     }
 }
 
 impl Display for MacAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-            self.0[2], self.0[3], self.0[4], self.0[5], self.0[6], self.0[7]
-        )
+        Display::fmt(&self.0, f)
     }
 }
 
@@ -411,7 +332,12 @@ unsafe impl bytemuck::Pod for MacAddress {}
 
 impl Decode for MacAddress {
     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
-        self.0[2..].decode(buf)
+        self.0.decode(buf)
+    }
+
+    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+        let slice: &mut [HwAddress<6>] = bytemuck::cast_slice_mut(slice);
+        HwAddress::<6>::decode_slice(slice, buf)
     }
 }
 
@@ -427,7 +353,12 @@ impl Encodable for MacAddress {
 
 impl Encode for MacAddress {
     fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        buf.encode(&self[..])
+        buf.encode(&self.0)
+    }
+
+    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+        let slice: &[HwAddress<6>] = bytemuck::cast_slice(slice);
+        HwAddress::<6>::encode_slice(slice, buf)
     }
 }
 
@@ -435,23 +366,19 @@ impl Address for MacAddress {
     type Raw = [u8; 6];
 
     fn from_prefix_len(prefix_len: u32) -> Self {
-        if prefix_len >= 48 {
-            Self([0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
-        } else {
-            Self::from_value(!(!0u64 >> (prefix_len + 16)) & 0x0000_ffff_ffff_ffff)
-        }
+        Self(HwAddress::from_prefix_len(prefix_len))
     }
 
     fn as_prefix_len(&self) -> u32 {
-        (self.value() | 0xffff000000000000).leading_ones()
+        self.0.as_prefix_len()
     }
 
     fn next_addr(&self) -> Self {
-        Self::from_value((self.value() + 1) & 0x0000_ffff_ffff_ffff)
+        Self(self.0.next_addr())
     }
 
     fn prev_addr(&self) -> Self {
-        Self::from_value(self.value().wrapping_sub(1) & 0x0000_ffff_ffff_ffff)
+        Self(self.0.prev_addr())
     }
 }
 

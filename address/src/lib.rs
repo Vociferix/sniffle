@@ -8,8 +8,8 @@ use std::{
     str::FromStr,
 };
 
-use sniffle_decode::Decode;
-use sniffle_encode::Encode;
+use sniffle_ende::decode::Decode;
+use sniffle_ende::encode::Encode;
 
 use sniffle_address_parse::parse_subnet;
 

@@ -1,5 +1,5 @@
 [package]
-name = "sniffle-encode-derive"
+name = "sniffle-ende-derive"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,3 +11,4 @@ proc-macro = true
 [dependencies]
 syn = "2.0"
 quote = "1.0"
+proc-macro-crate = "1.3"
