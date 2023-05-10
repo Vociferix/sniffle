@@ -36,7 +36,9 @@ pub fn decode(input: TokenStream) -> TokenStream {
     let mut generics = input.generics;
     for param in &mut generics.params {
         if let GenericParam::Type(ref mut type_param) = *param {
-            type_param.bounds.push(parse_quote!(#crate_name::decode::Decode));
+            type_param
+                .bounds
+                .push(parse_quote!(#crate_name::decode::Decode));
         }
     }
 
@@ -333,18 +335,26 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
     let (packed_type, pack_steps, unpack_steps) = match input.data {
         Data::Struct(ref data) => match data.fields {
             Fields::Named(ref fields) => {
-                let types: Vec<_> = fields.named.iter().map(|f| {
-                    let ty = &f.ty;
-                    quote_spanned! {f.span()=>
-                        #ty
-                    }
-                }).collect();
-                let fields: Vec<_> = fields.named.iter().map(|f| {
-                    let name = &f.ident;
-                    quote_spanned! {f.span()=>
-                        #name
-                    }
-                }).collect();
+                let types: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| {
+                        let ty = &f.ty;
+                        quote_spanned! {f.span()=>
+                            #ty
+                        }
+                    })
+                    .collect();
+                let fields: Vec<_> = fields
+                    .named
+                    .iter()
+                    .map(|f| {
+                        let name = &f.ident;
+                        quote_spanned! {f.span()=>
+                            #name
+                        }
+                    })
+                    .collect();
                 (
                     quote! {
                         <(#(#types),*) as #crate_name::BitPack>::Packed
@@ -356,20 +366,26 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
                     quote! {
                         let (#(#fields),*) = <(#(#types),*) as #crate_name::BitPack>::unpack(packed);
                         Self { #(#fields),* }
-                    }
+                    },
                 )
             }
             Fields::Unnamed(ref fields) => {
-                let types: Vec<_> = fields.unnamed.iter().map(|f| {
-                    let ty = &f.ty;
-                    quote_spanned! {f.span()=>
-                        #ty
-                    }
-                }).collect();
-                let tmp_names: Vec<_> = (0..(fields.unnamed.len())).map(|i| {
-                    let tmp_name = Ident::new(&format!("__tmp_{i}"), Span::call_site().into());
-                    quote! { #tmp_name }
-                }).collect();
+                let types: Vec<_> = fields
+                    .unnamed
+                    .iter()
+                    .map(|f| {
+                        let ty = &f.ty;
+                        quote_spanned! {f.span()=>
+                            #ty
+                        }
+                    })
+                    .collect();
+                let tmp_names: Vec<_> = (0..(fields.unnamed.len()))
+                    .map(|i| {
+                        let tmp_name = Ident::new(&format!("__tmp_{i}"), Span::call_site().into());
+                        quote! { #tmp_name }
+                    })
+                    .collect();
                 (
                     quote! {
                         <(#(#types),*) as #crate_name::BitPack>::Packed
@@ -381,7 +397,7 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
                     quote! {
                         let (#(#tmp_names),*) = <(#(#types),*) as #crate_name::BitPack>::unpack(packed);
                         Self(#(#tmp_names),*)
-                    }
+                    },
                 )
             }
             Fields::Unit => unimplemented!(),
@@ -401,5 +417,6 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
                 #unpack_steps
             }
         }
-    }.into()
+    }
+    .into()
 }

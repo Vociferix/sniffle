@@ -766,8 +766,9 @@ impl EncodeLe for U120 {
 }
 
 impl<T> Encodable for T
-    where T: BitPack,
-          <T as BitPack>::Packed: Encodable + Default,
+where
+    T: BitPack,
+    <T as BitPack>::Packed: Encodable + Default,
 {
     fn encoded_size(&self) -> usize {
         <T as BitPack>::Packed::default().encoded_size()
@@ -779,8 +780,9 @@ impl<T> Encodable for T
 }
 
 impl<T> Encode for T
-    where T: BitPack + Clone,
-          <T as BitPack>::Packed: Encode + Default,
+where
+    T: BitPack + Clone,
+    <T as BitPack>::Packed: Encode + Default,
 {
     fn encode<B: EncodeBuf>(&self, buf: &mut B) {
         self.clone().pack().encode(buf);
@@ -788,8 +790,9 @@ impl<T> Encode for T
 }
 
 impl<T> EncodeBe for T
-    where T: BitPack + Clone,
-          <T as BitPack>::Packed: EncodeBe + Default,
+where
+    T: BitPack + Clone,
+    <T as BitPack>::Packed: EncodeBe + Default,
 {
     fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
         self.clone().pack().encode_be(buf);
@@ -797,8 +800,9 @@ impl<T> EncodeBe for T
 }
 
 impl<T> EncodeLe for T
-    where T: BitPack + Clone,
-          <T as BitPack>::Packed: EncodeLe + Default,
+where
+    T: BitPack + Clone,
+    <T as BitPack>::Packed: EncodeLe + Default,
 {
     fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
         self.clone().pack().encode_le(buf);

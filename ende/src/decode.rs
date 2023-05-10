@@ -1,5 +1,5 @@
-use bytes::Buf;
 use crate::BitPack;
+use bytes::Buf;
 
 use sniffle_uint::*;
 
@@ -934,8 +934,9 @@ impl DecodeLe for U120 {
 }
 
 impl<T> Decode for T
-    where T: BitPack,
-          <T as BitPack>::Packed: Decode + Default,
+where
+    T: BitPack,
+    <T as BitPack>::Packed: Decode + Default,
 {
     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack(buf.decode()?);
@@ -944,8 +945,9 @@ impl<T> Decode for T
 }
 
 impl<T> DecodeBe for T
-    where T: BitPack,
-          <T as BitPack>::Packed: DecodeBe + Default,
+where
+    T: BitPack,
+    <T as BitPack>::Packed: DecodeBe + Default,
 {
     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack(buf.decode_be()?);
@@ -954,8 +956,9 @@ impl<T> DecodeBe for T
 }
 
 impl<T> DecodeLe for T
-    where T: BitPack,
-          <T as BitPack>::Packed: DecodeLe + Default,
+where
+    T: BitPack,
+    <T as BitPack>::Packed: DecodeLe + Default,
 {
     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack(buf.decode_le()?);
@@ -987,7 +990,8 @@ mod test {
 
     #[test]
     fn decode_derive() {
-        let mut buf: &[u8] = &bytes!("
+        let mut buf: &[u8] = &bytes!(
+            "
             82       # a == 130
             82       # b == -126
             01020304 # c == 16909060
@@ -996,7 +1000,8 @@ mod test {
             feff0001 # g == [-2, -1, 0, 1]
             01020304 # h == [513, 1027]
             01020304 # i == [258, 772]
-        ");
+        "
+        );
 
         assert_eq!(
             buf.decode(),
@@ -1051,7 +1056,8 @@ mod test {
 
     #[test]
     fn decode_derive_bitpack() {
-        let mut buf: &[u8] = &bytes!("
+        let mut buf: &[u8] = &bytes!(
+            "
             45       # version == 4, length == 5 (5 * 4 == 20)
             00       # dscp == 0, ecn == 0
             0014     # total_len == 20
@@ -1062,7 +1068,8 @@ mod test {
             4321     # chksum == 0x4321
             c0a80001 # src_addr == 192.168.0.1
             c0a80002 # dst_addr == 192.168.0.2
-        ");
+        "
+        );
 
         assert_eq!(
             buf.decode(),

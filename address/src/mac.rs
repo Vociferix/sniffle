@@ -37,7 +37,9 @@ impl MacAddress {
 
     /// Creates a MAC address from a raw bytes representation
     pub const fn new(raw: [u8; 6]) -> Self {
-        Self(HwAddress::new([raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]]))
+        Self(HwAddress::new([
+            raw[0], raw[1], raw[2], raw[3], raw[4], raw[5],
+        ]))
     }
 
     /// Attempts to convert an IPv6 EUI-64 address to a MAC address
