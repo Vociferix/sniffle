@@ -40,6 +40,30 @@ fn get_str(input: TokenStream) -> String {
     lit.value().into()
 }
 
+/// Macro for creating arbitrarily sized byte arrays in hexadecimal string notation.
+///
+/// The argument to `bytes!` must be a string literal that contains hexadecimal
+/// digits. The following characters will be ignored:
+/// * whitespace, according to `char::is_whitespace`
+/// * underscores (`_`)
+/// * dashes (`-`)
+/// * colons (`:`)
+///
+/// Additionally, comments are ignored. Comments beging with a hash (`#`) and
+/// continue to the end of the line. Any other characters outside of a comment will
+/// result in a compile time error. The returned value will be an array of bytes
+/// (`[u8; _]`), usable in `const` or non-`const` contexts.
+///
+/// ## Example
+/// ```
+/// # use sniffle_bytes::bytes;
+/// const MY_BYTES: &[u8] = &bytes!("
+///     ## My Bytes Example:
+///     01 02_03:04-05 # A comment!
+///     abc de f
+/// ");
+/// assert_eq!(MY_BYTES, &[0x01, 0x02, 0x03, 0x04, 0x05, 0xab, 0xcd, 0xef]);
+/// ```
 #[proc_macro]
 pub fn bytes(input: TokenStream) -> TokenStream {
     let mut b = Vec::new();
