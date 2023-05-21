@@ -1,43 +1,163 @@
 use sniffle_uint::*;
 
-/// A trait that defines how to pack and unpack uints.
+pub use sniffle_ende_derive::Pack;
+
+/// A trait that defines how to pack and unpack fields of `struct` or tuple.
 ///
-/// Implementing BitPack allows types to be used with the `pack` and `unpack` macros.
-pub trait BitPack {
+/// Fields each have an effective bit width that may or may not be a multiple of
+/// 8. For example the type [`sniffle::uint::U3`](sniffle_uint::U3) is
+/// effectively a 3-bit integer. As such, when packed an unpacked, only 3 bits
+/// are used. This allows types that implement [`Pack`] to represent bit fields,
+/// although indirectly.
+///
+/// For example, the tuple `(U3, U6, U7)` is a normal rust tuple with 3 fields
+/// with at least byte alignment and size, but it also implements [`Pack`], which
+/// allows for simple and infallible conversion to and from `u16`, since the 3
+/// fields total to 16 effective bits.
+///
+/// [`Pack`] also interoperates with the [`decode`](crate::decode) and
+/// [`encode`](crate::encode) modules. If the packed type implements
+/// [`Decode`](crate::decode::Decode),
+/// [`DecodeBe`](crate::decode::DecodeBe),
+/// [`DecodeLe`](crate::decode::DecodeLe),
+/// [`Encode`](crate::encode::Encode),
+/// [`EncodeBe`](crate::encode::EncodeBe), or
+/// [`EncodeLe`](crate::encode::EncodeLe),
+/// the implementing type will also implement those traits. Again using the tuple
+/// `(U3, U6, U7)` as an example, the tuple type implements
+/// [`DecodeBe`](crate::decode::DecodeBe),
+/// [`DecodeLe`](crate::decode::DecodeLe),
+/// [`EncodeBe`](crate::encode::EncodeBe), and
+/// [`EncodeLe`](crate::encode::EncodeLe) because `u16` implements those
+/// traits. The encoded tuple will be 16-bits, equivalent to packing the values
+/// into a `u16`. Note that the fields of the tuple are encoded and decoded in
+/// order, regardless of endianness. Endianness affects how the packed type (the
+/// `u16`) is encoded and decoded, but from there the fields are extracted from
+/// the `u16` from MSB to LSB order.
+///
+/// # Limitations
+/// [`Pack`] is designed only to convert between product types (`structs` and
+/// tuples) and unsigned integers. As a consequence the provided basic
+/// implementations only allow for packing of up to 64 bits, or 128 bits with
+/// the `u128` feature enabled.
+///
+/// Additionally, the [`encode`](crate::encode) and [`decode`](crate::decode)
+/// modules are not bit aware - only byte aware. The consequence is that not
+/// all arbitrary types implementing [`Pack`] can be encoded or decoded.
+/// Instead, only types that have an exact byte width can be encoded and
+/// decoded. Rephrased, the number of `bits` in the `Pack::Packed` type must
+/// satisfy `bits % 8 == 0` to be able to be encoded and decoded.
+pub trait Pack {
+    /// Target packed type
     type Packed;
 
+    /// Converts the implementing type into a packed representation. See also
+    /// [`Unpack::pack_from`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::pack::Pack;
+    /// # use sniffle_uint::{IntoMasked, U3, U6, U7};
+    /// let unpacked: (U3, U6, U7) = (
+    ///     0b010.into_masked(),
+    ///     0b100100.into_masked(),
+    ///     0b0110101.into_masked(),
+    /// );
+    /// let packed = unpacked.pack();
+    /// assert_eq!(packed, 0b_010_100100_0110101);
+    /// ```
     fn pack(self) -> Self::Packed;
-    fn unpack(packed: Self::Packed) -> Self;
+
+    /// Converts the packed representation into the implementing type. See
+    /// also [`Unpack::unpack`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::pack::Pack;
+    /// # use sniffle_uint::{IntoMasked, U3, U6, U7};
+    /// let packed = 0b_010_100100_0110101_u16;
+    /// let unpacked = <(U3, U6, U7)>::unpack_from(packed);
+    /// assert_eq!(unpacked, (
+    ///     0b010.into_masked(),
+    ///     0b100100.into_masked(),
+    ///     0b0110101.into_masked(),
+    /// ));
+    /// ```
+    fn unpack_from(packed: Self::Packed) -> Self;
 }
 
-impl<T> BitPack for (T,) {
+/// Helper trait to [`Pack`] similar to the [`Into`](std::convert::Into) trait.
+///
+/// [`Unpack`] is the reverse of [`Pack`] and is automatically implemented for
+/// all `Pack::Packed` types.
+pub trait Unpack<T: Pack<Packed = Self>>: Sized {
+    /// The reverse of [`Pack::unpack_from`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::pack::Unpack;
+    /// # use sniffle_uint::{U3, U6, U7, IntoMasked};
+    /// let unpacked: (U3, U6, U7) = (
+    ///     0b010.into_masked(),
+    ///     0b100100.into_masked(),
+    ///     0b0110101.into_masked(),
+    /// );
+    /// let packed = u16::pack_from(unpacked);
+    /// assert_eq!(packed, 0b_010_100100_0110101);
+    /// ```
+    fn pack_from(unpacked: T) -> Self {
+        unpacked.pack()
+    }
+
+    /// The reverse of [`Pack::pack`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::pack::Unpack;
+    /// # use sniffle_uint::{U3, U6, U7, IntoMasked};
+    /// let packed = 0b_010_100100_0110101_u16;
+    /// let unpacked: (U3, U6, U7) = packed.unpack();
+    /// assert_eq!(unpacked, (
+    ///     0b010.into_masked(),
+    ///     0b100100.into_masked(),
+    ///     0b0110101.into_masked(),
+    /// ));
+    /// ```
+    fn unpack(self) -> T {
+        T::unpack_from(self)
+    }
+}
+
+impl<T, P> Unpack<T> for P where T: Pack<Packed = P> {}
+
+impl<T> Pack for (T,) {
     type Packed = T;
 
     fn pack(self) -> Self::Packed {
         self.0
     }
 
-    fn unpack(packed: Self::Packed) -> Self {
+    fn unpack_from(packed: Self::Packed) -> Self {
         (packed,)
     }
 }
 
 macro_rules! bitpack_impl {
     (($t1:ident, $v1:ident), $(($tn:ident, $vn:ident)),+) => {
-        impl<$t1, $($tn),+> BitPack for ($t1, $($tn),+)
-            where ($($tn),+): BitPack,
-                  ($t1, <($($tn),+) as BitPack>::Packed): BitPack,
+        impl<$t1, $($tn),+> Pack for ($t1, $($tn),+)
+            where ($($tn),+): Pack,
+                  ($t1, <($($tn),+) as Pack>::Packed): Pack,
         {
-            type Packed = <($t1, <($($tn),+) as BitPack>::Packed) as BitPack>::Packed;
+            type Packed = <($t1, <($($tn),+) as Pack>::Packed) as Pack>::Packed;
 
             fn pack(self) -> Self::Packed {
                 let ($v1, $($vn),+) = self;
                 ($v1, ($($vn),+).pack()).pack()
             }
 
-            fn unpack(packed: Self::Packed) -> Self {
-                let ($v1, tmp) = <($t1, <($($tn),+) as BitPack>::Packed)>::unpack(packed);
-                let ($($vn),+) = <($($tn),+) as BitPack>::unpack(tmp);
+            fn unpack_from(packed: Self::Packed) -> Self {
+                let ($v1, tmp) = <($t1, <($($tn),+) as Pack>::Packed)>::unpack_from(packed);
+                let ($($vn),+) = <($($tn),+) as Pack>::unpack_from(tmp);
                 ($v1, $($vn),+)
             }
         }
@@ -254,14 +374,14 @@ bitpack_impl_all!(
 
 macro_rules! impl_bitpack {
     (($l:ty, $r:ty) -> $o:ty) => {
-        impl BitPack for ($l, $r) {
+        impl Pack for ($l, $r) {
             type Packed = $o;
 
             fn pack(self) -> Self::Packed {
                 (<$o>::from(self.0) << <$r>::BITS) | <$o>::from(self.1)
             }
 
-            fn unpack(packed: Self::Packed) -> Self {
+            fn unpack_from(packed: Self::Packed) -> Self {
                 let l = (packed >> <$r>::BITS) & <$o>::from(<$l>::MAX);
                 let r = packed & <$o>::from(<$r>::MAX);
                 (l.try_into().unwrap(), r.try_into().unwrap())

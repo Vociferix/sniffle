@@ -322,8 +322,8 @@ pub fn encode(input: TokenStream) -> TokenStream {
     }.into()
 }
 
-#[proc_macro_derive(BitPack)]
-pub fn bitpack(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Pack)]
+pub fn pack(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let crate_name = crate_name();
@@ -357,14 +357,14 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
                     .collect();
                 (
                     quote! {
-                        <(#(#types),*) as #crate_name::BitPack>::Packed
+                        <(#(#types),*) as #crate_name::pack::Pack>::Packed
                     },
                     quote! {
                         let Self { #(#fields),* } = self;
                         (#(#fields),*).pack()
                     },
                     quote! {
-                        let (#(#fields),*) = <(#(#types),*) as #crate_name::BitPack>::unpack(packed);
+                        let (#(#fields),*) = <(#(#types),*) as #crate_name::pack::Pack>::unpack_from(packed);
                         Self { #(#fields),* }
                     },
                 )
@@ -388,14 +388,14 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
                     .collect();
                 (
                     quote! {
-                        <(#(#types),*) as #crate_name::BitPack>::Packed
+                        <(#(#types),*) as #crate_name::pack::Pack>::Packed
                     },
                     quote! {
                         let Self(#(#tmp_names),*) = self;
                         (#(#tmp_names),*).pack()
                     },
                     quote! {
-                        let (#(#tmp_names),*) = <(#(#types),*) as #crate_name::BitPack>::unpack(packed);
+                        let (#(#tmp_names),*) = <(#(#types),*) as #crate_name::pack::Pack>::unpack_from(packed);
                         Self(#(#tmp_names),*)
                     },
                 )
@@ -406,14 +406,14 @@ pub fn bitpack(input: TokenStream) -> TokenStream {
     };
 
     quote! {
-        impl #impl_generics #crate_name::BitPack for #name #ty_generics #where_clause {
+        impl #impl_generics #crate_name::pack::Pack for #name #ty_generics #where_clause {
             type Packed = #packed_type;
 
             fn pack(self) -> Self::Packed {
                 #pack_steps
             }
 
-            fn unpack(packed: Self::Packed) -> Self {
+            fn unpack_from(packed: Self::Packed) -> Self {
                 #unpack_steps
             }
         }

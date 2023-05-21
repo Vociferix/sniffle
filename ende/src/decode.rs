@@ -1,21 +1,48 @@
-use crate::BitPack;
+use crate::pack::Pack;
 use bytes::Buf;
 
 use sniffle_uint::*;
 
 pub use sniffle_ende_derive::Decode;
 
+/// Error codes corresponding to the [`Decode`], [`DecodeBe`], and [`DecodeLe`] traits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DecodeError {
+    /// Designates that more data was expected.
+    ///
+    /// When input data is streaming, this may mean that more data
+    /// needs to be retreived from the stream in order to decode.
+    /// Otherwise, this error may simply mean that the data is
+    /// malformed or corrupted.
     #[error("Not enough data to decode")]
     NeedMore,
+    /// Designates that data is malformed or corrupted.
+    ///
+    /// Unlike [`DecodeError::NeedMore`], there is no possibility of decoding in
+    /// the presence of more data. The data cannot be decoded as the requested type.
     #[error("Data is malformed")]
     Malformed,
 }
 
-pub type Result<T> = std::result::Result<T, DecodeError>;
+type Result<T> = std::result::Result<T, DecodeError>;
 
+/// Trait representing a decodable data input buffer.
+///
+/// This trait is an extension to the [`bytes::Buf`] trait to support
+/// interoperability with the [`Decode`], [`DecodeBe`], and [`DecodeLe`]
+/// traits.
 pub trait DecodeBuf: Buf + Sized {
+    /// Consume bytes from the buffer without decoding as any datatype.
+    ///
+    /// May be useful for ignoring padding or reserved byte ranges.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::DecodeBuf;
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// buf.skip(4).unwrap();
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn skip(&mut self, num_bytes: usize) -> Result<()> {
         if num_bytes > self.remaining() {
             Err(DecodeError::NeedMore)
@@ -25,18 +52,71 @@ pub trait DecodeBuf: Buf + Sized {
         }
     }
 
-    fn decode_to<D: Decode>(&mut self, item: &mut D) -> Result<()> {
-        item.decode(self)
+    /// Consume and decode buffer data into a type implementing [`Decode`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{Decode, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let bytes: [u8; 4] = buf.decode().unwrap();
+    /// assert_eq!(bytes, [1, 2, 3, 4]);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode<D>(&mut self) -> Result<D>
+    where
+        D: Decode + Sized + Default,
+    {
+        self.decode_with(D::default())
     }
 
-    fn decode_be_to<D: DecodeBe>(&mut self, item: &mut D) -> Result<()> {
-        item.decode_be(self)
+    /// Consume and decode big endian buffer data into a type implementing [`DecodeBe`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeBe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let num: u32 = buf.decode_be().unwrap();
+    /// assert_eq!(num, 0x01020304);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode_be<D>(&mut self) -> Result<D>
+    where
+        D: DecodeBe + Sized + Default,
+    {
+        self.decode_be_with(D::default())
     }
 
-    fn decode_le_to<D: DecodeLe>(&mut self, item: &mut D) -> Result<()> {
-        item.decode_le(self)
+    /// Consume and decode little endian buffer data into a type implementing [`DecodeLe`].
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeLe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let num: u32 = buf.decode_le().unwrap();
+    /// assert_eq!(num, 0x04030201);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode_le<D>(&mut self) -> Result<D>
+    where
+        D: DecodeLe + Sized + Default,
+    {
+        self.decode_le_with(D::default())
     }
 
+    /// Consume and decode buffer data into a type implementing [`Decode`].
+    ///
+    /// Unlike, [`DecodeBuf::decode`], this function does not require that the decoded
+    /// type also implement [`Default`]. The initial value (`init`), is essentially
+    /// ignored and is used only to create an object that can be decoded into.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{Decode, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let bytes = buf.decode_with([0u8; 4]).unwrap();
+    /// assert_eq!(bytes, [1, 2, 3, 4]);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode_with<D>(&mut self, mut init: D) -> Result<D>
     where
         D: Decode + Sized,
@@ -45,6 +125,20 @@ pub trait DecodeBuf: Buf + Sized {
         Ok(init)
     }
 
+    /// Consume and decode big endian buffer data into a type implementing [`DecodeBe`].
+    ///
+    /// Unlike, [`DecodeBuf::decode_be`], this function does not require that the decoded
+    /// type also implement [`Default`]. The initial value (`init`), is essentially
+    /// ignored and is used only to create an object that can be decoded into.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeBe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let num = buf.decode_be_with(0u32).unwrap();
+    /// assert_eq!(num, 0x01020304);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode_be_with<D>(&mut self, mut init: D) -> Result<D>
     where
         D: DecodeBe + Sized,
@@ -53,6 +147,20 @@ pub trait DecodeBuf: Buf + Sized {
         Ok(init)
     }
 
+    /// Consume and decode little endian buffer data into a type implementing [`DecodeLe`].
+    ///
+    /// Unlike, [`DecodeBuf::decode_le`], this function does not require that the decoded
+    /// type also implement [`Default`]. The initial value (`init`), is essentially
+    /// ignored and is used only to create an object that can be decoded into.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeLe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let num = buf.decode_le_with(0u32).unwrap();
+    /// assert_eq!(num, 0x04030201);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode_le_with<D>(&mut self, mut init: D) -> Result<D>
     where
         D: DecodeLe + Sized,
@@ -61,33 +169,144 @@ pub trait DecodeBuf: Buf + Sized {
         Ok(init)
     }
 
-    fn decode<D>(&mut self) -> Result<D>
+    /// Consume and decode buffer data into a type implementing [`Decode`].
+    ///
+    /// Unlike, [`DecodeBuf::decode`] and [`DecodeBuf::decode_with`], this function
+    /// does not require that the decoded type also implement [`Default`] or
+    /// [`Sized`]. This funciton is useful for decoding into already existing
+    /// object instances, and instances of unsized types.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{Decode, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let mut bytes = [0u8; 4];
+    /// buf.decode_to(&mut bytes).unwrap();
+    /// assert_eq!(bytes, [1, 2, 3, 4]);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode_to<D>(&mut self, item: &mut D) -> Result<()>
     where
-        D: Decode + Sized + Default,
+        D: Decode + ?Sized,
     {
-        self.decode_with(D::default())
+        item.decode(self)
     }
 
-    fn decode_be<D>(&mut self) -> Result<D>
+    /// Consume and decode big endian buffer data into a type implementing [`DecodeBe`].
+    ///
+    /// Unlike, [`DecodeBuf::decode_be`] and [`DecodeBuf::decode_be_with`], this function
+    /// does not require that the decoded type also implement [`Default`] or [`Sized`].
+    /// This funciton is useful for decoding into already existing object instances,
+    /// and instances of unsized types.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeBe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let mut num = 0u32;
+    /// buf.decode_be_to(&mut num).unwrap();
+    /// assert_eq!(num, 0x01020304);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode_be_to<D>(&mut self, item: &mut D) -> Result<()>
     where
-        D: DecodeBe + Sized + Default,
+        D: DecodeBe + ?Sized,
     {
-        self.decode_be_with(D::default())
+        item.decode_be(self)
     }
 
-    fn decode_le<D>(&mut self) -> Result<D>
+    /// Consume and decode little endian buffer data into a type implementing [`DecodeLe`].
+    ///
+    /// Unlike, [`DecodeBuf::decode_le`] and [`DecodeBuf::decode_le_with`], this function
+    /// does not require that the decoded type also implement [`Default`] or [`Sized`].
+    /// This funciton is useful for decoding into already existing object instances,
+    /// and instances of unsized types.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeLe, DecodeBuf};
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let mut num = 0u32;
+    /// buf.decode_le_to(&mut num).unwrap();
+    /// assert_eq!(num, 0x04030201);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
+    fn decode_le_to<D>(&mut self, item: &mut D) -> Result<()>
     where
-        D: DecodeLe + Sized + Default,
+        D: DecodeLe + ?Sized,
     {
-        self.decode_le_with(D::default())
+        item.decode_le(self)
     }
 }
 
 impl<B: Buf + Sized> DecodeBuf for B {}
 
+/// Trait that allows a type to be decoded from a buffer.
 pub trait Decode {
+    /// Implements parsing a portion of a buffer onto a object.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{Decode, DecodeBuf, DecodeError};
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Addr {
+    ///     addr_bytes: [u8; 4],
+    /// }
+    ///
+    /// // Note that this simple example can be derived with #[derive(Decode)]
+    /// impl Decode for Addr {
+    ///     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_to(&mut self.addr_bytes)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let addr: Addr = buf.decode().unwrap();
+    /// assert_eq!(addr.addr_bytes, [1, 2, 3, 4]);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
+    /// Implements parsing a portion of a buffer onto a slices of objects.
+    ///
+    /// The implementer may choose to provide their own implementation of this
+    /// function when a more effcient solution exists. By default this function
+    /// simply iterates through the slice and decodes items one-by-one. In many
+    /// cases, a slice can be decoded in bulk using `unsafe` code or using
+    /// utilities like the [`bytemuck`] crate.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{Decode, DecodeBuf, DecodeError};
+    /// #[repr(transparent)]
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Addr {
+    ///     addr_bytes: [u8; 4],
+    /// }
+    ///
+    /// unsafe impl bytemuck::Zeroable for Addr { }
+    ///
+    /// unsafe impl bytemuck::Pod for Addr { }
+    ///
+    /// impl Decode for Addr {
+    ///     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_to(&mut self.addr_bytes)
+    ///     }
+    ///
+    ///     fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///         -> Result<(), DecodeError>
+    ///     {
+    ///         let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
+    ///         buf.decode_to(bytes)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    /// let addr: [Addr; 2] = buf.decode().unwrap();
+    /// assert_eq!(addr[0].addr_bytes, [1, 2, 3, 4]);
+    /// assert_eq!(addr[1].addr_bytes, [5, 6, 7, 8]);
+    /// assert_eq!(buf, &[9, 10, 11, 12]);
+    /// ```
     fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
@@ -99,9 +318,76 @@ pub trait Decode {
     }
 }
 
+/// Trait that allows a type to be decoded as big endian from a buffer.
+///
+/// Generally, a type that implements [`DecodeBe`] will also implement [`DecodeLe`] so
+/// that the user can choose to decode as big or little endian as needed. If there
+/// is only one valid endianness to decode as, the type should instead implement
+/// [`Decode`].
 pub trait DecodeBe {
+    /// Implements parsing a portion of a buffer onto a object as big endian.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeBe, DecodeBuf, DecodeError};
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Example {
+    ///     value: u32,
+    /// }
+    ///
+    /// impl DecodeBe for Example {
+    ///     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_be_to(&mut self.value)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let ex: Example = buf.decode_be().unwrap();
+    /// assert_eq!(ex.value, 0x01020304);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
+    /// Implements parsing a portion of a buffer onto a slices of objects as big endian.
+    ///
+    /// The implementer may choose to provide their own implementation of this
+    /// function when a more effcient solution exists. By default this function
+    /// simply iterates through the slice and decodes items one-by-one. In many
+    /// cases, a slice can be decoded in bulk using `unsafe` code or using
+    /// utilities like the [`bytemuck`] crate.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeBe, DecodeBuf, DecodeError};
+    /// #[repr(transparent)]
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Example {
+    ///     value: u32,
+    /// }
+    ///
+    /// unsafe impl bytemuck::Zeroable for Example { }
+    ///
+    /// unsafe impl bytemuck::Pod for Example { }
+    ///
+    /// impl DecodeBe for Example {
+    ///     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_be_to(&mut self.value)
+    ///     }
+    ///
+    ///     fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///         -> Result<(), DecodeError>
+    ///     {
+    ///         let values: &mut [u32] = bytemuck::cast_slice_mut(slice);
+    ///         buf.decode_be_to(values)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    /// let ex: [Example; 2] = buf.decode_be().unwrap();
+    /// assert_eq!(ex[0].value, 0x01020304);
+    /// assert_eq!(ex[1].value, 0x05060708);
+    /// assert_eq!(buf, &[9, 10, 11, 12]);
+    /// ```
     fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
@@ -113,9 +399,76 @@ pub trait DecodeBe {
     }
 }
 
+/// Trait that allows a type to be decoded as little endian from a buffer.
+///
+/// Generally, a type that implements [`DecodeLe`] will also implement [`DecodeBe`] so
+/// that the user can choose to decode as big or little endian as needed. If there
+/// is only one valid endianness to decode as, the type should instead implement
+/// [`Decode`].
 pub trait DecodeLe {
+    /// Implements parsing a portion of a buffer onto a object as little endian.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeLe, DecodeBuf, DecodeError};
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Example {
+    ///     value: u32,
+    /// }
+    ///
+    /// impl DecodeLe for Example {
+    ///     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_le_to(&mut self.value)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+    /// let ex: Example = buf.decode_le().unwrap();
+    /// assert_eq!(ex.value, 0x04030201);
+    /// assert_eq!(buf, &[5, 6, 7, 8]);
+    /// ```
     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
+    /// Implements parsing a portion of a buffer onto a slices of objects as little endian.
+    ///
+    /// The implementer may choose to provide their own implementation of this
+    /// function when a more effcient solution exists. By default this function
+    /// simply iterates through the slice and decodes items one-by-one. In many
+    /// cases, a slice can be decoded in bulk using `unsafe` code or using
+    /// utilities like the [`bytemuck`] crate.
+    ///
+    /// ## Example
+    /// ```
+    /// # use sniffle_ende::decode::{DecodeLe, DecodeBuf, DecodeError};
+    /// #[repr(transparent)]
+    /// #[derive(Clone, Copy, Debug, Default)]
+    /// struct Example {
+    ///     value: u32,
+    /// }
+    ///
+    /// unsafe impl bytemuck::Zeroable for Example { }
+    ///
+    /// unsafe impl bytemuck::Pod for Example { }
+    ///
+    /// impl DecodeLe for Example {
+    ///     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///         buf.decode_le_to(&mut self.value)
+    ///     }
+    ///
+    ///     fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///         -> Result<(), DecodeError>
+    ///     {
+    ///         let values: &mut [u32] = bytemuck::cast_slice_mut(slice);
+    ///         buf.decode_le_to(values)
+    ///     }
+    /// }
+    ///
+    /// let mut buf: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    /// let ex: [Example; 2] = buf.decode_le().unwrap();
+    /// assert_eq!(ex[0].value, 0x04030201);
+    /// assert_eq!(ex[1].value, 0x08070605);
+    /// assert_eq!(buf, &[9, 10, 11, 12]);
+    /// ```
     fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
@@ -935,33 +1288,33 @@ impl DecodeLe for U120 {
 
 impl<T> Decode for T
 where
-    T: BitPack,
-    <T as BitPack>::Packed: Decode + Default,
+    T: Pack,
+    <T as Pack>::Packed: Decode + Default,
 {
     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        *self = Self::unpack(buf.decode()?);
+        *self = Self::unpack_from(buf.decode()?);
         Ok(())
     }
 }
 
 impl<T> DecodeBe for T
 where
-    T: BitPack,
-    <T as BitPack>::Packed: DecodeBe + Default,
+    T: Pack,
+    <T as Pack>::Packed: DecodeBe + Default,
 {
     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        *self = Self::unpack(buf.decode_be()?);
+        *self = Self::unpack_from(buf.decode_be()?);
         Ok(())
     }
 }
 
 impl<T> DecodeLe for T
 where
-    T: BitPack,
-    <T as BitPack>::Packed: DecodeLe + Default,
+    T: Pack,
+    <T as Pack>::Packed: DecodeLe + Default,
 {
     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        *self = Self::unpack(buf.decode_le()?);
+        *self = Self::unpack_from(buf.decode_le()?);
         Ok(())
     }
 }
@@ -969,7 +1322,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::BitPack;
+    use crate::pack::Pack;
     use sniffle_bytes::bytes;
 
     #[derive(Decode, Debug, Default, PartialEq, Eq)]
@@ -1018,19 +1371,19 @@ mod test {
         );
     }
 
-    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    #[derive(Pack, Default, Debug, PartialEq, Eq)]
     struct Ipv4VerLen {
         version: U4,
         length: U4,
     }
 
-    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    #[derive(Pack, Default, Debug, PartialEq, Eq)]
     struct Ipv4DscpEcn {
         dscp: U6,
         ecn: U2,
     }
 
-    #[derive(BitPack, Default, Debug, PartialEq, Eq)]
+    #[derive(Pack, Default, Debug, PartialEq, Eq)]
     struct Ipv4FlagsFragOff {
         flags: U3,
         frag_offset: U13,
