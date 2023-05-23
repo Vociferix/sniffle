@@ -3,6 +3,94 @@ use bytes::Buf;
 
 use sniffle_uint::*;
 
+/// Derive the [`Decode`] trait on a struct.
+///
+/// Each field must implement [`Decode`], [`DecodeBe`], or [`DecodeLe`].
+/// Fields that implement [`DecodeBe`] and [`DecodeLe`] need to be annotated
+/// with `#[big]` or `#[little]` to specify whether the field should be
+/// decoded as big endian or little endian.
+///
+/// ## Example
+/// ```
+/// # use sniffle_ende::{pack::Pack, decode::Decode, decode::DecodeBuf};
+/// # use sniffle_uint::*;
+/// #[derive(Decode, Debug, Default, PartialEq, Eq)]
+/// struct Ipv4Header {
+///     ver_len: Ipv4VerLen,
+///     dscp_ecn: Ipv4DscpEcn,
+///     #[big]
+///     total_len: u16,
+///     #[big]
+///     ident: u16,
+///     #[big]
+///     flags_frag_offset: Ipv4FlagsFragOff,
+///     ttl: u8,
+///     protocol: u8,
+///     #[big]
+///     chksum: u16,
+///     src_addr: [u8; 4],
+///     dst_addr: [u8; 4],
+/// }
+///
+/// // Bit fields for version and length
+/// #[derive(Pack, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4VerLen {
+///     version: U4,
+///     length: U4,
+/// }
+///
+/// // Bit fields for DSCP and ECN
+/// #[derive(Pack, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4DscpEcn {
+///     dscp: U6,
+///     ecn: U2,
+/// }
+///
+/// // Bit fields for IPv4 flags and fragment offset
+/// #[derive(Pack, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4FlagsFragOff {
+///     flags: U3,
+///     frag_offset: U13,
+/// }
+///
+/// let mut buf: &[u8] = &[
+///     0x45,                    // version == 4, length == 5
+///     0x00,                    // dscp == 0, ecn == 0
+///     0x00, 0x14,              // total_len == 20
+///     0x12, 0x34,              // ident = 0x1234
+///     0x40, 0x00,              // flags == 3, frag_offset == 0
+///     0x80,                    // ttl == 128
+///     0xfe,                    // protocol = 0xfe
+///     0x43, 0x21,              // chksum == 0x4321
+///     0xc0, 0xa8, 0x00, 0x01,  // src_addr == 192.168.0.1
+///     0xc0, 0xa8, 0x00, 0x02,  // dst_addr == 192.168.0.2
+/// ];
+///
+/// assert_eq!(
+///     buf.decode(),
+///     Ok(Ipv4Header {
+///         ver_len: Ipv4VerLen {
+///             version: 4.into_masked(),
+///             length: 5.into_masked(),
+///         },
+///         dscp_ecn: Ipv4DscpEcn {
+///             dscp: 0.into_masked(),
+///             ecn: 0.into_masked(),
+///         },
+///         total_len: 20,
+///         ident: 0x1234,
+///         flags_frag_offset: Ipv4FlagsFragOff {
+///             flags: 2.into_masked(),
+///             frag_offset: 0.into_masked(),
+///         },
+///         ttl: 128,
+///         protocol: 0xfe,
+///         chksum: 0x4321,
+///         src_addr: [192, 168, 0, 1],
+///         dst_addr: [192, 168, 0, 2],
+///     }),
+/// );
+/// ```
 pub use sniffle_ende_derive::Decode;
 
 /// Error codes corresponding to the [`Decode`], [`DecodeBe`], and [`DecodeLe`] traits.

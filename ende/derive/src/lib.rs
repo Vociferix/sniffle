@@ -9,14 +9,14 @@ use syn::{
 fn crate_name() -> impl ToTokens {
     match pmc_crate_name("sniffle") {
         Ok(name) => match name {
-            FoundCrate::Itself => quote! { crate },
+            FoundCrate::Itself => quote! { ::sniffle },
             FoundCrate::Name(name) => {
                 let ident = Ident::new(&name, Span::call_site().into());
-                quote! { #ident }
+                quote! { ::#ident }
             }
         },
         Err(_) => match pmc_crate_name("sniffle-ende").unwrap() {
-            FoundCrate::Itself => quote! { crate },
+            FoundCrate::Itself => quote! { ::sniffle_ende },
             FoundCrate::Name(name) => {
                 let ident = Ident::new(&name, Span::call_site().into());
                 quote! { ::#ident }
@@ -25,7 +25,7 @@ fn crate_name() -> impl ToTokens {
     }
 }
 
-#[proc_macro_derive(Decode, attributes(big, little, padding))]
+#[proc_macro_derive(Decode, attributes(big, little))]
 pub fn decode(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -227,10 +227,10 @@ pub fn encode(input: TokenStream) -> TokenStream {
                         if let Meta::Path(ref attr) = attr.meta {
                             if let Some(attr) = attr.segments.first() {
                                 let attr_str = attr.ident.to_string();
-                                if attr_str == "big_endian" {
+                                if attr_str == "big" {
                                     is_be = true;
                                 }
-                                if attr_str == "little_endian" {
+                                if attr_str == "little" {
                                     is_le = true;
                                 }
                             }
@@ -267,10 +267,10 @@ pub fn encode(input: TokenStream) -> TokenStream {
                         if let Meta::Path(ref attr) = attr.meta {
                             if let Some(attr) = attr.segments.first() {
                                 let attr_str = attr.ident.to_string();
-                                if attr_str == "big_endian" {
+                                if attr_str == "big" {
                                     is_be = true;
                                 }
-                                if attr_str == "little_endian" {
+                                if attr_str == "little" {
                                     is_le = true;
                                 }
                             }
