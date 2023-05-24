@@ -333,13 +333,13 @@ unsafe impl bytemuck::Zeroable for MacAddress {}
 unsafe impl bytemuck::Pod for MacAddress {}
 
 impl Decode for MacAddress {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
-        self.0.decode(buf)
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode_from(buf)
     }
 
-    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
         let slice: &mut [HwAddress<6>] = bytemuck::cast_slice_mut(slice);
-        HwAddress::<6>::decode_slice(slice, buf)
+        HwAddress::<6>::decode_slice_from(slice, buf)
     }
 }
 
@@ -354,13 +354,13 @@ impl Encodable for MacAddress {
 }
 
 impl Encode for MacAddress {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.encode(&self.0)
     }
 
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         let slice: &[HwAddress<6>] = bytemuck::cast_slice(slice);
-        HwAddress::<6>::encode_slice(slice, buf)
+        HwAddress::<6>::encode_slice_to(slice, buf)
     }
 }
 

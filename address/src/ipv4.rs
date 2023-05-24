@@ -462,13 +462,13 @@ unsafe impl bytemuck::Zeroable for Ipv4Address {}
 unsafe impl bytemuck::Pod for Ipv4Address {}
 
 impl Decode for Ipv4Address {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
-        self.0.decode(buf)
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode_from(buf)
     }
 
-    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
         let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
-        bytes.decode(buf)
+        bytes.decode_from(buf)
     }
 }
 
@@ -483,13 +483,13 @@ impl Encodable for Ipv4Address {
 }
 
 impl Encode for Ipv4Address {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        self.0.encode(buf)
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+        self.0.encode_to(buf)
     }
 
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         let bytes: &[u8] = bytemuck::cast_slice(slice);
-        bytes.encode(buf)
+        bytes.encode_to(buf)
     }
 }
 

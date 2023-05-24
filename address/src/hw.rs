@@ -319,13 +319,13 @@ unsafe impl<const LEN: usize> bytemuck::Zeroable for HwAddress<LEN> {}
 unsafe impl<const LEN: usize> bytemuck::Pod for HwAddress<LEN> {}
 
 impl<const LEN: usize> Decode for HwAddress<LEN> {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
-        self.0.decode(buf)
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+        self.0.decode_from(buf)
     }
 
-    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<(), DecodeError> {
         let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
-        bytes.decode(buf)
+        bytes.decode_from(buf)
     }
 }
 
@@ -340,13 +340,13 @@ impl<const LEN: usize> Encodable for HwAddress<LEN> {
 }
 
 impl<const LEN: usize> Encode for HwAddress<LEN> {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        self.0.encode(buf);
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+        self.0.encode_to(buf);
     }
 
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         let bytes: &[u8] = bytemuck::cast_slice(slice);
-        bytes.encode(buf);
+        bytes.encode_to(buf);
     }
 }
 
