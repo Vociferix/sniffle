@@ -7,7 +7,7 @@ use sniffle_uint::*;
 /// Derive the [`Encode`] trait on a struct.
 ///
 /// Each field must implement [`Encode`], [`EncodeBe`], or [`EncodeLe`].
-/// Fields that implement [`EncodeBe`] and [`DecodeLe`] need to be annotated
+/// Fields that implement [`EncodeBe`] and [`EncodeLe`] need to be annotated
 /// with `#[big]` or `#[little]` to specify whether the field should be
 /// encoded as big endian or little endian.
 ///
