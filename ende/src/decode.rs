@@ -209,7 +209,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: Decode + Sized,
     {
-        init.decode(self)?;
+        init.decode_from(self)?;
         Ok(init)
     }
 
@@ -231,7 +231,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: DecodeBe + Sized,
     {
-        init.decode_be(self)?;
+        init.decode_be_from(self)?;
         Ok(init)
     }
 
@@ -253,7 +253,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: DecodeLe + Sized,
     {
-        init.decode_le(self)?;
+        init.decode_le_from(self)?;
         Ok(init)
     }
 
@@ -277,7 +277,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: Decode + ?Sized,
     {
-        item.decode(self)
+        item.decode_from(self)
     }
 
     /// Consume and decode big endian buffer data into a type implementing [`DecodeBe`].
@@ -300,7 +300,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: DecodeBe + ?Sized,
     {
-        item.decode_be(self)
+        item.decode_be_from(self)
     }
 
     /// Consume and decode little endian buffer data into a type implementing [`DecodeLe`].
@@ -323,7 +323,7 @@ pub trait DecodeBuf: Buf + Sized {
     where
         D: DecodeLe + ?Sized,
     {
-        item.decode_le(self)
+        item.decode_le_from(self)
     }
 }
 
@@ -343,7 +343,7 @@ pub trait Decode {
     ///
     /// // Note that this simple example can be derived with #[derive(Decode)]
     /// impl Decode for Addr {
-    ///     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_to(&mut self.addr_bytes)
     ///     }
     /// }
@@ -353,7 +353,7 @@ pub trait Decode {
     /// assert_eq!(addr.addr_bytes, [1, 2, 3, 4]);
     /// assert_eq!(buf, &[5, 6, 7, 8]);
     /// ```
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
     /// Implements parsing a portion of a buffer onto a slices of objects.
     ///
@@ -377,11 +377,11 @@ pub trait Decode {
     /// unsafe impl bytemuck::Pod for Addr { }
     ///
     /// impl Decode for Addr {
-    ///     fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_to(&mut self.addr_bytes)
     ///     }
     ///
-    ///     fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///     fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
     ///         -> Result<(), DecodeError>
     ///     {
     ///         let bytes: &mut [u8] = bytemuck::cast_slice_mut(slice);
@@ -395,12 +395,12 @@ pub trait Decode {
     /// assert_eq!(addr[1].addr_bytes, [5, 6, 7, 8]);
     /// assert_eq!(buf, &[9, 10, 11, 12]);
     /// ```
-    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
     {
         for item in slice.iter_mut() {
-            item.decode(buf)?;
+            item.decode_from(buf)?;
         }
         Ok(())
     }
@@ -424,7 +424,7 @@ pub trait DecodeBe {
     /// }
     ///
     /// impl DecodeBe for Example {
-    ///     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_be_to(&mut self.value)
     ///     }
     /// }
@@ -434,7 +434,7 @@ pub trait DecodeBe {
     /// assert_eq!(ex.value, 0x01020304);
     /// assert_eq!(buf, &[5, 6, 7, 8]);
     /// ```
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
     /// Implements parsing a portion of a buffer onto a slices of objects as big endian.
     ///
@@ -458,11 +458,11 @@ pub trait DecodeBe {
     /// unsafe impl bytemuck::Pod for Example { }
     ///
     /// impl DecodeBe for Example {
-    ///     fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_be_to(&mut self.value)
     ///     }
     ///
-    ///     fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///     fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
     ///         -> Result<(), DecodeError>
     ///     {
     ///         let values: &mut [u32] = bytemuck::cast_slice_mut(slice);
@@ -476,12 +476,12 @@ pub trait DecodeBe {
     /// assert_eq!(ex[1].value, 0x05060708);
     /// assert_eq!(buf, &[9, 10, 11, 12]);
     /// ```
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
     {
         for item in slice.iter_mut() {
-            item.decode_be(buf)?;
+            item.decode_be_from(buf)?;
         }
         Ok(())
     }
@@ -505,7 +505,7 @@ pub trait DecodeLe {
     /// }
     ///
     /// impl DecodeLe for Example {
-    ///     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_le_to(&mut self.value)
     ///     }
     /// }
@@ -515,7 +515,7 @@ pub trait DecodeLe {
     /// assert_eq!(ex.value, 0x04030201);
     /// assert_eq!(buf, &[5, 6, 7, 8]);
     /// ```
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()>;
 
     /// Implements parsing a portion of a buffer onto a slices of objects as little endian.
     ///
@@ -539,11 +539,11 @@ pub trait DecodeLe {
     /// unsafe impl bytemuck::Pod for Example { }
     ///
     /// impl DecodeLe for Example {
-    ///     fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
+    ///     fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<(), DecodeError> {
     ///         buf.decode_le_to(&mut self.value)
     ///     }
     ///
-    ///     fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
+    ///     fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B)
     ///         -> Result<(), DecodeError>
     ///     {
     ///         let values: &mut [u32] = bytemuck::cast_slice_mut(slice);
@@ -557,65 +557,65 @@ pub trait DecodeLe {
     /// assert_eq!(ex[1].value, 0x08070605);
     /// assert_eq!(buf, &[9, 10, 11, 12]);
     /// ```
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()>
     where
         Self: Sized,
     {
         for item in slice.iter_mut() {
-            item.decode_le(buf)?;
+            item.decode_le_from(buf)?;
         }
         Ok(())
     }
 }
 
 impl<D: Decode + Sized> Decode for [D] {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_slice(self, buf)
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_slice_from(self, buf)
     }
 }
 
 impl<D: DecodeBe + Sized> DecodeBe for [D] {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_be_slice(self, buf)
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_be_slice_from(self, buf)
     }
 }
 
 impl<D: DecodeLe + Sized> DecodeLe for [D] {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_le_slice(self, buf)
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_le_slice_from(self, buf)
     }
 }
 
 impl<D: Decode + Sized, const LEN: usize> Decode for [D; LEN] {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_slice(self, buf)
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_slice_from(self, buf)
     }
 }
 
 impl<D: DecodeBe + Sized, const LEN: usize> DecodeBe for [D; LEN] {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_be_slice(self, buf)
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_be_slice_from(self, buf)
     }
 }
 
 impl<D: DecodeLe + Sized, const LEN: usize> DecodeLe for [D; LEN] {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
-        D::decode_le_slice(self, buf)
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+        D::decode_le_slice_from(self, buf)
     }
 }
 
 impl Decode for () {
-    fn decode<B: DecodeBuf>(&mut self, _buf: &mut B) -> Result<()> {
+    fn decode_from<B: DecodeBuf>(&mut self, _buf: &mut B) -> Result<()> {
         Ok(())
     }
 
-    fn decode_slice<B: DecodeBuf>(_slice: &mut [Self], _buf: &mut B) -> Result<()> {
+    fn decode_slice_from<B: DecodeBuf>(_slice: &mut [Self], _buf: &mut B) -> Result<()> {
         Ok(())
     }
 }
 
 impl Decode for u8 {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if !buf.has_remaining() {
             Err(DecodeError::NeedMore)
         } else {
@@ -624,7 +624,7 @@ impl Decode for u8 {
         }
     }
 
-    fn decode_slice<B: DecodeBuf>(slice: &mut [u8], buf: &mut B) -> Result<()> {
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [u8], buf: &mut B) -> Result<()> {
         if buf.remaining() < slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -635,7 +635,7 @@ impl Decode for u8 {
 }
 
 impl Decode for i8 {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if !buf.has_remaining() {
             Err(DecodeError::NeedMore)
         } else {
@@ -644,7 +644,7 @@ impl Decode for i8 {
         }
     }
 
-    fn decode_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -655,7 +655,7 @@ impl Decode for i8 {
 }
 
 impl DecodeBe for u16 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -665,7 +665,7 @@ impl DecodeBe for u16 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -676,7 +676,7 @@ impl DecodeBe for u16 {
 }
 
 impl DecodeLe for u16 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -686,7 +686,7 @@ impl DecodeLe for u16 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -697,7 +697,7 @@ impl DecodeLe for u16 {
 }
 
 impl DecodeBe for i16 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -707,7 +707,7 @@ impl DecodeBe for i16 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -718,7 +718,7 @@ impl DecodeBe for i16 {
 }
 
 impl DecodeLe for i16 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -728,7 +728,7 @@ impl DecodeLe for i16 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -739,7 +739,7 @@ impl DecodeLe for i16 {
 }
 
 impl DecodeBe for u32 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -749,7 +749,7 @@ impl DecodeBe for u32 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -760,7 +760,7 @@ impl DecodeBe for u32 {
 }
 
 impl DecodeLe for u32 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -770,7 +770,7 @@ impl DecodeLe for u32 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -781,7 +781,7 @@ impl DecodeLe for u32 {
 }
 
 impl DecodeBe for i32 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -791,7 +791,7 @@ impl DecodeBe for i32 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -802,7 +802,7 @@ impl DecodeBe for i32 {
 }
 
 impl DecodeLe for i32 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -812,7 +812,7 @@ impl DecodeLe for i32 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -823,7 +823,7 @@ impl DecodeLe for i32 {
 }
 
 impl DecodeBe for u64 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -833,7 +833,7 @@ impl DecodeBe for u64 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -844,7 +844,7 @@ impl DecodeBe for u64 {
 }
 
 impl DecodeLe for u64 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -854,7 +854,7 @@ impl DecodeLe for u64 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -865,7 +865,7 @@ impl DecodeLe for u64 {
 }
 
 impl DecodeBe for i64 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -875,7 +875,7 @@ impl DecodeBe for i64 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -886,7 +886,7 @@ impl DecodeBe for i64 {
 }
 
 impl DecodeLe for i64 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -896,7 +896,7 @@ impl DecodeLe for i64 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -907,7 +907,7 @@ impl DecodeLe for i64 {
 }
 
 impl DecodeBe for u128 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -917,7 +917,7 @@ impl DecodeBe for u128 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -928,7 +928,7 @@ impl DecodeBe for u128 {
 }
 
 impl DecodeLe for u128 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -938,7 +938,7 @@ impl DecodeLe for u128 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -949,7 +949,7 @@ impl DecodeLe for u128 {
 }
 
 impl DecodeBe for i128 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -959,7 +959,7 @@ impl DecodeBe for i128 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -970,7 +970,7 @@ impl DecodeBe for i128 {
 }
 
 impl DecodeLe for i128 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -980,7 +980,7 @@ impl DecodeLe for i128 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -991,7 +991,7 @@ impl DecodeLe for i128 {
 }
 
 impl DecodeBe for f32 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1001,7 +1001,7 @@ impl DecodeBe for f32 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1012,7 +1012,7 @@ impl DecodeBe for f32 {
 }
 
 impl DecodeLe for f32 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1022,7 +1022,7 @@ impl DecodeLe for f32 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1033,7 +1033,7 @@ impl DecodeLe for f32 {
 }
 
 impl DecodeBe for f64 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1043,7 +1043,7 @@ impl DecodeBe for f64 {
     }
 
     #[cfg(target_endian = "big")]
-    fn decode_be_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_be_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1054,7 +1054,7 @@ impl DecodeBe for f64 {
 }
 
 impl DecodeLe for f64 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1064,7 +1064,7 @@ impl DecodeLe for f64 {
     }
 
     #[cfg(target_endian = "little")]
-    fn decode_le_slice<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
+    fn decode_le_slice_from<B: DecodeBuf>(slice: &mut [Self], buf: &mut B) -> Result<()> {
         if buf.remaining() < std::mem::size_of::<Self>() * slice.len() {
             Err(DecodeError::NeedMore)
         } else {
@@ -1075,7 +1075,7 @@ impl DecodeLe for f64 {
 }
 
 impl DecodeBe for U24 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 3 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1088,7 +1088,7 @@ impl DecodeBe for U24 {
 }
 
 impl DecodeLe for U24 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 3 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1101,7 +1101,7 @@ impl DecodeLe for U24 {
 }
 
 impl DecodeBe for U40 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 5 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1114,7 +1114,7 @@ impl DecodeBe for U40 {
 }
 
 impl DecodeLe for U40 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 5 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1127,7 +1127,7 @@ impl DecodeLe for U40 {
 }
 
 impl DecodeBe for U48 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 6 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1140,7 +1140,7 @@ impl DecodeBe for U48 {
 }
 
 impl DecodeLe for U48 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 8 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1153,7 +1153,7 @@ impl DecodeLe for U48 {
 }
 
 impl DecodeBe for U56 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 7 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1166,7 +1166,7 @@ impl DecodeBe for U56 {
 }
 
 impl DecodeLe for U56 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 7 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1180,7 +1180,7 @@ impl DecodeLe for U56 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U72 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 9 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1194,7 +1194,7 @@ impl DecodeBe for U72 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U72 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 9 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1208,7 +1208,7 @@ impl DecodeLe for U72 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U80 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 10 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1222,7 +1222,7 @@ impl DecodeBe for U80 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U80 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 10 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1236,7 +1236,7 @@ impl DecodeLe for U80 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U88 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 11 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1250,7 +1250,7 @@ impl DecodeBe for U88 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U88 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 11 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1264,7 +1264,7 @@ impl DecodeLe for U88 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U96 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 12 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1278,7 +1278,7 @@ impl DecodeBe for U96 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U96 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 12 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1292,7 +1292,7 @@ impl DecodeLe for U96 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U104 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 13 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1306,7 +1306,7 @@ impl DecodeBe for U104 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U104 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 13 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1320,7 +1320,7 @@ impl DecodeLe for U104 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U112 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 14 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1334,7 +1334,7 @@ impl DecodeBe for U112 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U112 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 14 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1348,7 +1348,7 @@ impl DecodeLe for U112 {
 
 #[cfg(feature = "u128")]
 impl DecodeBe for U120 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 15 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1362,7 +1362,7 @@ impl DecodeBe for U120 {
 
 #[cfg(feature = "u128")]
 impl DecodeLe for U120 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         if buf.remaining() < 15 {
             Err(DecodeError::NeedMore)
         } else {
@@ -1379,7 +1379,7 @@ where
     T: Pack,
     <T as Pack>::Packed: Decode + Default,
 {
-    fn decode<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack_from(buf.decode()?);
         Ok(())
     }
@@ -1390,7 +1390,7 @@ where
     T: Pack,
     <T as Pack>::Packed: DecodeBe + Default,
 {
-    fn decode_be<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_be_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack_from(buf.decode_be()?);
         Ok(())
     }
@@ -1401,7 +1401,7 @@ where
     T: Pack,
     <T as Pack>::Packed: DecodeLe + Default,
 {
-    fn decode_le<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
+    fn decode_le_from<B: DecodeBuf>(&mut self, buf: &mut B) -> Result<()> {
         *self = Self::unpack_from(buf.decode_le()?);
         Ok(())
     }

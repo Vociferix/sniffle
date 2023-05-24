@@ -72,15 +72,15 @@ pub fn decode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::DecodeBe::decode_be(&mut self.#name, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::DecodeBe::decode_be_from(&mut self.#name, __sniffle_ende_decode_buf_value)?;
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::DecodeLe::decode_le(&mut self.#name, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::DecodeLe::decode_le_from(&mut self.#name, __sniffle_ende_decode_buf_value)?;
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::Decode::decode(&mut self.#name, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::Decode::decode_from(&mut self.#name, __sniffle_ende_decode_buf_value)?;
                         }
                     }
                 });
@@ -115,15 +115,15 @@ pub fn decode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::DecodeBe::decode_be(&mut self.#index, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::DecodeBe::decode_be_from(&mut self.#index, __sniffle_ende_decode_buf_value)?;
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::DecodeLe::decode_le(&mut self.#index, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::DecodeLe::decode_le_from(&mut self.#index, __sniffle_ende_decode_buf_value)?;
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::decode::Decode::decode(&mut self.#index, __sniffle_ende_decode_buf_value)?;
+                            #crate_name::decode::Decode::decode_from(&mut self.#index, __sniffle_ende_decode_buf_value)?;
                         }
                     }
                 });
@@ -143,14 +143,14 @@ pub fn decode(input: TokenStream) -> TokenStream {
 
     quote! {
         impl #impl_generics #crate_name::decode::Decode for #name #ty_generics #where_clause {
-            fn decode<__sniffle_ende_decode_buf_type: #crate_name::decode::DecodeBuf>(&mut self, __sniffle_ende_decode_buf_value: &mut __sniffle_ende_decode_buf_type) -> ::std::result::Result<(), #crate_name::decode::DecodeError> {
+            fn decode_from<__sniffle_ende_decode_buf_type: #crate_name::decode::DecodeBuf>(&mut self, __sniffle_ende_decode_buf_value: &mut __sniffle_ende_decode_buf_type) -> ::std::result::Result<(), #crate_name::decode::DecodeError> {
                 #steps
             }
         }
     }.into()
 }
 
-#[proc_macro_derive(Encode)]
+#[proc_macro_derive(Encode, attributes(big, little))]
 pub fn encode(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -241,21 +241,21 @@ pub fn encode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::EncodeBe::encode_be(&self.#name, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::EncodeBe::encode_be_to(&self.#name, __sniffle_ende_encode_buf_value);
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::EncodeLe::encode_le(&self.#name, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::EncodeLe::encode_le_to(&self.#name, __sniffle_ende_encode_buf_value);
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::Encode::encode(&self.#name, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::Encode::encode_to(&self.#name, __sniffle_ende_encode_buf_value);
                         }
                     }
                 });
                 quote! {
                     #(#recurse)*
-                    Ok(())
+                    ()
                 }
             }
             Fields::Unnamed(ref fields) => {
@@ -281,15 +281,15 @@ pub fn encode(input: TokenStream) -> TokenStream {
                     }
                     if is_be {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::EncodeBe::encode_be(&self.#index, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::EncodeBe::encode_be_to(&self.#index, __sniffle_ende_encode_buf_value);
                         }
                     } else if is_le {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::EncodeLe::encode_le(&self.#index, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::EncodeLe::encode_le_to(&self.#index, __sniffle_ende_encode_buf_value);
                         }
                     } else {
                         quote_spanned! {f.span()=>
-                            #crate_name::encode::Encode::encode(&self.#index, __sniffle_ende_encode_buf_value);
+                            #crate_name::encode::Encode::encode_to(&self.#index, __sniffle_ende_encode_buf_value);
                         }
                     }
                 });
@@ -309,13 +309,13 @@ pub fn encode(input: TokenStream) -> TokenStream {
 
     quote! {
         impl #encodable_impl_generics #crate_name::encode::Encodable for #name #encodable_ty_generics #encodable_where_clause {
-            fn encoded_sized(&self) -> usize {
+            fn encoded_size(&self) -> usize {
                 #encodable_steps
             }
         }
 
         impl #encode_impl_generics #crate_name::encode::Encode for #name #encode_ty_generics #encode_where_clause {
-            fn encode<__sniffle_ende_encode_buf_type: #crate_name::encode::EncodeBuf>(&self, __sniffle_ende_encode_buf_value: &mut __sniffle_ende_encode_buf_type) {
+            fn encode_to<__sniffle_ende_encode_buf_type: #crate_name::encode::EncodeBuf>(&self, __sniffle_ende_encode_buf_value: &mut __sniffle_ende_encode_buf_type) {
                 #encode_steps
             }
         }

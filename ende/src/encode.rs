@@ -4,6 +4,97 @@ use crate::pack::Pack;
 
 use sniffle_uint::*;
 
+/// Derive the [`Encode`] trait on a struct.
+///
+/// Each field must implement [`Encode`], [`EncodeBe`], or [`EncodeLe`].
+/// Fields that implement [`EncodeBe`] and [`DecodeLe`] need to be annotated
+/// with `#[big]` or `#[little]` to specify whether the field should be
+/// encoded as big endian or little endian.
+///
+/// This trait also derives the [`Encodable`] trait, which is a
+/// prerequisite of the [`Encode`] trait.
+///
+/// ## Example
+/// ```
+/// # use sniffle_ende::{pack::Pack, encode::Encode, encode::EncodeBuf};
+/// # use sniffle_uint::*;
+/// #[derive(Encode, Debug, Default, PartialEq, Eq)]
+/// struct Ipv4Header {
+///     ver_len: Ipv4VerLen,
+///     dscp_ecn: Ipv4DscpEcn,
+///     #[big]
+///     total_len: u16,
+///     #[big]
+///     ident: u16,
+///     #[big]
+///     flags_frag_offset: Ipv4FlagsFragOff,
+///     ttl: u8,
+///     protocol: u8,
+///     #[big]
+///     chksum: u16,
+///     src_addr: [u8; 4],
+///     dst_addr: [u8; 4],
+/// }
+///
+/// // Bit fields for version and length
+/// #[derive(Pack, Clone, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4VerLen {
+///     version: U4,
+///     length: U4,
+/// }
+///
+/// // Bit fields for DSCP and ECN
+/// #[derive(Pack, Clone, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4DscpEcn {
+///     dscp: U6,
+///     ecn: U2,
+/// }
+///
+/// // Bit fields for IPv4 flags and fragment offset
+/// #[derive(Pack, Clone, Default, Debug, PartialEq, Eq)]
+/// struct Ipv4FlagsFragOff {
+///     flags: U3,
+///     frag_offset: U13,
+/// }
+///
+/// let hdr = Ipv4Header {
+///     ver_len: Ipv4VerLen {
+///         version: 4.into_masked(),
+///         length: 5.into_masked(),
+///     },
+///     dscp_ecn: Ipv4DscpEcn {
+///         dscp: 0.into_masked(),
+///         ecn: 0.into_masked(),
+///     },
+///     total_len: 20,
+///     ident: 0x1234,
+///     flags_frag_offset: Ipv4FlagsFragOff {
+///         flags: 2.into_masked(),
+///         frag_offset: 0.into_masked(),
+///     },
+///     ttl: 128,
+///     protocol: 0xfe,
+///     chksum: 0x4321,
+///     src_addr: [192, 168, 0, 1],
+///     dst_addr: [192, 168, 0, 2],
+/// };
+/// let mut buffer = [0u8; 20];
+/// let mut buf: &mut [u8] = &mut buffer;
+/// buf.encode(&hdr);
+///
+/// assert_eq!(buffer, [
+///     0x45,                    // version == 4, length == 5
+///     0x00,                    // dscp == 0, ecn == 0
+///     0x00, 0x14,              // total_len == 20
+///     0x12, 0x34,              // ident = 0x1234
+///     0x40, 0x00,              // flags == 3, frag_offset == 0
+///     0x80,                    // ttl == 128
+///     0xfe,                    // protocol = 0xfe
+///     0x43, 0x21,              // chksum == 0x4321
+///     0xc0, 0xa8, 0x00, 0x01,  // src_addr == 192.168.0.1
+///     0xc0, 0xa8, 0x00, 0x02,  // dst_addr == 192.168.0.2
+/// ])
+/// ```
 pub use sniffle_ende_derive::Encode;
 
 /// Trait representing an encodable data output buffer.
@@ -62,7 +153,7 @@ pub trait EncodeBuf: BufMut + Sized {
     /// assert_eq!(buffer, [1, 2, 3, 4, 0, 0, 0, 0]);
     /// ```
     fn encode<E: Encode + ?Sized>(&mut self, item: &E) {
-        item.encode(self)
+        item.encode_to(self)
     }
 
     /// Encodes an object implementing [`EncodeBe`] as big endian onto the buffer.
@@ -77,7 +168,7 @@ pub trait EncodeBuf: BufMut + Sized {
     /// assert_eq!(buffer, [1, 2, 3, 4, 0, 0, 0, 0]);
     /// ```
     fn encode_be<E: EncodeBe + ?Sized>(&mut self, item: &E) {
-        item.encode_be(self)
+        item.encode_be_to(self)
     }
 
     /// Encodes an object implementing [`EncodeLe`] as little endian onto the buffer.
@@ -92,7 +183,7 @@ pub trait EncodeBuf: BufMut + Sized {
     /// assert_eq!(buffer, [1, 2, 3, 4, 0, 0, 0, 0]);
     /// ```
     fn encode_le<E: EncodeLe + ?Sized>(&mut self, item: &E) {
-        item.encode_le(self)
+        item.encode_le_to(self)
     }
 }
 
@@ -176,8 +267,8 @@ pub trait Encode: Encodable {
     ///
     /// // note that this simple example can be derived with #[derive(Encode)]
     /// impl Encode for Addr {
-    ///     fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.addr_bytes.encode(buf)
+    ///     fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.addr_bytes.encode_to(buf)
     ///     }
     /// }
     ///
@@ -188,7 +279,7 @@ pub trait Encode: Encodable {
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [1, 2, 3, 4, 0, 0, 0, 0]);
     /// ```
-    fn encode<B: EncodeBuf>(&self, buf: &mut B);
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B);
 
     /// Implements encoding a slice of objects onto a buffer.
     ///
@@ -224,11 +315,11 @@ pub trait Encode: Encodable {
     /// }
     ///
     /// impl Encode for Addr {
-    ///     fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.addr_bytes.encode(buf)
+    ///     fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.addr_bytes.encode_to(buf)
     ///     }
     ///
-    ///     fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    ///     fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
     ///         let bytes: &[u8] = bytemuck::cast_slice(slice);
     ///         buf.encode(bytes)
     ///     }
@@ -241,12 +332,12 @@ pub trait Encode: Encodable {
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [1, 2, 3, 4, 4, 3, 2, 1, 0, 0, 0, 0]);
     /// ```
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B)
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B)
     where
         Self: Sized,
     {
         for item in slice.iter() {
-            item.encode(buf)
+            item.encode_to(buf)
         }
     }
 }
@@ -275,8 +366,8 @@ pub trait EncodeBe: Encodable {
     /// }
     ///
     /// impl EncodeBe for Example {
-    ///     fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.value.encode_be(buf);
+    ///     fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.value.encode_be_to(buf);
     ///     }
     /// }
     ///
@@ -287,7 +378,7 @@ pub trait EncodeBe: Encodable {
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [1, 2, 3, 4, 0, 0, 0, 0]);
     /// ```
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B);
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B);
 
     /// Implements encoding a slice of objects as big endian onto a buffer.
     ///
@@ -323,11 +414,11 @@ pub trait EncodeBe: Encodable {
     /// }
     ///
     /// impl EncodeBe for Example {
-    ///     fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.value.encode_be(buf);
+    ///     fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.value.encode_be_to(buf);
     ///     }
     ///
-    ///     fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    ///     fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
     ///         let values: &[u32] = bytemuck::cast_slice(slice);
     ///         buf.encode_be(values)
     ///     }
@@ -339,12 +430,12 @@ pub trait EncodeBe: Encodable {
     /// buf.encode_be(&exs);
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [1, 2, 3, 4, 4, 3, 2, 1, 0, 0, 0, 0]);
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B)
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B)
     where
         Self: Sized,
     {
         for item in slice.iter() {
-            item.encode_be(buf)
+            item.encode_be_to(buf)
         }
     }
 }
@@ -373,8 +464,8 @@ pub trait EncodeLe: Encodable {
     /// }
     ///
     /// impl EncodeLe for Example {
-    ///     fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.value.encode_le(buf);
+    ///     fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.value.encode_le_to(buf);
     ///     }
     /// }
     ///
@@ -385,7 +476,7 @@ pub trait EncodeLe: Encodable {
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [4, 3, 2, 1, 0, 0, 0, 0]);
     /// ```
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B);
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B);
 
     /// Implements encoding a slice of objects as little endian onto a buffer.
     ///
@@ -421,11 +512,11 @@ pub trait EncodeLe: Encodable {
     /// }
     ///
     /// impl EncodeLe for Example {
-    ///     fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
-    ///         self.value.encode_le(buf);
+    ///     fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
+    ///         self.value.encode_le_to(buf);
     ///     }
     ///
-    ///     fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    ///     fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
     ///         let values: &[u32] = bytemuck::cast_slice(slice);
     ///         buf.encode_le(values)
     ///     }
@@ -437,12 +528,12 @@ pub trait EncodeLe: Encodable {
     /// buf.encode_le(&exs);
     /// assert_eq!(buf, &mut [0, 0, 0, 0]);
     /// assert_eq!(buffer, [4, 3, 2, 1, 1, 2, 3, 4, 0, 0, 0, 0]);
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B)
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B)
     where
         Self: Sized,
     {
         for item in slice.iter() {
-            item.encode_le(buf)
+            item.encode_le_to(buf)
         }
     }
 }
@@ -454,20 +545,20 @@ impl<E: Encodable> Encodable for [E] {
 }
 
 impl<E: Encode> Encode for [E] {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_slice(self, buf)
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_slice_to(self, buf)
     }
 }
 
 impl<E: EncodeBe> EncodeBe for [E] {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_be_slice(self, buf)
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_be_slice_to(self, buf)
     }
 }
 
 impl<E: EncodeLe> EncodeLe for [E] {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_le_slice(self, buf)
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_le_slice_to(self, buf)
     }
 }
 
@@ -478,20 +569,20 @@ impl<E: Encodable, const LEN: usize> Encodable for [E; LEN] {
 }
 
 impl<E: Encode, const LEN: usize> Encode for [E; LEN] {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_slice(self, buf)
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_slice_to(self, buf)
     }
 }
 
 impl<E: EncodeBe, const LEN: usize> EncodeBe for [E; LEN] {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_be_slice(self, buf)
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_be_slice_to(self, buf)
     }
 }
 
 impl<E: EncodeLe, const LEN: usize> EncodeLe for [E; LEN] {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
-        E::encode_le_slice(self, buf)
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
+        E::encode_le_slice_to(self, buf)
     }
 }
 
@@ -506,9 +597,9 @@ impl Encodable for () {
 }
 
 impl Encode for () {
-    fn encode<B: EncodeBuf>(&self, _buf: &mut B) {}
+    fn encode_to<B: EncodeBuf>(&self, _buf: &mut B) {}
 
-    fn encode_slice<B: EncodeBuf>(_slice: &[Self], _buf: &mut B) {}
+    fn encode_slice_to<B: EncodeBuf>(_slice: &[Self], _buf: &mut B) {}
 }
 
 impl Encodable for u8 {
@@ -522,11 +613,11 @@ impl Encodable for u8 {
 }
 
 impl Encode for u8 {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u8(*self);
     }
 
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(slice)
     }
 }
@@ -542,11 +633,11 @@ impl Encodable for i8 {
 }
 
 impl Encode for i8 {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i8(*self);
     }
 
-    fn encode_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -562,23 +653,23 @@ impl Encodable for u16 {
 }
 
 impl EncodeBe for u16 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u16(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for u16 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u16_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -594,23 +685,23 @@ impl Encodable for i16 {
 }
 
 impl EncodeBe for i16 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i16(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for i16 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i16_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -626,23 +717,23 @@ impl Encodable for u32 {
 }
 
 impl EncodeBe for u32 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u32(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for u32 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u32_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -658,23 +749,23 @@ impl Encodable for i32 {
 }
 
 impl EncodeBe for i32 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i32(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for i32 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i32_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -690,23 +781,23 @@ impl Encodable for u64 {
 }
 
 impl EncodeBe for u64 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u64(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for u64 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u64_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -722,23 +813,23 @@ impl Encodable for i64 {
 }
 
 impl EncodeBe for i64 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i64(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for i64 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i64_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -754,23 +845,23 @@ impl Encodable for u128 {
 }
 
 impl EncodeBe for u128 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u128(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for u128 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_u128_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -786,23 +877,23 @@ impl Encodable for i128 {
 }
 
 impl EncodeBe for i128 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i128(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for i128 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_i128_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -818,23 +909,23 @@ impl Encodable for f32 {
 }
 
 impl EncodeBe for f32 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_f32(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for f32 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_f32_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -850,23 +941,23 @@ impl Encodable for f64 {
 }
 
 impl EncodeBe for f64 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_f64(*self);
     }
 
     #[cfg(target_endian = "big")]
-    fn encode_be_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_be_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
 
 impl EncodeLe for f64 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         buf.put_f64_le(*self);
     }
 
     #[cfg(target_endian = "little")]
-    fn encode_le_slice<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
+    fn encode_le_slice_to<B: EncodeBuf>(slice: &[Self], buf: &mut B) {
         buf.put(bytemuck::cast_slice(slice))
     }
 }
@@ -882,14 +973,14 @@ impl Encodable for U24 {
 }
 
 impl EncodeBe for U24 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u32 = (*self).into();
         buf.put(&tmp.to_be_bytes()[1..]);
     }
 }
 
 impl EncodeLe for U24 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u32 = (*self).into();
         buf.put(&tmp.to_le_bytes()[1..]);
     }
@@ -906,14 +997,14 @@ impl Encodable for U40 {
 }
 
 impl EncodeBe for U40 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_be_bytes()[3..]);
     }
 }
 
 impl EncodeLe for U40 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_le_bytes()[3..]);
     }
@@ -930,14 +1021,14 @@ impl Encodable for U48 {
 }
 
 impl EncodeBe for U48 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_be_bytes()[2..]);
     }
 }
 
 impl EncodeLe for U48 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_le_bytes()[2..]);
     }
@@ -954,14 +1045,14 @@ impl Encodable for U56 {
 }
 
 impl EncodeBe for U56 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_be_bytes()[1..]);
     }
 }
 
 impl EncodeLe for U56 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u64 = (*self).into();
         buf.put(&tmp.to_le_bytes()[1..]);
     }
@@ -980,7 +1071,7 @@ impl Encodable for U72 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U72 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[7..]);
     }
@@ -988,7 +1079,7 @@ impl EncodeBe for U72 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U72 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[7..]);
     }
@@ -1007,7 +1098,7 @@ impl Encodable for U80 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U80 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[6..]);
     }
@@ -1015,7 +1106,7 @@ impl EncodeBe for U80 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U80 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[6..]);
     }
@@ -1034,7 +1125,7 @@ impl Encodable for U88 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U88 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[5..]);
     }
@@ -1042,7 +1133,7 @@ impl EncodeBe for U88 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U88 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[5..]);
     }
@@ -1061,7 +1152,7 @@ impl Encodable for U96 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U96 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[4..]);
     }
@@ -1069,7 +1160,7 @@ impl EncodeBe for U96 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U96 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[4..]);
     }
@@ -1088,7 +1179,7 @@ impl Encodable for U104 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U104 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[3..]);
     }
@@ -1096,7 +1187,7 @@ impl EncodeBe for U104 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U104 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[3..]);
     }
@@ -1115,7 +1206,7 @@ impl Encodable for U112 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U112 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[2..]);
     }
@@ -1123,7 +1214,7 @@ impl EncodeBe for U112 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U112 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[2..]);
     }
@@ -1142,7 +1233,7 @@ impl Encodable for U120 {
 
 #[cfg(feature = "u128")]
 impl EncodeBe for U120 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_be_bytes()[1..]);
     }
@@ -1150,7 +1241,7 @@ impl EncodeBe for U120 {
 
 #[cfg(feature = "u128")]
 impl EncodeLe for U120 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
         let tmp: u128 = (*self).into();
         buf.put(&tmp.to_le_bytes()[1..]);
     }
@@ -1175,8 +1266,8 @@ where
     T: Pack + Clone,
     <T as Pack>::Packed: Encode + Default,
 {
-    fn encode<B: EncodeBuf>(&self, buf: &mut B) {
-        self.clone().pack().encode(buf);
+    fn encode_to<B: EncodeBuf>(&self, buf: &mut B) {
+        self.clone().pack().encode_to(buf);
     }
 }
 
@@ -1185,8 +1276,8 @@ where
     T: Pack + Clone,
     <T as Pack>::Packed: EncodeBe + Default,
 {
-    fn encode_be<B: EncodeBuf>(&self, buf: &mut B) {
-        self.clone().pack().encode_be(buf);
+    fn encode_be_to<B: EncodeBuf>(&self, buf: &mut B) {
+        self.clone().pack().encode_be_to(buf);
     }
 }
 
@@ -1195,7 +1286,7 @@ where
     T: Pack + Clone,
     <T as Pack>::Packed: EncodeLe + Default,
 {
-    fn encode_le<B: EncodeBuf>(&self, buf: &mut B) {
-        self.clone().pack().encode_le(buf);
+    fn encode_le_to<B: EncodeBuf>(&self, buf: &mut B) {
+        self.clone().pack().encode_le_to(buf);
     }
 }
