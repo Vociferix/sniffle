@@ -21,13 +21,12 @@ pub use sniffle_address_macros::{
 mod hw;
 mod ipv4;
 mod ipv6;
-mod mac;
+pub mod oui;
 
 pub use hw::*;
 pub use ipv4::*;
 pub use ipv6::*;
-pub use mac::oui;
-pub use mac::MacAddress;
+pub use oui::Oui;
 
 /// Macro that supports compile time evaluated `MacAddress` literals.
 ///

@@ -16,6 +16,8 @@ use sniffle_address_parse::parse_hw;
 #[repr(transparent)]
 pub struct HwAddress<const LEN: usize>([u8; LEN]);
 
+pub type MacAddress = HwAddress<6>;
+
 impl<const LEN: usize> HwAddress<LEN> {
     /// The typical broadcast address for hardware addresses
     ///
