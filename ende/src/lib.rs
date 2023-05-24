@@ -7,17 +7,21 @@
 //! is to support the `sniffle` crate, which implements reading and writing
 //! raw network traffic.
 //!
-//! # Motivating example:
+//! # Motivating Example
 //! ```
-//! # use sniffle_uint::*;
-//! # use sniffle_ende::{
-//! #     pack::Pack,
-//! #     encode::{Encode, EncodeBuf},
-//! #     decode::{Decode, DecodeBuf, DecodeError}
-//! # };
+//! // Standalone import
+//! use sniffle_uint::*;
+//! use sniffle_ende::{
+//!     pack::Pack,
+//!     encode::{Encode, EncodeBuf},
+//!     decode::{Decode, DecodeBuf}
+//! };
+//!
+//! // Import via sniffle
 //! // use sniffle::uint::*;
 //! // use sniffle::encode::{Encode, EncodeBuf};
-//! // use sniffle::decode::{Decode, DecodeBuf, DecodeError};
+//! // use sniffle::decode::{Decode, DecodeBuf};
+//! // use sniffle::pack::Pack;
 //!
 //! // Implementation of the IPv4 datagram header (without IPv4 options)
 //! #[derive(Decode, Encode, Debug, Default, PartialEq, Eq)]
