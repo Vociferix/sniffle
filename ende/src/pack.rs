@@ -1,5 +1,40 @@
 use sniffle_uint::*;
 
+/// Derive the [`Pack`] trait on a struct.
+///
+/// A struct consisting of unsigned integers (either primitive or from the
+/// [`sniffle::uint`](sniffle_uint) crate) and with total effective size less
+/// than 64 bits (or 128 with the `u128` feature enabled) can derive [`Pack`].
+/// Fields will be packed into an unsigned integer in the order that they are
+/// defined in the struct, from most to least significant.
+///
+/// ## Example
+/// ```
+/// # use sniffle_ende::pack::{Pack, Unpack};
+/// # use sniffle_uint::*;
+/// #[derive(Pack, Debug, PartialEq, Eq)]
+/// struct BitFields {
+///     a: U3,
+///     b: u8,
+///     c: U5,
+/// }
+///
+/// let unpacked = BitFields {
+///     a: 0b010.into_masked(),
+///     b: 0b01101010,
+///     c: 0b11100.into_masked(),
+/// };
+///
+/// let packed = unpacked.pack();
+/// assert_eq!(packed, 0b_010_01101010_11100u16);
+///
+/// let unpacked: BitFields = packed.unpack();
+/// assert_eq!(unpacked, BitFields {
+///     a: 0b010.into_masked(),
+///     b: 0b01101010,
+///     c: 0b11100.into_masked(),
+/// });
+/// ```
 pub use sniffle_ende_derive::Pack;
 
 /// A trait that defines how to pack and unpack fields of `struct` or tuple.
