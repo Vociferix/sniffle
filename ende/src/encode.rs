@@ -87,7 +87,7 @@ use sniffle_uint::*;
 ///     0x00,                    // dscp == 0, ecn == 0
 ///     0x00, 0x14,              // total_len == 20
 ///     0x12, 0x34,              // ident = 0x1234
-///     0x40, 0x00,              // flags == 3, frag_offset == 0
+///     0x40, 0x00,              // flags == 2, frag_offset == 0
 ///     0x80,                    // ttl == 128
 ///     0xfe,                    // protocol = 0xfe
 ///     0x43, 0x21,              // chksum == 0x4321
